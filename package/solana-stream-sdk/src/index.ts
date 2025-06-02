@@ -21,3 +21,21 @@ export {
   SubscribeRequestFilterSlots,
   SubscribeRequestFilterTransactions,
 }
+
+export {
+  CommitmentLevel as ShredsCommitmentLevel,
+  ShredstreamProxyClient,
+  ShredstreamClient,
+  SubscribeEntriesRequest as ShredsSubscribeEntriesRequestFns,
+  Entry as ShredsEntryFns,
+} from './generated/shredstream'
+
+export type {
+  SubscribeEntriesRequest as ShredsSubscribeEntriesRequest,
+  SubscribeRequestFilterAccounts as ShredsSubscribeRequestFilterAccounts,
+  SubscribeRequestFilterTransactions as ShredsSubscribeRequestFilterTransactions,
+  SubscribeRequestFilterSlots as ShredsSubscribeRequestFilterSlots,
+  Entry as ShredsEntry,
+} from './generated/shredstream'
+
+export { credentials, Metadata } from '@grpc/grpc-js'

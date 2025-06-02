@@ -1,6 +1,6 @@
 {
-  "name": "geyser-ts",
-  "description": "Solana Geyser gRPC TypeScript Client",
+  "name": "shreds-ts",
+  "description": "Solana Shreds TypeScript Client",
   "version": "1.0.0",
   "main": "dist/index.js",
   "type": "module",

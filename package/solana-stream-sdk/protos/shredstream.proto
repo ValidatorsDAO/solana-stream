@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package shredstream;
+
+import "shared.proto";
+import "google/protobuf/timestamp.proto";
+
+message Heartbeat {
+  // don't trust IP:PORT from tcp header since it can be tampered over the wire
+  // `socket.ip` must match incoming packet's ip. this prevents spamming an unwitting destination
+  shared.Socket socket = 1;
+
+  // regions for shredstream proxy to receive shreds from
+  // list of valid regions: https://docs.jito.wtf/lowlatencytxnsend/#api
+  repeated string regions = 2;
+}
+
+message HeartbeatResponse {
+  // client must respond within `ttl_ms` to keep stream alive
+  uint32 ttl_ms = 1;
+}
+
+service Shredstream {
+  // RPC endpoint to send heartbeats to keep shreds flowing
+  rpc SendHeartbeat (Heartbeat) returns (HeartbeatResponse) {}
+}
+
+message TraceShred {
+  // source region, one of: https://docs.jito.wtf/lowlatencytxnsend/#api
+  string region = 1;
+  // timestamp of creation
+  google.protobuf.Timestamp created_at = 2;
+  // monotonically increases, resets upon service restart
+  uint32 seq_num = 3;
+}
+
+
+// Shredstream Proxy
+
+service ShredstreamProxy {
+  rpc SubscribeEntries(SubscribeEntriesRequest) returns (stream Entry);
+}
+
+message SubscribeEntriesRequest {
+  map<string, SubscribeRequestFilterAccounts> accounts = 1;
+    map<string, SubscribeRequestFilterTransactions> transactions = 3;
+    map<string, SubscribeRequestFilterSlots> slots = 2;
+    optional CommitmentLevel commitment = 6;
+}
+
+message SubscribeRequestFilterAccounts {
+  repeated string account = 2;
+  repeated string owner = 3;
+  repeated SubscribeRequestFilterAccountsFilter filters = 4;
+  optional bool nonempty_txn_signature = 5;
+}
+
+message SubscribeRequestFilterAccountsFilter {
+  oneof filter {
+    SubscribeRequestFilterAccountsFilterMemcmp memcmp = 1;
+    uint64 datasize = 2;
+    bool token_account_state = 3;
+    SubscribeRequestFilterAccountsFilterLamports lamports = 4;
+  }
+}
+
+message SubscribeRequestFilterAccountsFilterMemcmp {
+  uint64 offset = 1;
+  oneof data {
+    bytes bytes = 2;
+    string base58 = 3;
+    string base64 = 4;
+  }
+}
+
+message SubscribeRequestFilterAccountsFilterLamports {
+  oneof cmp {
+    uint64 eq = 1;
+    uint64 ne = 2;
+    uint64 lt = 3;
+    uint64 gt = 4;
+  }
+}
+
+
+message SubscribeRequestFilterSlots {
+  optional bool filter_by_commitment = 1;
+  optional bool interslot_updates = 2;
+}
+
+message SubscribeRequestFilterTransactions {
+  repeated string account_include = 3;
+  repeated string account_exclude = 4;
+  repeated string account_required = 6;
+}
+
+
+enum CommitmentLevel {
+  PROCESSED = 0;
+  CONFIRMED = 1;
+  FINALIZED = 2;
+}
+
+message Entry {
+  // the slot that the entry is from
+  uint64 slot = 1;
+
+  // Serialized bytes of Vec<Entry>: https://docs.rs/solana-entry/latest/solana_entry/entry/struct.Entry.html
+  bytes entries = 2;
+}
