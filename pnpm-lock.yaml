@@ -58,6 +58,9 @@ importers:
 
   client/shreds-ts:
     dependencies:
+      '@solana/web3.js':
+        specifier: 1.98.2
+        version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
         specifier: workspace:*
         version: link:../../package/solana-stream-sdk
@@ -75,6 +78,12 @@ importers:
         specifier: 5.8.3
         version: 5.8.3
 
+  napi/solana-entry-decoder:
+    devDependencies:
+      '@napi-rs/cli':
+        specifier: 2.18.4
+        version: 2.18.4
+
   package/solana-stream-sdk:
     dependencies:
       '@bufbuild/protobuf':
@@ -87,11 +96,14 @@ importers:
         specifier: 0.7.15
         version: 0.7.15
       '@solana/web3.js':
-        specifier: ^1.98.2
+        specifier: 1.98.2
         version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@triton-one/yellowstone-grpc':
         specifier: 4.0.2
         version: 4.0.2
+      '@validators-dao/solana-entry-decoder':
+        specifier: workspace:*
+        version: link:../../napi/solana-entry-decoder
       bs58:
         specifier: 6.0.0
         version: 6.0.0
@@ -307,6 +319,11 @@ packages:
 
   '@mapbox/node-pre-gyp@1.0.11':
     resolution: {integrity: sha512-Yhlar6v9WQgUp/He7BdgzOz8lqMQ8sU+jkCq7Wx8Myc5YFJLbEe7lgui/V7G1qB1DJykHSGwreceSaD60Y0PUQ==}
+    hasBin: true
+
+  '@napi-rs/cli@2.18.4':
+    resolution: {integrity: sha512-SgJeA4df9DE2iAEpr3M2H0OKl/yjtg1BnRI5/JyowS71tUWhrfSu2LT0V3vlHET+g1hBVlrO60PmEXwUEKp8Mg==}
+    engines: {node: '>= 10'}
     hasBin: true
 
   '@noble/curves@1.9.1':
@@ -1392,6 +1409,8 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+
+  '@napi-rs/cli@2.18.4': {}
 
   '@noble/curves@1.9.1':
     dependencies:

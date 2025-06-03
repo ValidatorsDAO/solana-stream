@@ -39,3 +39,9 @@ export type {
 } from './generated/shredstream'
 
 export { credentials, Metadata } from '@grpc/grpc-js'
+
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
+const { decodeSolanaEntries } = require('@validators-dao/solana-entry-decoder')
+
+export { decodeSolanaEntries }

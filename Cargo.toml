@@ -3,7 +3,8 @@ resolver = "3"
 members = [
     "crate/solana-stream-sdk",
     "client/shreds-rs",
-    "client/geyser-rs",
+    "client/geyser-rs", 
+    "napi/solana-entry-decoder",
 ]
 
 [workspace.package]
