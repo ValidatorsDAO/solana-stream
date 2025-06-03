@@ -359,7 +359,7 @@ This package is part of the [Solana Stream](https://github.com/ValidatorsDAO/sol
 
 ## Support
 
-For issues and support, please visit our [Discord](https://discord.gg/ausnBvAM38).
+For issues and support, please visit our [Discord](https://discord.gg/C7ZQSrCkYR).
 
 ## License
 
