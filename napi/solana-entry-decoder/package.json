@@ -1,0 +1,13 @@
+{
+  "name": "@validators-dao/solana-entry-decoder",
+  "version": "1.0.0",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "napi build --release",
+    "build:debug": "napi build"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "2.18.4"
+  }
+}

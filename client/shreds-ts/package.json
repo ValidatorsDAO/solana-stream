@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@validators-dao/solana-stream-sdk": "workspace:*",
+    "@solana/web3.js": "1.98.2",
     "dotenv": "16.5.0"
   },
   "devDependencies": {
