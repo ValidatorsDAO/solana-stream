@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ValidatorsDAO/solana-stream.git"
+  },
   "scripts": {
     "build": "napi build --release",
     "build:debug": "napi build"
