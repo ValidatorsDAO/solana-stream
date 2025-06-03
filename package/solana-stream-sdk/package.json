@@ -27,25 +27,26 @@
     "generate": "pnpm proto:generate",
     "proto:generate": "pnpm proto:clean && mkdir -p src/generated && pnpm --package=grpc-tools dlx grpc_tools_node_protoc --plugin=protoc-gen-ts_proto=$(pnpm bin)/protoc-gen-ts_proto --ts_proto_out=./src/generated --ts_proto_opt=esModuleInterop=true --ts_proto_opt=outputServices=grpc-js --proto_path=./protos protos/*.proto",
     "proto:clean": "rm -rf src/generated",
-    "build": "tsup",
+    "build": "pnpm proto:generate && tsup",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm run clean && pnpm run generate && pnpm run build",
     "lint": "eslint --ext .ts,.js --fix .",
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@validators-dao/solana-entry-decoder": "workspace:*",
     "@bufbuild/protobuf": "2.5.1",
     "@grpc/grpc-js": "1.13.4",
     "@grpc/proto-loader": "0.7.15",
     "@solana/web3.js": "1.98.2",
     "@triton-one/yellowstone-grpc": "4.0.2",
+    "@validators-dao/solana-entry-decoder": "workspace:*",
     "bs58": "6.0.0"
   },
   "devDependencies": {
     "@types/node": "22.15.27",
     "grpc-tools": "1.13.0",
     "prettier": "3.5.3",
+    "ts-proto": "2.7.2",
     "tsup": "8.5.0",
     "typescript": "5.8.3"
   }
