@@ -35,7 +35,9 @@ TypeScript alone cannot decode Solana shreds effectively. Therefore, Rust is uti
 
 ## Leveraging NAPI instead of WASM
 
-This utility leverages **NAPI (Node.js API)** instead of WebAssembly (WASM) to decode Solana shred entry data, providing significant practical advantages.
+This utility leverages **NAPI (Node-API)** instead of WebAssembly (WASM) to decode Solana shred entry data, providing significant practical advantages.
+
+Node-API - Node.js: https://nodejs.org/api/n-api.html#node-api
 
 ### Benefits of Using NAPI:
 
