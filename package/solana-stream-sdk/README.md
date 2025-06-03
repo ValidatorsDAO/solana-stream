@@ -215,9 +215,9 @@ import {
   ShredsCommitmentLevel,
   ShredsSubscribeEntriesRequestFns,
   decodeSolanaEntries,
+  bs58,
 } from '@validators-dao/solana-stream-sdk'
 import 'dotenv/config'
-import bs58 from 'bs58'
 
 const endpoint = process.env.SHREDS_ENDPOINT!.replace(/^https?:\/\//, '')
 
