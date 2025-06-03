@@ -1,11 +1,20 @@
 {
   "name": "@validators-dao/solana-entry-decoder",
-  "version": "1.0.2",
+  "version": "1.0.3",
+  "license": "Apache-2.0",
   "main": "index.js",
   "types": "index.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/ValidatorsDAO/solana-stream.git"
+  },
+  "engines": {
+    "pnpm": ">=10",
+    "npm": "please_use_pnpm_instead",
+    "node": "22"
+  },
+  "bugs": {
+    "url": "https://discord.gg/C7ZQSrCkYR"
   },
   "scripts": {
     "build": "napi build --release",
