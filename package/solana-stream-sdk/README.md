@@ -204,30 +204,154 @@ Please ensure you have the `X_TOKEN` environment variable set with your gRPC tok
 
 Please note that the url endpoint in the example is for demonstration purposes. You should replace it with the actual endpoint you are using.
 
+### Shreds Client
+
+Here's how to use the SDK to subscribe to Solana Shreds and decode entries:
+
+```typescript
+import {
+  ShredstreamProxyClient,
+  credentials,
+  ShredsCommitmentLevel,
+  ShredsSubscribeEntriesRequestFns,
+  decodeSolanaEntries,
+} from '@validators-dao/solana-stream-sdk'
+import 'dotenv/config'
+import bs58 from 'bs58'
+
+const endpoint = process.env.SHREDS_ENDPOINT!.replace(/^https?:\/\//, '')
+
+const client = new ShredstreamProxyClient(endpoint, credentials.createSsl())
+
+const request = ShredsSubscribeEntriesRequestFns.create({
+  accounts: {
+    pumpfun: {
+      account: [],
+      owner: [],
+      filters: [],
+    },
+  },
+  transactions: {},
+  slots: {},
+  commitment: ShredsCommitmentLevel.PROCESSED,
+})
+
+const connect = async () => {
+  console.log('Connecting to:', endpoint)
+
+  const stream = client.subscribeEntries(request)
+
+  stream.on('data', (data) => {
+    console.log(`\n🟢 Received slot: ${data.slot}`)
+
+    const decodedEntries = decodeSolanaEntries(data.entries)
+
+    if (!Array.isArray(decodedEntries)) {
+      console.warn('⚠️ decodedEntries is not an array:', decodedEntries)
+      return
+    }
+
+    decodedEntries.forEach((entry, entryIdx) => {
+      console.log(`\n✅ Entry #${entryIdx + 1}`)
+      console.log(
+        `  - Hash: ${entry.hash ? bs58.encode(Buffer.from(entry.hash)) : 'N/A'}`,
+      )
+      console.log(`  - Num Hashes: ${entry.num_hashes ?? 'N/A'}`)
+
+      entry.transactions.forEach((tx, txIdx) => {
+        console.log(`\n📄 Transaction #${txIdx + 1}`)
+        const signaturesBase58 = tx.signatures
+          .slice(1)
+          .map((sig) => bs58.encode(Buffer.from(sig)))
+        console.log(`  - Signatures:`, signaturesBase58)
+
+        const message = tx.message[0]
+        if (message) {
+          message.accountKeys.forEach((key, idx) => {
+            console.log(`    [${idx}] ${bs58.encode(Buffer.from(key))}`)
+          })
+
+          message.instructions.forEach((inst, instIdx) => {
+            console.log(`    [${instIdx}]`)
+            console.log(`      - Program ID Index: ${inst.programIdIndex}`)
+            console.log(`      - Accounts: ${inst.accounts.join(', ')}`)
+            console.log(`      - Data: ${bs58.encode(Buffer.from(inst.data))}`)
+          })
+
+          console.log(
+            `  📌 Recent Blockhash: ${bs58.encode(Buffer.from(message.recentBlockhash))}`,
+          )
+        }
+      })
+    })
+  })
+
+  stream.on('error', (err) => {
+    console.error('🚨 Stream error:', err)
+    setTimeout(connect, 5000)
+  })
+
+  stream.on('end', () => {
+    console.log('🔚 Stream ended, reconnecting...')
+    setTimeout(connect, 5000)
+  })
+}
+
+connect()
+```
+
+Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
+
 ## Features
 
 - **Geyser Client**: Direct access to Triton's Yellowstone gRPC client for real-time Solana data streaming
+- **Shredstream Client**: Real-time entry streaming and decoding from Solana Shreds
 - **TypeScript Types**: Comprehensive TypeScript types for all filter and subscription interfaces
-- **Base58 Utilities**: Includes bs58 for Solana address and data encoding/decoding
+- **Utilities**: Includes bs58 for Solana address and data encoding/decoding, gRPC utilities, and entry decoding functions
 - **Full Type Safety**: Complete TypeScript support with detailed type definitions
 
-## Exported Types
+## Exported Types and Utilities
 
-- `GeyserClient`: Main client for connecting to Yellowstone gRPC streams
-- `CommitmentLevel`: Solana commitment level types
-- `SubscribeRequestFilterAccounts`: Account filter types
-- `SubscribeRequestFilterTransactions`: Transaction filter types
-- `SubscribeRequestFilterBlocks`: Block filter types
-- `SubscribeRequestFilterBlocksMeta`: Block metadata filter types
-- `SubscribeRequestFilterSlots`: Slot filter types
-- `SubscribeRequestFilterEntry`: Entry filter types
-- `SubscribeRequestAccountsDataSlice`: Account data slice types
-- `bs58`: Base58 encoding/decoding utilities
+### Geyser Client Types
+
+- `GeyserClient`: Main client for connecting to Yellowstone gRPC streams.
+- `CommitmentLevel`: Solana commitment levels (e.g., processed, confirmed, finalized).
+- `SubscribeRequestFilterAccounts`: Filters for account subscriptions.
+- `SubscribeRequestFilterTransactions`: Filters for transaction subscriptions.
+- `SubscribeRequestFilterBlocks`: Filters for block subscriptions.
+- `SubscribeRequestFilterBlocksMeta`: Filters for block metadata subscriptions.
+- `SubscribeRequestFilterSlots`: Filters for slot subscriptions.
+- `SubscribeRequestFilterEntry`: Filters for entry subscriptions.
+- `SubscribeRequestAccountsDataSlice`: Data slice configuration for account subscriptions.
+- `bs58`: Base58 encoding/decoding utilities for Solana addresses and data.
+
+### Shredstream Client Types
+
+- `ShredstreamProxyClient`: Client for streaming Solana shreds through proxy endpoints.
+- `ShredstreamClient`: Direct client for streaming Solana shreds.
+- `ShredsCommitmentLevel`: Commitment levels specifically for Shredstream data.
+- `ShredsSubscribeEntriesRequestFns`: Functions to construct entry subscription requests.
+- `ShredsEntryFns`: Utilities and functions for handling shred entries.
+
+### Shredstream Exported Type Definitions
+
+- `ShredsSubscribeEntriesRequest`: Request type definition for subscribing to entries.
+- `ShredsSubscribeRequestFilterAccounts`: Account filter type for shred subscriptions.
+- `ShredsSubscribeRequestFilterTransactions`: Transaction filter type for shred subscriptions.
+- `ShredsSubscribeRequestFilterSlots`: Slot filter type for shred subscriptions.
+- `ShredsEntry`: Entry type definition representing Solana shred entries.
+
+### Utility Exports
+
+- `decodeSolanaEntries`: Function to decode raw Solana shred entry data into structured, human-readable formats.
+- `credentials`, `Metadata`: gRPC credentials and metadata utilities.
 
 ## Dependencies
 
 - `@triton-one/yellowstone-grpc`: For gRPC streaming capabilities
 - `bs58`: For base58 encoding/decoding
+- `@grpc/grpc-js`
+- `@validators-dao/solana-entry-decoder`: Utility for decoding Solana shred entries.
 
 ## Repository
 
@@ -236,7 +360,6 @@ This package is part of the [Solana Stream](https://github.com/ValidatorsDAO/sol
 ## Support
 
 For issues and support, please visit our [Discord](https://discord.gg/ausnBvAM38).
-
 
 ## License
 
