@@ -15,7 +15,7 @@ const client = new ShredstreamProxyClient(endpoint, credentials.createSsl())
 const request = ShredsSubscribeEntriesRequestFns.create({
   accounts: {
     pumpfun: {
-      account: [],
+      account: ['6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'],
       owner: [],
       filters: [],
     },
