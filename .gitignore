@@ -37,6 +37,9 @@ dist/
 build/
 out/
 
+# Ignore compiled N-API modules
+*.node
+
 # Dependencies
 node_modules/
 .dev.vars
