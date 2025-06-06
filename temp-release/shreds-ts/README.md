@@ -37,6 +37,12 @@ pnpm i
 
 ## Usage
 
+Make sure your `.env` file contains the correct `SHREDS_ENDPOINT` variable.
+
+```bash
+pnpm dev
+```
+
 Here's how to use the Shredstream client with entry decoding:
 
 ```typescript
@@ -174,8 +180,6 @@ const connect = async () => {
 
 connect()
 ```
-
-Make sure your `.env` file contains the correct `SHREDS_ENDPOINT` variable.
 
 ## Support
 
