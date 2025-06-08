@@ -1,10 +1,10 @@
 [package]
 name = "solana-entry-decoder"
-version.workspace = true
-description.workspace = true
-authors.workspace = true
-homepage.workspace = true
-edition.workspace = true
+version = "2.0.0"
+description = ""
+authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
+homepage = "https://elsoul.nl/"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
