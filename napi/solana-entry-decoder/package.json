@@ -1,7 +1,7 @@
 {
   "name": "@validators-dao/solana-entry-decoder",
   "description": "Decoding Solana Shreds Entry Data",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
