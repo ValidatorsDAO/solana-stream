@@ -7,7 +7,7 @@ members = [
     "client/geyser-rs", 
 ]
 exclude = [
-    "napi/solana-entry-decoder"
+    "package/solana-entry-decoder"
 ]
 
 [workspace.package]
