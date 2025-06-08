@@ -1,0 +1,21 @@
+[package]
+name = "r2-uploader"
+version = "0.1.0"
+edition = "2021"
+authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
+homepage = "https://elsoul.nl/"
+description = "A CLI tool for uploading compiled binaries to Cloudflare R2 storage"
+license = "Apache-2.0"
+repository = "https://github.com/ValidatorsDAO/solana-stream"
+keywords = ["cloudflare", "r2", "upload", "cli", "binary"]
+categories = ["command-line-utilities", "web-programming"]
+
+[[bin]]
+name = "r2"
+path = "src/bin/upload_bin_to_r2.rs"
+
+[dependencies]
+reqwest = { version = "0.12.15", features = ["json", "multipart", "stream", "blocking", "rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+dotenv = "0.15"
+clap = { version = "4.0", features = ["derive"] }
