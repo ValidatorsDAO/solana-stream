@@ -28,6 +28,9 @@ This will install the `r2` command globally on your system.
 #### For Binary Upload
 
 ```bash
+# Cloudflare R2 bucket name (required)
+export CLOUDFLARE_R2_BUCKET="your_bucket_name"
+
 # Cloudflare account ID (required)
 export CLOUDFLARE_ACCOUNT_ID="your_account_id"
 
