@@ -250,6 +250,19 @@ For convenience, the following types are re-exported from `jito_protos`:
 - Rust 1.70+
 - Tokio runtime for async operations
 
+## ⚠️ Experimental Filtering Feature Notice
+
+The filtering functionality provided by this SDK is currently experimental. Occasionally, data may not be fully available, and filters may not be applied correctly.
+
+If you encounter such cases, please report them by opening an issue at: https://github.com/ValidatorsDAO/solana-stream/issues
+
+Your feedback greatly assists our debugging efforts and overall improvement of this feature.
+
+Other reports and suggestions are also highly appreciated.
+
+You can also join discussions or share feedback on Validators DAO's Discord community:
+https://discord.gg/C7ZQSrCkYR
+
 ## License
 
 The package is available as open source under the terms of the

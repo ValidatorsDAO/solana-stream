@@ -177,6 +177,19 @@ connect()
 
 Make sure your `.env` file contains the correct `SHREDS_ENDPOINT` variable.
 
+## ⚠️ Experimental Filtering Feature Notice
+
+The filtering functionality provided by this SDK is currently experimental. Occasionally, data may not be fully available, and filters may not be applied correctly.
+
+If you encounter such cases, please report them by opening an issue at: https://github.com/ValidatorsDAO/solana-stream/issues
+
+Your feedback greatly assists our debugging efforts and overall improvement of this feature.
+
+Other reports and suggestions are also highly appreciated.
+
+You can also join discussions or share feedback on Validators DAO's Discord community:
+https://discord.gg/C7ZQSrCkYR
+
 ## Support
 
 For questions and further support, please visit the [Validators DAO Discord](https://discord.gg/C7ZQSrCkYR).
