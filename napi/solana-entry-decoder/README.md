@@ -115,6 +115,16 @@ brew install x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu zig
 
 For now please use WSL2 and follow the Linux instructions.
 
+## Build packages
+
+```bash
+pnpm i
+pnpm build
+
+// or from the root of the monorepo
+pnpm -F @validators-dao/solana-entry-decoder build
+```
+
 ## Repository
 
 This utility is part of the [Solana Stream Monorepo](https://github.com/ValidatorsDAO/solana-stream).
