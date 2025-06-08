@@ -14,6 +14,9 @@
     "npm": "please_use_pnpm_instead",
     "node": "22"
   },
+  "files": [
+    "dist"
+  ],
   "bugs": {
     "url": "https://discord.gg/C7ZQSrCkYR"
   },
