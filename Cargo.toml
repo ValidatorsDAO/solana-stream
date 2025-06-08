@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crate/solana-stream-sdk",
+    "crate/r2-uploader",
     "client/shreds-rs",
     "client/geyser-rs", 
     "napi/solana-entry-decoder",
