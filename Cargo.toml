@@ -6,6 +6,9 @@ members = [
     "client/shreds-rs",
     "client/geyser-rs", 
 ]
+exclude = [
+    "napi/solana-entry-decoder"
+]
 
 [workspace.package]
 version = "0.2.5"
