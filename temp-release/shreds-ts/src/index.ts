@@ -8,10 +8,14 @@ import {
 } from '@validators-dao/solana-stream-sdk'
 import 'dotenv/config'
 
-const endpoint = process.env.SHREDS_ENDPOINT!.replace(/^https?:\/\//, '')
+const rawEndpoint = process.env.SHREDS_ENDPOINT!
+const endpoint = rawEndpoint.replace(/^https?:\/\//, '')
 
-const client = new ShredstreamProxyClient(endpoint, credentials.createSsl())
+const client = rawEndpoint.startsWith('https://')
+  ? new ShredstreamProxyClient(endpoint, credentials.createSsl())
+  : new ShredstreamProxyClient(endpoint, credentials.createInsecure())
 
+// Filter is experimental
 const request = ShredsSubscribeEntriesRequestFns.create({
   accounts: {
     pumpfun: {
