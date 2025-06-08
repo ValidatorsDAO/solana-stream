@@ -353,6 +353,19 @@ Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
 - `@grpc/grpc-js`
 - `@validators-dao/solana-entry-decoder`: Utility for decoding Solana shred entries.
 
+## ⚠️ Experimental Filtering Feature Notice
+
+The filtering functionality provided by this SDK is currently experimental. Occasionally, data may not be fully available, and filters may not be applied correctly.
+
+If you encounter such cases, please report them by opening an issue at: https://github.com/ValidatorsDAO/solana-stream/issues
+
+Your feedback greatly assists our debugging efforts and overall improvement of this feature.
+
+Other reports and suggestions are also highly appreciated.
+
+You can also join discussions or share feedback on Validators DAO's Discord community:
+https://discord.gg/C7ZQSrCkYR
+
 ## Repository
 
 This package is part of the [Solana Stream](https://github.com/ValidatorsDAO/solana-stream) monorepo.

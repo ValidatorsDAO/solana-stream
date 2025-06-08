@@ -162,6 +162,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 For specific packages, navigate to the package directory and install dependencies.
 
+## ⚠️ Experimental Filtering Feature Notice
+
+The filtering functionality provided by this SDK is currently experimental. Occasionally, data may not be fully available, and filters may not be applied correctly.
+
+If you encounter such cases, please report them by opening an issue at: https://github.com/ValidatorsDAO/solana-stream/issues
+
+Your feedback greatly assists our debugging efforts and overall improvement of this feature.
+
+Other reports and suggestions are also highly appreciated.
+
+You can also join discussions or share feedback on Validators DAO's Discord community:
+https://discord.gg/C7ZQSrCkYR
+
 ## Development
 
 This project uses a monorepo structure with both Rust and TypeScript components:
