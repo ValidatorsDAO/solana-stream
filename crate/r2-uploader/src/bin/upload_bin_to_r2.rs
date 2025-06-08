@@ -5,32 +5,48 @@ use std::{
     path::PathBuf,
 };
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
+use r2_uploader::purge_cloudflare_cache;
 use reqwest::{Client, StatusCode};
 
 /// CLI arguments
 #[derive(Parser, Debug)]
 #[command(
     author,
-    about = "Upload compiled binary to Cloudflare R2",
+    about = "Cloudflare R2 and cache management tool",
     disable_version_flag(true)
 )]
 struct Cli {
-    /// Name of the binary
-    #[arg(long)]
-    name: String,
+    #[command(subcommand)]
+    command: Commands,
+}
 
-    /// Version of the binary (optional, reads from Cargo.toml if not provided)
-    #[arg(long)]
-    binary_version: Option<String>,
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Upload compiled binary to Cloudflare R2
+    Upload {
+        /// Name of the binary
+        #[arg(long)]
+        name: String,
 
-    /// Custom file path to upload (optional)
-    #[arg(long)]
-    file_path: Option<String>,
+        /// Version of the binary (optional, reads from Cargo.toml if not provided)
+        #[arg(long)]
+        binary_version: Option<String>,
 
-    /// Target directory (default: ./target/release)
-    #[arg(long, default_value = "./target/release")]
-    target_dir: String,
+        /// Custom file path to upload (optional)
+        #[arg(long)]
+        file_path: Option<String>,
+
+        /// Target directory (default: ./target/release)
+        #[arg(long, default_value = "./target/release")]
+        target_dir: String,
+    },
+    /// Purge Cloudflare cache for specified URLs
+    Purge {
+        /// URLs to purge from cache
+        #[arg(short, long, value_delimiter = ',')]
+        files: Vec<String>,
+    },
 }
 
 /// Reads version from Cargo.toml
@@ -250,38 +266,61 @@ async fn main() {
     // Parse command line arguments
     let cli = Cli::parse();
 
-    // Get version from CLI args or Cargo.toml
-    let version = match &cli.binary_version {
-        Some(v) => v.clone(),
-        None => {
-            println!("🔍 No version specified, reading from Cargo.toml...");
-            match read_version_from_cargo_toml(&cli.name) {
-                Ok(v) => {
-                    println!("📋 Found version {}", v);
-                    v
+    match cli.command {
+        Commands::Upload {
+            name,
+            binary_version,
+            file_path,
+            target_dir,
+        } => {
+            // Get version from CLI args or Cargo.toml
+            let version = match binary_version {
+                Some(v) => v,
+                None => {
+                    println!("🔍 No version specified, reading from Cargo.toml...");
+                    match read_version_from_cargo_toml(&name) {
+                        Ok(v) => {
+                            println!("📋 Found version {}", v);
+                            v
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Error reading version: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
                 }
-                Err(e) => {
-                    eprintln!("❌ Error reading version: {}", e);
-                    std::process::exit(1);
-                }
+            };
+
+            println!("🔄 Uploading {} (version {}) to R2...", name, version);
+
+            let result =
+                upload_compiled_binary_to_r2(&name, &version, file_path.as_deref(), &target_dir)
+                    .await;
+
+            if result {
+                println!("✅ Upload succeeded!");
+            } else {
+                eprintln!("❌ Upload failed.");
+                std::process::exit(1);
             }
         }
-    };
+        Commands::Purge { files } => {
+            if files.is_empty() {
+                eprintln!(
+                    "❌ No files specified for purging. Use --files to specify URLs to purge."
+                );
+                std::process::exit(1);
+            }
 
-    println!("🔄 Uploading {} (version {}) to R2...", cli.name, version);
+            println!("🧹 Starting cache purge operation...");
+            let result = purge_cloudflare_cache(files).await;
 
-    let result = upload_compiled_binary_to_r2(
-        &cli.name,
-        &version,
-        cli.file_path.as_deref(),
-        &cli.target_dir,
-    )
-    .await;
-
-    if result {
-        println!("✅ Upload succeeded!");
-    } else {
-        eprintln!("❌ Upload failed.");
-        std::process::exit(1);
+            if result {
+                println!("✅ Cache purge succeeded!");
+            } else {
+                eprintln!("❌ Cache purge failed.");
+                std::process::exit(1);
+            }
+        }
     }
 }

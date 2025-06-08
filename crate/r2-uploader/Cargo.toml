@@ -1,6 +1,6 @@
 [package]
 name = "r2-uploader"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -19,3 +19,5 @@ reqwest = { version = "0.12.15", features = ["json", "multipart", "stream", "blo
 tokio = { version = "1", features = ["full"] }
 dotenv = "0.15"
 clap = { version = "4.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
