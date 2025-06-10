@@ -1,7 +1,4 @@
-import bs58 from 'bs58'
-import Client from '@triton-one/yellowstone-grpc'
-export { bs58, Client as GeyserClient }
-export type {
+import Client, {
   CommitmentLevel,
   SubscribeRequestAccountsDataSlice,
   SubscribeRequestFilterAccounts,
@@ -11,6 +8,19 @@ export type {
   SubscribeRequestFilterSlots,
   SubscribeRequestFilterTransactions,
 } from '@triton-one/yellowstone-grpc'
+import bs58 from 'bs58'
+export {
+  bs58,
+  Client as GeyserClient,
+  CommitmentLevel,
+  SubscribeRequestAccountsDataSlice,
+  SubscribeRequestFilterAccounts,
+  SubscribeRequestFilterBlocks,
+  SubscribeRequestFilterBlocksMeta,
+  SubscribeRequestFilterEntry,
+  SubscribeRequestFilterSlots,
+  SubscribeRequestFilterTransactions,
+}
 
 export {
   CommitmentLevel as ShredsCommitmentLevel,
