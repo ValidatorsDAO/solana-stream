@@ -1,6 +1,6 @@
 [package]
 name = "r2-uploader"
-version = "0.2.5"
+version = "0.3.0"
 edition = "2021"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
