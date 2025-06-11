@@ -2,7 +2,7 @@ use std::{
     env,
     fs::{self, File},
     io::Read,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use clap::{Parser, Subcommand};
@@ -47,6 +47,57 @@ enum Commands {
         #[arg(short, long, value_delimiter = ',')]
         files: Vec<String>,
     },
+}
+
+/// Determines the appropriate content type based on file extension
+fn get_content_type(file_path: &Path) -> &'static str {
+    match file_path.extension().and_then(|ext| ext.to_str()) {
+        Some("gz") => {
+            // Check if it's a .tar.gz file
+            if file_path
+                .file_stem()
+                .and_then(|stem| Path::new(stem).extension())
+                .and_then(|ext| ext.to_str())
+                == Some("tar")
+            {
+                "application/gzip"
+            } else {
+                "application/gzip"
+            }
+        }
+        Some("tar") => "application/x-tar",
+        Some("zip") => "application/zip",
+        Some("bz2") => "application/x-bzip2",
+        Some("xz") => "application/x-xz",
+        _ => "application/x-elf", // Default for binary files
+    }
+}
+
+/// Finds the best matching file for the given binary name and target directory
+fn find_binary_file(binary_name: &str, target_dir: &str) -> Option<PathBuf> {
+    let base_path = PathBuf::from(target_dir);
+
+    // List of possible file patterns to check, in order of preference
+    let patterns = vec![
+        // Exact binary name (original behavior)
+        format!("{}", binary_name),
+        // Compressed archives with binary name
+        format!("{}.tar.gz", binary_name),
+        format!("{}.tar.bz2", binary_name),
+        format!("{}.tar.xz", binary_name),
+        format!("{}.zip", binary_name),
+        format!("{}.gz", binary_name),
+    ];
+
+    for pattern in patterns {
+        let candidate_path = base_path.join(&pattern);
+        if candidate_path.exists() {
+            println!("🔍 Found file: {}", candidate_path.display());
+            return Some(candidate_path);
+        }
+    }
+
+    None
 }
 
 /// Reads version from Cargo.toml
@@ -119,15 +170,24 @@ pub async fn upload_compiled_binary_to_r2(
     let binary_path = if let Some(path) = file_path {
         PathBuf::from(path)
     } else {
-        PathBuf::from(format!("{}/{}", target_dir, binary_name))
+        match find_binary_file(binary_name, target_dir) {
+            Some(path) => path,
+            None => {
+                eprintln!("❌ Could not find binary file for '{}' in directory '{}'", binary_name, target_dir);
+                eprintln!("💡 Searched for patterns: {}, {}.tar.gz, {}.tar.bz2, {}.tar.xz, {}.zip, {}.gz", 
+                    binary_name, binary_name, binary_name, binary_name, binary_name, binary_name);
+                eprintln!("💡 Use --file-path to specify a custom file path");
+                return false;
+            }
+        }
     };
 
     // 2. Read binary file
-    println!("🔍 Reading binary from: {}", binary_path.display());
+    println!("🔍 Reading file from: {}", binary_path.display());
     let mut file = match File::open(&binary_path) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("❌ Failed to open binary {}: {}", binary_path.display(), e);
+            eprintln!("❌ Failed to open file {}: {}", binary_path.display(), e);
             return false;
         }
     };
@@ -147,13 +207,20 @@ pub async fn upload_compiled_binary_to_r2(
         }
     };
 
-    let bucket_name = "elsoul";
+    let bucket_name = match env::var("CLOUDFLARE_R2_BUCKET") {
+        Ok(val) => val,
+        Err(_) => {
+            eprintln!("❌ Missing CLOUDFLARE_R2_BUCKET");
+            return false;
+        }
+    };
     let object_key = format!("bin/{}/{}/{}", binary_name, version, binary_name);
     let latest_object_key = format!("bin/latest/{}", binary_name);
     let url = format!(
         "https://api.cloudflare.com/client/v4/accounts/{}/r2/buckets/{}/objects/{}",
         account_id, bucket_name, object_key
     );
+    println!("🔗 Upload URL: {}", url);
 
     // 4. Setup headers
     let mut headers = reqwest::header::HeaderMap::new();
@@ -184,7 +251,10 @@ pub async fn upload_compiled_binary_to_r2(
         headers.insert("X-Auth-Key", api_key.parse().unwrap());
     }
 
-    headers.insert("Content-Type", "application/x-elf".parse().unwrap());
+    // Determine and set appropriate content type based on file extension
+    let content_type = get_content_type(&binary_path);
+    headers.insert("Content-Type", content_type.parse().unwrap());
+    println!("📄 Content-Type: {}", content_type);
 
     // 5. Upload to versioned path
     println!(
