@@ -12,8 +12,19 @@ name = "geyser-rs"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = { workspace = true }
+bs58 = { workspace = true }
+backoff = { workspace = true, features = ["tokio"] }
+dotenv = { workspace = true }
+env_logger = { workspace = true }
+futures = { workspace = true }
+json5 = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_jsonc = { workspace = true }
+solana-stream-sdk = { workspace = true }
+solana-sdk = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
-log = { workspace = true }
-thiserror = { workspace = true }
-solana-stream-sdk = { workspace = true }
+url = { workspace = true }

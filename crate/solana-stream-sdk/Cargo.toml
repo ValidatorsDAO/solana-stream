@@ -1,6 +1,6 @@
 [package]
 name = "solana-stream-sdk"
-version = "0.4.0"
+version = "0.5.0"
 description = "Rust SDK for Solana streaming data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -11,13 +11,18 @@ keywords = ["solana", "blockchain", "streaming", "grpc", "shreds"]
 categories = ["api-bindings", "network-programming"]
 
 [dependencies]
+futures = { workspace = true }
+http = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }
 tonic = { workspace = true, features = ["tls", "tls-roots", "tls-webpki-roots"] }
 thiserror = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
+serde_jsonc = { workspace = true }
+url = { workspace = true }
 yellowstone-grpc-client = { workspace = true }
 yellowstone-grpc-proto = { workspace = true, features = ["plugin"] }
+
 
 [build-dependencies]
 protobuf-src = { workspace = true }
