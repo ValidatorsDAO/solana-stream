@@ -1,0 +1,107 @@
+{
+  // commitment level:
+  // - "Processed" (fastest, lowest finality)
+  // - "Confirmed" (medium finality)
+  // - "Finalized" (highest finality, slowest)
+  "commitment": "Processed",
+
+  "transactions": {
+    "pumpfun": {
+      // Include transactions that involve any of these accounts.
+      "account_include": ["6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"],
+
+      // Exclude transactions that involve any of these accounts.
+      "account_exclude": [],
+
+      // Only include transactions if all these accounts are present.
+      "account_required": [],
+
+      // (optional filters below, uncomment if needed)
+
+      // Filter only vote transactions.
+      "vote": false,
+
+      // Filter only failed transactions.
+      "failed": false
+
+      // Filter by specific transaction signature (base58).
+      // "signature": "YourTxnSignatureBase58Here"
+    }
+  },
+  "accounts": {},
+  "slots": {
+    "slot_updates": {
+      "filter_by_commitment": true,
+      "interslot_updates": false
+    }
+  },
+  "blocks": {},
+  "blocks_meta": {
+    "pumpfun_blocks_meta": {}
+  },
+  "entry": {}
+  // "accounts": {
+  //   // Example account filter named "example".
+  //   "example": {
+  //     // Include accounts with these public keys.
+  //     "account": [],
+  //
+  //     // Include accounts owned by these public keys.
+  //     "owner": [],
+  //
+  //     "filters": [
+  //       // Filter account data at offset with base58 encoded data.
+  //       // { "memcmp": { "offset": 0, "data": "Base58EncodedData" } },
+  //       // Filter accounts with exact data size (in bytes).
+  //       // { "datasize": 165 },
+  //       // Only include valid SPL token accounts.
+  //       // { "token_account_state": true },
+  //       // Filter accounts by lamports balance:
+  //       // Supported operations:
+  //       // - "eq": equals
+  //       // - "ne": not equals
+  //       // - "lt": less than
+  //       // - "gt": greater than
+  //       // { "lamports": { "cmp": "gt", "value": 1000000000 } }
+  //     ]
+  //   }
+  // },
+
+  // // Slots subscription
+  // "slots": {
+  //   "exampleSlots": {
+  //     // Filter slots updates by specified commitment (true/false).
+  //     "filter_by_commitment": true,
+  //
+  //     // Include interslot updates (slots without finalized transactions).
+  //     "interslot_updates": false
+  //   }
+  // },
+
+  // // Blocks subscription
+  // "blocks": {
+  //   "exampleBlocks": {
+  //     // Include only blocks that have transactions involving specified accounts.
+  //     "account_include": [],
+  //
+  //     // Include detailed transaction data (true/false).
+  //     "include_transactions": true,
+  //
+  //     // Include updated accounts data (true/false).
+  //     "include_accounts": false,
+  //
+  //     // Include entries (true/false).
+  //     "include_entries": false
+  //   }
+  // },
+
+  // // Blocks meta subscription (lighter than full block data)
+  // "blocks_meta": {
+  //   "exampleBlocksMeta": {}
+  // },
+
+  // // Entries subscription (low-level blockchain entries)
+  // "entry": {
+  //   "exampleEntries": {}
+  // }
+}
