@@ -16,3 +16,4 @@ tokio = { workspace = true }
 tonic = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+solana-stream-sdk = { workspace = true }
