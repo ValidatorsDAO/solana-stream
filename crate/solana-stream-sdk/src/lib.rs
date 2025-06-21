@@ -30,10 +30,37 @@ pub use shredstream_proto::{
     SubscribeRequestFilterTransactions,
 };
 
-pub use yellowstone_grpc_client::GeyserGrpcClient;
-pub use yellowstone_grpc_proto::prelude::{
-    CommitmentLevel as GeyserCommitmentLevel, SubscribeRequest as GeyserSubscribeRequest,
-    SubscribeUpdate as GeyserSubscribeUpdate,
+pub use yellowstone_grpc_client::{GeyserGrpcClient, GeyserGrpcClientError, Interceptor};
+
+pub use yellowstone_grpc_proto::{
+    geyser::{
+        subscribe_update::UpdateOneof as GeyserUpdateOneof, SlotStatus,
+        SubscribeUpdateBlock as GeyserUpdateBlock,
+        SubscribeUpdateBlockMeta as GeyserUpdateBlockMeta, SubscribeUpdateSlot as GeyserUpdateSlot,
+    },
+    plugin::{
+        filter::message::FilteredUpdate,
+        message::{
+            MessageAccount, MessageBlock, MessageBlockMeta, MessageEntry, MessageSlot,
+            MessageTransaction,
+        },
+    },
+    prelude::{
+        CommitmentLevel as GeyserCommitmentLevel, SubscribeRequest as GeyserSubscribeRequest,
+        SubscribeRequestAccountsDataSlice as GeyserAccountsDataSlice,
+        SubscribeRequestFilterAccounts as GeyserFilterAccounts,
+        SubscribeRequestFilterAccountsFilter as GeyserFilterAccountsFilter,
+        SubscribeRequestFilterBlocks as GeyserFilterBlocks,
+        SubscribeRequestFilterBlocksMeta as GeyserFilterBlocksMeta,
+        SubscribeRequestFilterEntry as GeyserFilterEntry,
+        SubscribeRequestFilterSlots as GeyserFilterSlots,
+        SubscribeRequestFilterTransactions as GeyserFilterTransactions,
+        SubscribeUpdate as GeyserSubscribeUpdate,
+        SubscribeUpdateAccountInfo as GeyserUpdateAccountInfo,
+        SubscribeUpdateEntry as GeyserUpdateEntry,
+        SubscribeUpdateTransactionInfo as GeyserUpdateTransactionInfo,
+    },
+    prost::Message,
 };
 
 pub type Result<T> = std::result::Result<T, SolanaStreamError>;
