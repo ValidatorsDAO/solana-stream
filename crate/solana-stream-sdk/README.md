@@ -24,7 +24,7 @@
 # Solana Stream SDK
 
 A Rust SDK for streaming Solana Data by Validators DAO.
-This SDK provides a simple and efficient way to connect to Jito's Shredstream service, allowing you to subscribe to real-time Solana entries and transactions.
+This SDK provides a simple and efficient way to connect to Shredstream service and Geyser gRPC service, allowing you to subscribe to real-time Solana entries and transactions.
 
 <a href="https://solana.com/">
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
@@ -32,7 +32,7 @@ This SDK provides a simple and efficient way to connect to Jito's Shredstream se
 
 ## Features
 
-- **Easy-to-use API** - Simple wrapper around Jito shredstream protocols
+- **Easy-to-use API** - Simple wrapper around the Shredstream protocols and Geyser gRPC
 - **Async Support** - Built with tokio for async/await patterns
 - **Type Safety** - Strongly typed Rust interfaces
 - **Error Handling** - Comprehensive error types with proper error propagation
@@ -44,7 +44,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "0.2.5"
+solana-stream-sdk = "0.5.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```
@@ -70,13 +70,35 @@ SHREDS_ENDPOINT=https://shreds-ams.erpc.global
 
 ⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.
 
+For Geyser gRPC:
+
+```env
+GRPC_ENDPOINT=https://your.geyser.endpoint
+X_TOKEN=your_token # Optional
+```
+
+⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.
+
 3. **Run the sample client**
 
 ```bash
 cargo run -p shreds-rs
 ```
 
-The sample code can be found at: [https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs](https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs)
+Example code:
+
+- [shreds-rs example](https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs)
+
+For Geyser gRPC:
+
+```bash
+cd client/geyser-rs
+RUST_LOG=info cargo run
+```
+
+Example code:
+
+- [geyser-rs example](https://github.com/ValidatorsDAO/solana-stream/blob/main/client/geyser-rs/src/main.rs)
 
 A 7-day free trial for Shreds endpoints is available by joining the Validators DAO Discord community. Please try it out: [https://discord.gg/C7ZQSrCkYR](https://discord.gg/C7ZQSrCkYR)
 
@@ -87,7 +109,7 @@ use solana_stream_sdk::{CommitmentLevel, ShredstreamClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Connect to the Jito shredstream proxy
+    // Connect to the Shredstream proxy
     let mut client = ShredstreamClient::connect("https://shreds-ams.erpc.global").await?;
 
     // Create a subscription request for a specific account
@@ -161,6 +183,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Basic Example (Geyser gRPC)
+
+```rust
+use solana_stream_sdk::{GeyserGrpcClient, GeyserSubscribeRequest, GeyserCommitmentLevel};
+use std::collections::HashMap;
+use futures::StreamExt;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let endpoint = std::env::var("GRPC_ENDPOINT")?;
+    let client = GeyserGrpcClient::build_from_shared(endpoint)?.connect().await?;
+
+    let request = GeyserSubscribeRequest {
+        commitment: Some(GeyserCommitmentLevel::Processed as i32),
+        accounts: HashMap::new(),
+        transactions: HashMap::new(),
+        slots: HashMap::new(),
+        blocks: HashMap::new(),
+        blocks_meta: HashMap::new(),
+        entry: HashMap::new(),
+        transactions_status: HashMap::new(),
+        accounts_data_slice: vec![],
+        from_slot: None,
+        ping: None,
+    };
+
+    let (mut sink, mut stream) = client.subscribe().await?;
+    sink.send(request).await?;
+
+    while let Some(update) = stream.next().await {
+        println!("Received: {:?}", update?);
+    }
+
+    Ok(())
+}
+```
+
 ### Custom Subscription Request
 
 ```rust
@@ -212,38 +271,125 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Custom Subscription Request (Geyser gRPC)
+
+```rust
+use solana_stream_sdk::{
+    GeyserSubscribeRequest,
+    GeyserSubscribeRequestFilterAccounts,
+    GeyserCommitmentLevel,
+    GeyserGrpcClient,
+};
+use std::collections::HashMap;
+use futures::StreamExt;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let endpoint = std::env::var("GRPC_ENDPOINT")?;
+    let client = GeyserGrpcClient::build_from_shared(endpoint)?.connect().await?;
+
+    let mut accounts = HashMap::new();
+    accounts.insert(
+        "example".to_string(),
+        GeyserSubscribeRequestFilterAccounts {
+            account: vec!["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()],
+            owner: vec![],
+            filters: vec![],
+            nonempty_txn_signature: None,
+        },
+    );
+
+    let request = GeyserSubscribeRequest {
+        commitment: Some(GeyserCommitmentLevel::Confirmed as i32),
+        accounts,
+        transactions: HashMap::new(),
+        slots: HashMap::new(),
+        blocks: HashMap::new(),
+        blocks_meta: HashMap::new(),
+        entry: HashMap::new(),
+        transactions_status: HashMap::new(),
+        accounts_data_slice: vec![],
+        from_slot: None,
+        ping: None,
+    };
+
+    let (mut sink, mut stream) = client.subscribe().await?;
+    sink.send(request).await?;
+
+    while let Some(update) = stream.next().await {
+        println!("Update: {:?}", update?);
+    }
+
+    Ok(())
+}
+```
+
 ## API Reference
 
 ### `ShredstreamClient`
 
-The main client for connecting to Jito shredstream services.
+The main client for connecting to the Shredstream services.
 
 #### Methods
 
-- `connect(endpoint: impl AsRef<str>) -> Result<Self>` - Connect to a shredstream endpoint
-- `subscribe_entries(&mut self, request: SubscribeEntriesRequest) -> Result<Stream<Entry>>` - Subscribe to entries
-- `create_entries_request_for_account(account: impl AsRef<str>, commitment: Option<CommitmentLevel>) -> SubscribeEntriesRequest` - Helper to create account-specific requests
-- `create_empty_entries_request() -> SubscribeEntriesRequest` - Create an empty request for customization
+- `connect(endpoint: impl AsRef<str>) -> Result<Self>` – Connect to a Shredstream endpoint and initialize the client.
+- `subscribe_entries(&mut self, request: SubscribeEntriesRequest) -> Result<impl Stream>` – Subscribe to real-time Solana entries.
+- `create_entries_request_for_account(account: impl AsRef<str>, commitment: Option<CommitmentLevel>) -> SubscribeEntriesRequest` – Helper to create account-specific subscription requests.
+- `create_empty_entries_request() -> SubscribeEntriesRequest` – Create an empty request for further customization.
+
+### `GeyserGrpcClient`
+
+Client for interacting with Solana via the Geyser gRPC service.
+
+#### Methods
+
+- `build_from_shared(endpoint: impl Into<String>) -> Result<GeyserGrpcClient>` – Initialize the client builder with a shared endpoint URL.
+- `connect() -> Result<GeyserGrpcClient>` – Establish a connection to the configured gRPC endpoint.
+- `subscribe() -> Result<(Sink, Stream)>` – Open a bidirectional subscription stream to Geyser for real-time data exchange.
 
 ### Error Types
 
 The SDK provides a comprehensive `SolanaStreamError` enum that covers:
 
-- `Transport` - Network/transport errors
-- `Status` - gRPC status errors
-- `Serialization` - Data serialization errors
-- `Connection` - Connection-related errors
-- `Configuration` - Configuration errors
+- `Transport` – Network or transport errors
+- `Status` – gRPC status errors
+- `Serialization` – Data serialization and deserialization errors
+- `Connection` – Connection-related issues
+- `Configuration` – Invalid configuration errors
+- `IO` – Input/output errors
+- `SerdeJsonc` – Errors related to parsing JSONC
+- `InvalidUri` – URI parsing errors
+- `Builder` – Errors during client builder initialization
+- `SendError` – Errors during message sending
+- `Client` – Errors within the Geyser gRPC client
+- `UrlParse` – URL parsing errors
 
-## Re-exported Types
+### Re-exported Types
 
-For convenience, the following types are re-exported from `jito_protos`:
+For convenience, the following types are re-exported:
+
+#### Shreds Protocol
 
 - `CommitmentLevel`
 - `SubscribeEntriesRequest`
 - `SubscribeRequestFilterAccounts`
 - `SubscribeRequestFilterSlots`
 - `SubscribeRequestFilterTransactions`
+
+#### Geyser gRPC Protocol
+
+- `GeyserCommitmentLevel`
+- `GeyserSubscribeRequest`
+- `GeyserSubscribeRequestFilterAccounts`
+- `GeyserSubscribeRequestFilterBlocks`
+- `GeyserSubscribeRequestFilterBlocksMeta`
+- `GeyserSubscribeRequestFilterEntry`
+- `GeyserSubscribeRequestFilterSlots`
+- `GeyserSubscribeRequestFilterTransactions`
+- `GeyserSubscribeUpdate`
+- `GeyserSubscribeUpdateAccountInfo`
+- `GeyserSubscribeUpdateEntry`
+- `GeyserSubscribeUpdateTransactionInfo`
 
 ## Requirements
 

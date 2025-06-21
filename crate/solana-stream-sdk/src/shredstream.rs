@@ -13,7 +13,7 @@ use crate::{
     Result, SolanaStreamError,
 };
 
-/// A convenient wrapper around the Jito Shredstream client
+/// A convenient wrapper around the Shredstream client
 pub struct ShredstreamClient {
     client: ShredstreamProxyClient<Channel>,
 }
