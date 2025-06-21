@@ -64,6 +64,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "agave-geyser-plugin-interface"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df63ffb691b27f0253e893d083126cbe98a6b1ace29108992310f323f1ac50b0"
+dependencies = [
+ "log",
+ "solana-clock",
+ "solana-signature",
+ "solana-transaction",
+ "solana-transaction-status",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "agave-transaction-view"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1455,7 +1469,7 @@ dependencies = [
 
 [[package]]
 name = "geyser-rs"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "log",
  "solana-stream-sdk",
@@ -3437,7 +3451,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "shreds-rs"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bincode",
  "dotenvy",
@@ -5247,7 +5261,7 @@ dependencies = [
 
 [[package]]
 name = "solana-stream-sdk"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "prost 0.13.5",
  "prost-types 0.13.5",
@@ -7020,14 +7034,22 @@ version = "6.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e48021fc734917bb7d0891dd9fccfacc4dfeec533d6bcd130fcbc934dd2b4429"
 dependencies = [
+ "agave-geyser-plugin-interface",
  "anyhow",
+ "base64 0.22.1",
  "bincode",
+ "bs58",
+ "bytes",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "protobuf-src",
+ "serde",
+ "smallvec",
  "solana-account-decoder",
  "solana-sdk",
  "solana-transaction-status",
+ "spl-token-2022 6.0.0",
+ "thiserror 1.0.69",
  "tonic",
  "tonic-build 0.12.3",
 ]

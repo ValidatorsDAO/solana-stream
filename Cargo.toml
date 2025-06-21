@@ -11,7 +11,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 description = ""
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -33,6 +33,7 @@ clap = { version = "4.3.0", features = ["derive", "env"] }
 crossbeam-channel = "0.5.8"
 dashmap = "5"
 dotenv = "0.15"
+dotenvy = "0.15"
 env_logger = "0.11.3"
 futures = "0.3.24"
 hex = "0.4.3"
@@ -40,6 +41,7 @@ hostname = "0.4.0"
 itertools = "0.13.0"
 indicatif = "0.17.9"
 log = "0.4"
+maplit = "1.0.2"
 prost = "0.13.1"
 prost-types = "0.13.3"
 protobuf-src = "1"
@@ -68,7 +70,5 @@ thiserror = "1"
 tokio = { version = "1.21.2" }
 tonic = { version = "0.12.1" }
 tonic-build = "0.10"
-maplit = "1.0.2"
-dotenvy = "0.15"
 yellowstone-grpc-client = "6.1.0"
 yellowstone-grpc-proto = "6.1.0"
