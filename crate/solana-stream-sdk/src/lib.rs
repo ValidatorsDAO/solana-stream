@@ -6,6 +6,8 @@
 
 pub mod error;
 pub mod shredstream;
+pub use yellowstone_grpc_client;
+pub use yellowstone_grpc_proto;
 
 // Internal protobuf modules
 pub mod shared {
@@ -26,6 +28,12 @@ pub use shredstream_proto::{
     SubscribeRequestFilterAccountsFilter, SubscribeRequestFilterAccountsFilterLamports,
     SubscribeRequestFilterAccountsFilterMemcmp, SubscribeRequestFilterSlots,
     SubscribeRequestFilterTransactions,
+};
+
+pub use yellowstone_grpc_client::GeyserGrpcClient;
+pub use yellowstone_grpc_proto::prelude::{
+    CommitmentLevel as GeyserCommitmentLevel, SubscribeRequest as GeyserSubscribeRequest,
+    SubscribeUpdate as GeyserSubscribeUpdate,
 };
 
 pub type Result<T> = std::result::Result<T, SolanaStreamError>;
