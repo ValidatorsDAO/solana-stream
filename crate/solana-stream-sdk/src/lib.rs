@@ -1,7 +1,7 @@
 //! # Solana Stream SDK
 //!
-//! A Rust SDK for streaming Solana data using Jito protocols.
-//! This crate provides convenient wrappers around the Jito protobuf definitions
+//! A Rust SDK for streaming Solana data using Shreds and gRPC.
+//! This crate provides convenient wrappers around the Shreds protobuf definitions
 //! for easier integration with Solana streaming services.
 
 pub mod error;
