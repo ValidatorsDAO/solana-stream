@@ -4,7 +4,6 @@
   // - "Confirmed" (medium finality)
   // - "Finalized" (highest finality, slowest)
   "commitment": "Processed",
-
   "transactions": {
     "pumpfun": {
       // Include transactions that involve any of these accounts.
