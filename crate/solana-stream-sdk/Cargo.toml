@@ -7,7 +7,7 @@ homepage = "https://elsoul.nl/"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/ValidatorsDAO/solana-stream"
-keywords = ["solana", "blockchain", "streaming", "grpc", "jito", "geyser"]
+keywords = ["solana", "blockchain", "streaming", "grpc", "shreds"]
 categories = ["api-bindings", "network-programming"]
 
 [dependencies]
