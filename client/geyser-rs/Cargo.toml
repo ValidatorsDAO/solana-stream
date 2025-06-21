@@ -18,7 +18,6 @@ backoff = { workspace = true, features = ["tokio"] }
 chrono = { workspace = true }
 dotenv = { workspace = true }
 env_logger = { workspace = true }
-indicatif = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 json5 = { workspace = true }

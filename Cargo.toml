@@ -4,10 +4,12 @@ members = [
     "crate/solana-stream-sdk",
     "crate/r2-uploader",
     "client/shreds-rs",
-    "client/geyser-rs", 
+    "client/geyser-rs",
 ]
 exclude = [
-    "package/solana-entry-decoder"
+    "package/solana-entry-decoder",
+    "temp-release/shreds-rs",
+    "temp-release/geyser-rs"
 ]
 
 [workspace.package]
@@ -40,7 +42,6 @@ hex = "0.4.3"
 hostname = "0.4.0"
 http = "0.2"
 itertools = "0.13.0"
-indicatif = "0.17.9"
 json5 = "0.4.1"
 log = "0.4"
 maplit = "1.0.2"
