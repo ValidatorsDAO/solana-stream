@@ -17,13 +17,20 @@ bs58 = { workspace = true }
 backoff = { workspace = true, features = ["tokio"] }
 dotenv = { workspace = true }
 env_logger = { workspace = true }
+indicatif = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 json5 = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 serde_jsonc = { workspace = true }
 solana-stream-sdk = { workspace = true }
 solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
+solana-pubkey = { workspace = true }
+solana-signature = { workspace = true }
+solana-hash = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
