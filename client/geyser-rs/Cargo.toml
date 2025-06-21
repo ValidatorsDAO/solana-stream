@@ -15,6 +15,7 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 bs58 = { workspace = true }
 backoff = { workspace = true, features = ["tokio"] }
+chrono = { workspace = true }
 dotenv = { workspace = true }
 env_logger = { workspace = true }
 indicatif = { workspace = true }

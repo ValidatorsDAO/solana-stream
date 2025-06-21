@@ -1,17 +1,25 @@
 use crate::config::Config;
 use anyhow::Context;
 use backoff::{future::retry, ExponentialBackoff};
+use chrono::{DateTime, TimeZone, Utc};
 use dotenv::dotenv;
 use env_logger;
 use futures::{SinkExt, StreamExt};
+use log::info;
 use serde_jsonc;
+use solana_signature::Signature;
 use solana_stream_sdk::{
     GeyserCommitmentLevel, GeyserGrpcClient, GeyserSubscribeRequest,
     GeyserSubscribeRequestFilterAccounts, GeyserSubscribeRequestFilterBlocks,
     GeyserSubscribeRequestFilterBlocksMeta, GeyserSubscribeRequestFilterEntry,
     GeyserSubscribeRequestFilterSlots, GeyserSubscribeRequestFilterTransactions,
+    GeyserSubscribeUpdate, GeyserUpdateOneof,
 };
-use std::{collections::HashMap, env, fs, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    env, fs,
+    time::Duration,
+};
 use tonic::transport::ClientTlsConfig;
 
 mod config;
@@ -70,6 +78,11 @@ async fn main() -> Result<(), anyhow::Error> {
         ping: None,
     };
 
+    let mut messages: BTreeMap<u64, (Option<DateTime<Utc>>, Vec<(String, DateTime<Utc>)>)> =
+        BTreeMap::new();
+    let mut current_slot: u64 = 0;
+    let mut latencies: Vec<i64> = Vec::new();
+
     loop {
         let endpoint = endpoint.clone();
         let x_token = x_token.clone();
@@ -114,7 +127,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
         while let Some(message) = stream.next().await {
             match message {
-                Ok(msg) => log::info!("Received: {:?}", msg),
+                Ok(msg) => log_message(&msg, &mut messages, &mut current_slot, &mut latencies),
                 Err(e) => {
                     log::error!("Stream error: {:?}, reconnecting...", e);
                     break;
@@ -133,5 +146,107 @@ fn commitment_from_str(commitment: &str) -> i32 {
         "Confirmed" => GeyserCommitmentLevel::Confirmed as i32,
         "Finalized" => GeyserCommitmentLevel::Finalized as i32,
         _ => GeyserCommitmentLevel::Processed as i32,
+    }
+}
+
+fn log_message(
+    msg: &GeyserSubscribeUpdate,
+    messages: &mut BTreeMap<u64, (Option<DateTime<Utc>>, Vec<(String, DateTime<Utc>)>)>,
+    current_slot: &mut u64,
+    latencies: &mut Vec<i64>,
+) {
+    let received_time = Utc::now();
+
+    match &msg.update_oneof {
+        Some(GeyserUpdateOneof::TransactionStatus(tx)) => {
+            let entry = messages.entry(tx.slot).or_default();
+            let sig = Signature::try_from(tx.signature.as_slice())
+                .unwrap()
+                .to_string();
+
+            if let Some(block_time) = entry.0 {
+                let latency = received_time
+                    .signed_duration_since(block_time)
+                    .num_milliseconds()
+                    .saturating_sub(500);
+                latencies.push(latency);
+                let avg_latency =
+                    latencies.iter().copied().sum::<i64>() as f64 / latencies.len() as f64;
+
+                info!(
+                    "[Received: {}] TransactionStatus | Slot: {}, Signature: {}\n  - Block Time: {}\n  - Adjusted Latency: {} ms\n  - Slot Delay: {} slots\n  - Avg Latency: {:.2} ms",
+                    received_time,
+                    tx.slot,
+                    sig,
+                    block_time,
+                    latency,
+                    current_slot.saturating_sub(tx.slot),
+                    avg_latency
+                );
+            } else {
+                entry.1.push((sig, received_time));
+            }
+        }
+        Some(GeyserUpdateOneof::BlockMeta(block_meta)) => {
+            let entry = messages.entry(block_meta.slot).or_default();
+            entry.0 = block_meta.block_time.map(|obj| {
+                Utc.timestamp_opt(obj.timestamp, 0)
+                    .single()
+                    .expect("valid timestamp")
+            });
+            *current_slot = block_meta.slot;
+
+            if let Some(block_time) = entry.0 {
+                for (sig, tx_received_time) in &entry.1 {
+                    let latency = tx_received_time
+                        .signed_duration_since(block_time)
+                        .num_milliseconds()
+                        .saturating_sub(500);
+                    latencies.push(latency);
+                    let avg_latency =
+                        latencies.iter().copied().sum::<i64>() as f64 / latencies.len() as f64;
+
+                    info!(
+                        "[Received: {}] Transaction | Slot: {}, Signature: {}\n  - Block Time: {}\n  - Adjusted Latency: {} ms\n  - Slot Delay: {} slots\n  - Avg Latency: {:.2} ms",
+                        tx_received_time,
+                        block_meta.slot,
+                        sig,
+                        block_time,
+                        latency,
+                        current_slot.saturating_sub(block_meta.slot),
+                        avg_latency
+                    );
+                }
+                entry.1.clear();
+            }
+
+            while let Some(slot) = messages.keys().next().cloned() {
+                if slot < block_meta.slot.saturating_sub(20) {
+                    messages.remove(&slot);
+                } else {
+                    break;
+                }
+            }
+        }
+        Some(GeyserUpdateOneof::Transaction(tx_info)) => {
+            let slot = tx_info.slot;
+            let sig = tx_info
+                .transaction
+                .as_ref()
+                .and_then(|tx| tx.transaction.as_ref())
+                .and_then(|inner_tx| inner_tx.signatures.first())
+                .map(|sig| bs58::encode(sig).into_string())
+                .unwrap_or_else(|| "Unknown".into());
+
+            messages
+                .entry(slot)
+                .or_default()
+                .1
+                .push((sig, received_time));
+        }
+        Some(GeyserUpdateOneof::Slot(slot_update)) => {
+            *current_slot = slot_update.slot;
+        }
+        _ => {}
     }
 }
