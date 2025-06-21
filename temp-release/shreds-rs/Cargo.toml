@@ -1,15 +1,16 @@
 [package]
-name = "shreds-rs"
+name = "shreds-rs-temp-release"
 version = "0.2.5"
 description = "Rust client for Solana shreds streaming"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
 edition = "2021"
-license = "MIT"
+license = "Apache-2.0"
 repository = "https://github.com/elsoul/solana-stream"
+publish = false
 
 [[bin]]
-name = "shreds-rs"
+name = "shreds-rs-temp-release"
 path = "src/main.rs"
 
 [dependencies]
