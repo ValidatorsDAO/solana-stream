@@ -42,28 +42,34 @@ interface SubscribeRequest {
 // const PUMP_FUN_MINT_AUTHORITY = 'TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM'
 const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
 
-const tran: SubscribeRequestFilterTransactions = {
+const pumpfun: SubscribeRequestFilterTransactions = {
   accountInclude: [PUMP_FUN_PROGRAM_ID],
   accountExclude: [],
   accountRequired: [],
 }
 
 const request: SubscribeRequest = {
-  accounts: {
-    pumpfun: {
-      account: [],
-      owner: [],
-      filters: [],
-    },
-  },
+  accounts: {},
   slots: {},
-  transactions: { elsol: tran },
+  transactions: { pumpfun },
   transactionsStatus: {},
   blocks: {},
-  blocksMeta: {},
+  blocksMeta: {
+    pumpfun: {},
+  },
   entry: {},
   accountsDataSlice: [],
   commitment: CommitmentLevel.PROCESSED,
+}
+
+let blocktime: string | null = null
+const latencyList: number[] = []
+const MAX_LATENCIES = 100
+
+const calculateAverage = (latencies: number[]) => {
+  if (latencies.length === 0) return 0
+  const sum = latencies.reduce((acc, curr) => acc + curr, 0)
+  return sum / latencies.length
 }
 
 const geyser = async () => {
@@ -79,7 +85,6 @@ const geyser = async () => {
     const endpoint = process.env.GEYSER_ENDPOINT || 'http://localhost:10000'
     console.log('Connecting to', endpoint)
 
-    // @ts-ignore ignore
     return new GeyserClient(endpoint, token, undefined)
   }
 
@@ -94,25 +99,40 @@ const geyser = async () => {
       console.log('version: ', version)
       const stream = await client.subscribe()
       stream.on('data', async (data: any) => {
-        if (data.transaction !== undefined) {
+        if (data.blockMeta != undefined) {
+          blocktime =
+            Number(data.blockMeta.blockTime.timestamp * 1000).toString() ?? '0'
+        }
+
+        if (data.transaction != undefined && blocktime) {
+          const receiveTime = new Date()
           const transaction = data.transaction
           const txnSignature = transaction.transaction.signature
+          const latency = Number(receiveTime) - Number(blocktime) - 500
           const tx = bs58.encode(new Uint8Array(txnSignature))
+          latencyList.push(latency)
+
+          if (latencyList.length > MAX_LATENCIES) {
+            latencyList.shift()
+          }
+
+          const averageLatency = calculateAverage(latencyList).toFixed(2)
           console.log('tx:', tx)
+          console.log('Latency:', latency)
+          console.log('Average Latency (latest 100):', averageLatency, 'ms')
           return
         }
-        if (data.account === undefined) {
+        if (data.account != undefined) {
+          const accounts = data.account
+          const rawPubkey = accounts.account.pubkey
+          const rawTxnSignature = accounts.account.txnSignature
+          const pubkey = bs58.encode(new Uint8Array(rawPubkey))
+          const txnSignature = bs58.encode(new Uint8Array(rawTxnSignature))
+          console.log('pubkey:', pubkey)
+          console.log('txnSignature:', txnSignature)
           return
         }
         // console.log('data:', JSON.stringify(data, null, 2))
-
-        const accounts = data.account
-        const rawPubkey = accounts.account.pubkey
-        const rawTxnSignature = accounts.account.txnSignature
-        const pubkey = bs58.encode(new Uint8Array(rawPubkey))
-        const txnSignature = bs58.encode(new Uint8Array(rawTxnSignature))
-        console.log('pubkey:', pubkey)
-        console.log('txnSignature:', txnSignature)
       })
 
       stream.on('error', async (e: any) => {
