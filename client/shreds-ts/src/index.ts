@@ -8,6 +8,8 @@ import {
 import 'dotenv/config'
 // import { logDecodedEntries } from '@/utils/logDecodedEntries'
 
+import { receivedSlots, startLatencyCheck } from '@/utils/checkLatency'
+
 const rawEndpoint = process.env.SHREDS_ENDPOINT!
 const endpoint = rawEndpoint.replace(/^https?:\/\//, '')
 
@@ -35,7 +37,14 @@ const connect = async () => {
   const stream = client.subscribeEntries(request)
 
   stream.on('data', (data) => {
-    console.log(`\n🟢 Received slot: ${data.slot}`)
+    // Check the latency
+    const receivedAt = new Date()
+    const slot = data.slot
+    if (!receivedSlots.has(slot)) {
+      receivedSlots.set(slot, [{ receivedAt, entries: data.entries }])
+    } else {
+      receivedSlots.get(slot)!.push({ receivedAt, entries: data.entries })
+    }
 
     // You can see data with decoding entries
     // const decodedEntries = decodeSolanaEntries(data.entries)
@@ -55,3 +64,5 @@ const connect = async () => {
 }
 
 connect()
+// Check the latency
+startLatencyCheck()
