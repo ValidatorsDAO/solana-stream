@@ -1,5 +1,5 @@
 {
-  "name": "geyser-ts-client",
+  "name": "geyser-ts",
   "description": "Solana Geyser gRPC TypeScript Client",
   "version": "1.1.0",
   "main": "dist/index.js",

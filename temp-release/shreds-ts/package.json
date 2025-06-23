@@ -1,5 +1,5 @@
 {
-  "name": "shreds-ts-temp-release",
+  "name": "shreds-ts-starter",
   "description": "Solana Shreds TypeScript Client",
   "version": "1.0.0",
   "main": "dist/index.js",
