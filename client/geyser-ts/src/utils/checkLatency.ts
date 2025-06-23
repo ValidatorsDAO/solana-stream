@@ -92,7 +92,7 @@ export function startLatencyCheck(intervalMs: number = 420) {
           console.log(`Tx: ${tx}`)
           console.log(`⏰ BlockTime: ${new Date(blockTimeMs).toISOString()}`)
           console.log(`📥 ReceivedAt: ${receivedAt.toISOString()}`)
-          console.log(`🚀 Latency: ${latencyMs} ms`)
+          console.log(`🚀 Adjusted Latency: ${latencyMs} ms`)
           console.log(
             `📊 Average Latency (latest ${latencyBuffer.length}): ${calculateAverageLatency().toFixed(2)} ms`,
           )
