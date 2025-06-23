@@ -2,42 +2,11 @@ import {
   GeyserClient,
   bs58,
   CommitmentLevel,
-  SubscribeRequestAccountsDataSlice,
-  SubscribeRequestFilterAccounts,
-  SubscribeRequestFilterBlocks,
-  SubscribeRequestFilterBlocksMeta,
-  SubscribeRequestFilterEntry,
-  SubscribeRequestFilterSlots,
   SubscribeRequestFilterTransactions,
 } from '@validators-dao/solana-stream-sdk'
 import 'dotenv/config'
-
-interface SubscribeRequest {
-  accounts: {
-    [key: string]: SubscribeRequestFilterAccounts
-  }
-  slots: {
-    [key: string]: SubscribeRequestFilterSlots
-  }
-  transactions: {
-    [key: string]: SubscribeRequestFilterTransactions
-  }
-  transactionsStatus: {
-    [key: string]: SubscribeRequestFilterTransactions
-  }
-  blocks: {
-    [key: string]: SubscribeRequestFilterBlocks
-  }
-  blocksMeta: {
-    [key: string]: SubscribeRequestFilterBlocksMeta
-  }
-  entry: {
-    [key: string]: SubscribeRequestFilterEntry
-  }
-  commitment?: CommitmentLevel | undefined
-  accountsDataSlice: SubscribeRequestAccountsDataSlice[]
-  ping?: any
-}
+import { receivedTransactions, startLatencyCheck } from '@/utils/checkLatency'
+import { SubscribeRequest } from '@/utils/geyser'
 
 // const PUMP_FUN_MINT_AUTHORITY = 'TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM'
 const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
@@ -54,22 +23,10 @@ const request: SubscribeRequest = {
   transactions: { pumpfun },
   transactionsStatus: {},
   blocks: {},
-  blocksMeta: {
-    pumpfun: {},
-  },
+  blocksMeta: {},
   entry: {},
   accountsDataSlice: [],
   commitment: CommitmentLevel.PROCESSED,
-}
-
-let blocktime: string | null = null
-const latencyList: number[] = []
-const MAX_LATENCIES = 100
-
-const calculateAverage = (latencies: number[]) => {
-  if (latencies.length === 0) return 0
-  const sum = latencies.reduce((acc, curr) => acc + curr, 0)
-  return sum / latencies.length
 }
 
 const geyser = async () => {
@@ -99,27 +56,18 @@ const geyser = async () => {
       console.log('version: ', version)
       const stream = await client.subscribe()
       stream.on('data', async (data: any) => {
-        if (data.blockMeta != undefined) {
-          blocktime =
-            Number(data.blockMeta.blockTime.timestamp * 1000).toString() ?? '0'
-        }
+        if (data.transaction != undefined) {
+          // Checking Latency
+          const slot = Number(data.transaction.slot)
+          const receivedAt = new Date()
+          const txSignature = bs58.encode(
+            new Uint8Array(data.transaction.transaction.signature),
+          )
 
-        if (data.transaction != undefined && blocktime) {
-          const receiveTime = new Date()
-          const transaction = data.transaction
-          const txnSignature = transaction.transaction.signature
-          const latency = Number(receiveTime) - Number(blocktime) - 500
-          const tx = bs58.encode(new Uint8Array(txnSignature))
-          latencyList.push(latency)
-
-          if (latencyList.length > MAX_LATENCIES) {
-            latencyList.shift()
+          if (!receivedTransactions.has(slot)) {
+            receivedTransactions.set(slot, [])
           }
-
-          const averageLatency = calculateAverage(latencyList).toFixed(2)
-          console.log('tx:', tx)
-          console.log('Latency:', latency)
-          console.log('Average Latency (latest 100):', averageLatency, 'ms')
+          receivedTransactions.get(slot)!.push({ receivedAt, tx: txSignature })
           return
         }
         if (data.account != undefined) {
@@ -172,3 +120,5 @@ const main = async () => {
 }
 
 main()
+// Checking Latency
+startLatencyCheck()

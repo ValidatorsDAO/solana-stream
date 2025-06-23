@@ -1,5 +1,5 @@
 {
-  "name": "shreds-ts",
+  "name": "shreds-ts-temp-release",
   "description": "Solana Shreds TypeScript Client",
   "version": "1.0.0",
   "main": "dist/index.js",
@@ -27,8 +27,8 @@
     "update:packages": "pnpm update --latest"
   },
   "dependencies": {
-    "@validators-dao/solana-stream-sdk": "0.7.0",
     "@solana/web3.js": "1.98.2",
+    "@validators-dao/solana-stream-sdk": "0.7.0",
     "dotenv": "16.5.0"
   },
   "devDependencies": {
