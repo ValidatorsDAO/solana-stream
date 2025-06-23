@@ -3,7 +3,7 @@ import 'dotenv/config'
 
 const MAX_CACHE_SIZE = 20
 const MAX_FETCHING_SIZE = 20
-const MAX_LATENCIES = 100
+const MAX_LATENCIES = 420
 
 export const slotTimestampCache = new Map<number, number>()
 export const receivedTransactions = new Map<
