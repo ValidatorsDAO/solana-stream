@@ -16,6 +16,7 @@ anyhow = { workspace = true }
 bs58 = { workspace = true }
 backoff = { workspace = true, features = ["tokio"] }
 chrono = { workspace = true }
+dashmap = { workspace = true }
 dotenv = { workspace = true }
 env_logger = { workspace = true }
 futures = { workspace = true }
@@ -26,6 +27,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_jsonc = { workspace = true }
 solana-stream-sdk = { workspace = true }
+solana-rpc-client = { workspace = true }
 solana-sdk = { workspace = true }
 solana-transaction-status = { workspace = true }
 solana-pubkey = { workspace = true }

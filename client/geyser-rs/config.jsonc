@@ -31,9 +31,7 @@
   "accounts": {},
   "slots": {},
   "blocks": {},
-  "blocks_meta": {
-    "pumpfun_blocks_meta": {}
-  },
+  "blocks_meta": {},
   "entry": {}
   // "accounts": {
   //   // Example account filter named "example".

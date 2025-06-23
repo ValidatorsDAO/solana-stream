@@ -1,47 +1,43 @@
-use crate::config::Config;
+use crate::{
+    blocktime::{latency_monitor_task, prepare_log_message, BlockTimeCache},
+    config::{commitment_from_str, Config},
+};
 use anyhow::Context;
 use backoff::{future::retry, ExponentialBackoff};
-use chrono::{DateTime, TimeZone, Utc};
 use dotenv::dotenv;
 use env_logger;
 use futures::{SinkExt, StreamExt};
-use log::info;
+use log::{error, info};
 use serde_jsonc;
-use solana_signature::Signature;
 use solana_stream_sdk::{
-    GeyserCommitmentLevel, GeyserGrpcClient, GeyserSubscribeRequest,
-    GeyserSubscribeRequestFilterAccounts, GeyserSubscribeRequestFilterBlocks,
-    GeyserSubscribeRequestFilterBlocksMeta, GeyserSubscribeRequestFilterEntry,
-    GeyserSubscribeRequestFilterSlots, GeyserSubscribeRequestFilterTransactions,
-    GeyserSubscribeUpdate, GeyserUpdateOneof,
+    GeyserGrpcClient, GeyserSubscribeRequest, GeyserSubscribeRequestFilterAccounts,
+    GeyserSubscribeRequestFilterBlocks, GeyserSubscribeRequestFilterBlocksMeta,
+    GeyserSubscribeRequestFilterEntry, GeyserSubscribeRequestFilterSlots,
+    GeyserSubscribeRequestFilterTransactions,
 };
-use std::{
-    collections::{BTreeMap, HashMap},
-    env, fs,
-    time::Duration,
-};
+use std::{collections::BTreeMap, env, fs, sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 use tonic::transport::ClientTlsConfig;
 
+mod blocktime;
 mod config;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     dotenv().ok();
-    env::set_var(
-        env_logger::DEFAULT_FILTER_ENV,
-        env::var_os(env_logger::DEFAULT_FILTER_ENV).unwrap_or_else(|| "info".into()),
-    );
     env_logger::init();
 
     let config_path = env::var("CONFIG_PATH").unwrap_or_else(|_| "config.jsonc".to_string());
-    let endpoint = env::var("GRPC_ENDPOINT").context("GRPC_ENDPOINT is missing")?;
+    let grpc_endpoint = env::var("GRPC_ENDPOINT").context("GRPC_ENDPOINT is missing")?;
     let x_token = env::var("X_TOKEN").ok();
+    let rpc_endpoint = env::var("SOLANA_RPC_ENDPOINT")
+        .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
 
     let config_content = fs::read_to_string(config_path)?;
     let config: Config = serde_jsonc::from_str(&config_content)?;
 
     let request = GeyserSubscribeRequest {
-        commitment: config.commitment.as_ref().map(|c| commitment_from_str(c)),
+        commitment: config.commitment.as_deref().map(commitment_from_str),
         transactions: config
             .transactions
             .iter()
@@ -72,174 +68,72 @@ async fn main() -> Result<(), anyhow::Error> {
             .iter()
             .map(|(k, v)| (k.clone(), GeyserSubscribeRequestFilterEntry::from(v)))
             .collect(),
-        transactions_status: HashMap::new(),
+        transactions_status: Default::default(),
         accounts_data_slice: vec![],
         from_slot: None,
         ping: None,
     };
 
-    let mut messages: BTreeMap<u64, (Option<DateTime<Utc>>, Vec<(String, DateTime<Utc>)>)> =
-        BTreeMap::new();
-    let mut current_slot: u64 = 0;
-    let mut latencies: Vec<i64> = Vec::new();
+    let transactions_by_slot = Arc::new(Mutex::new(BTreeMap::new()));
+    let block_time_cache = BlockTimeCache::new(&rpc_endpoint);
 
-    loop {
-        let endpoint = endpoint.clone();
-        let x_token = x_token.clone();
-        let request = request.clone();
+    let latency_handle = {
+        let block_time_cache = block_time_cache.clone();
+        let transactions_by_slot = transactions_by_slot.clone();
+        tokio::spawn(async move {
+            latency_monitor_task(block_time_cache, transactions_by_slot).await;
+        })
+    };
 
-        let mut client = retry(ExponentialBackoff::default(), move || {
-            let endpoint = endpoint.clone();
-            let x_token = x_token.clone();
+    let geyser_handle = {
+        let transactions_by_slot = transactions_by_slot.clone();
+        tokio::spawn(async move {
+            loop {
+                if let Err(e) = async {
+                    let mut client = retry(ExponentialBackoff::default(), || {
+                        let grpc_endpoint = grpc_endpoint.clone();
+                        let x_token = x_token.clone();
+                        async move {
+                            let mut builder =
+                                GeyserGrpcClient::build_from_shared(grpc_endpoint.clone())?;
+                            if let Some(token) = x_token {
+                                builder = builder.x_token(Some(token))?;
+                            }
+                            if grpc_endpoint.starts_with("https://") {
+                                builder = builder
+                                    .tls_config(ClientTlsConfig::new().with_native_roots())?;
+                            }
+                            builder.connect().await.map_err(backoff::Error::transient)
+                        }
+                    })
+                    .await?;
 
-            async move {
-                let mut builder = GeyserGrpcClient::build_from_shared(endpoint.clone())
-                    .context("failed to create client builder")?;
+                    let (mut sink, mut stream) = client.subscribe().await?;
+                    sink.send(request.clone()).await?;
 
-                if let Some(token) = x_token {
-                    builder = builder
-                        .x_token(Some(token))
-                        .context("failed to set x_token")?;
+                    while let Some(message) = stream.next().await {
+                        match message {
+                            Ok(msg) => prepare_log_message(&msg, &transactions_by_slot).await,
+                            Err(e) => {
+                                error!("Stream error: {:?}, reconnecting...", e);
+                                break;
+                            }
+                        }
+                    }
+
+                    info!("Stream ended, reconnecting...");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    Ok::<(), anyhow::Error>(())
                 }
-
-                if endpoint.starts_with("https://") {
-                    builder = builder
-                        .tls_config(ClientTlsConfig::new().with_native_roots())
-                        .context("failed to configure TLS")?;
+                .await
+                {
+                    error!("Failed to handle stream: {:?}", e);
                 }
-
-                builder = builder
-                    .initial_stream_window_size(Some(1_048_576))
-                    .initial_connection_window_size(Some(4_194_304))
-                    .http2_adaptive_window(true)
-                    .tcp_nodelay(true);
-
-                builder.connect().await.map_err(|e| {
-                    log::error!("Connection failed: {:?}, retrying...", e);
-                    backoff::Error::transient(anyhow::anyhow!(e))
-                })
             }
         })
-        .await?;
+    };
 
-        let (mut sink, mut stream) = client.subscribe().await?;
-        sink.send(request).await?;
+    tokio::try_join!(latency_handle, geyser_handle)?;
 
-        while let Some(message) = stream.next().await {
-            match message {
-                Ok(msg) => log_message(&msg, &mut messages, &mut current_slot, &mut latencies),
-                Err(e) => {
-                    log::error!("Stream error: {:?}, reconnecting...", e);
-                    break;
-                }
-            }
-        }
-
-        log::info!("Stream ended, attempting to reconnect...");
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
-}
-
-fn commitment_from_str(commitment: &str) -> i32 {
-    match commitment {
-        "Processed" => GeyserCommitmentLevel::Processed as i32,
-        "Confirmed" => GeyserCommitmentLevel::Confirmed as i32,
-        "Finalized" => GeyserCommitmentLevel::Finalized as i32,
-        _ => GeyserCommitmentLevel::Processed as i32,
-    }
-}
-
-fn log_message(
-    msg: &GeyserSubscribeUpdate,
-    messages: &mut BTreeMap<u64, (Option<DateTime<Utc>>, Vec<(String, DateTime<Utc>)>)>,
-    current_slot: &mut u64,
-    latencies: &mut Vec<i64>,
-) {
-    let received_time = Utc::now();
-
-    match &msg.update_oneof {
-        Some(GeyserUpdateOneof::TransactionStatus(tx)) => {
-            let entry = messages.entry(tx.slot).or_default();
-            let sig = Signature::try_from(tx.signature.as_slice())
-                .unwrap()
-                .to_string();
-
-            if let Some(block_time) = entry.0 {
-                let latency = received_time
-                    .signed_duration_since(block_time)
-                    .num_milliseconds()
-                    .saturating_sub(500);
-                latencies.push(latency);
-                let avg_latency =
-                    latencies.iter().copied().sum::<i64>() as f64 / latencies.len() as f64;
-
-                info!(
-                    "[Received: {}] TransactionStatus | Signature: {}\n  - Block Time: {}\n  - Adjusted Latency: {} ms\n - Avg Latency: {:.2} ms",
-                    received_time,
-                    sig,
-                    block_time,
-                    latency,
-                    avg_latency
-                );
-            } else {
-                entry.1.push((sig, received_time));
-            }
-        }
-        Some(GeyserUpdateOneof::BlockMeta(block_meta)) => {
-            let entry = messages.entry(block_meta.slot).or_default();
-            entry.0 = block_meta.block_time.map(|obj| {
-                Utc.timestamp_opt(obj.timestamp, 0)
-                    .single()
-                    .expect("valid timestamp")
-            });
-            *current_slot = block_meta.slot;
-
-            if let Some(block_time) = entry.0 {
-                for (sig, tx_received_time) in &entry.1 {
-                    let latency = tx_received_time
-                        .signed_duration_since(block_time)
-                        .num_milliseconds()
-                        .saturating_sub(500);
-                    latencies.push(latency);
-                    let avg_latency =
-                        latencies.iter().copied().sum::<i64>() as f64 / latencies.len() as f64;
-
-                    info!(
-                        "[Received: {}] Transaction | Signature: {}\n  - Block Time: {}\n  - Adjusted Latency: {} ms\n - Avg Latency: {:.2} ms",
-                        tx_received_time,
-                        sig,
-                        block_time,
-                        latency,
-                        avg_latency
-                    );
-                }
-                entry.1.clear();
-            }
-
-            while let Some(slot) = messages.keys().next().cloned() {
-                if slot < block_meta.slot.saturating_sub(20) {
-                    messages.remove(&slot);
-                } else {
-                    break;
-                }
-            }
-        }
-        Some(GeyserUpdateOneof::Transaction(tx_info)) => {
-            let slot = tx_info.slot;
-            let sig = tx_info
-                .transaction
-                .as_ref()
-                .and_then(|tx| tx.transaction.as_ref())
-                .and_then(|inner_tx| inner_tx.signatures.first())
-                .map(|sig| bs58::encode(sig).into_string())
-                .unwrap_or_else(|| "Unknown".into());
-
-            messages
-                .entry(slot)
-                .or_default()
-                .1
-                .push((sig, received_time));
-        }
-        _ => {}
-    }
+    Ok(())
 }

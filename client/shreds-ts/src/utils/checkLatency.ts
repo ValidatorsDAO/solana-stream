@@ -60,7 +60,7 @@ async function getCachedSlotTimestamp(slot: number): Promise<number | null> {
 }
 
 const latencyBuffer: number[] = []
-const MAX_LATENCY_BUFFER_SIZE = 100
+const MAX_LATENCY_BUFFER_SIZE = 420
 
 function recordLatency(latencyMs: number) {
   if (latencyBuffer.length >= MAX_LATENCY_BUFFER_SIZE) {

@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use solana_stream_sdk::GeyserCommitmentLevel;
 use solana_stream_sdk::{
     GeyserAccountsFilterEnum, GeyserLamportsCmp, GeyserMemcmpData,
     GeyserSubscribeRequestFilterAccounts, GeyserSubscribeRequestFilterAccountsFilter,
@@ -172,5 +173,14 @@ pub struct EntryFilter {}
 impl From<&EntryFilter> for GeyserSubscribeRequestFilterEntry {
     fn from(_: &EntryFilter) -> Self {
         Self {}
+    }
+}
+
+pub fn commitment_from_str(commitment: &str) -> i32 {
+    match commitment {
+        "Processed" => GeyserCommitmentLevel::Processed as i32,
+        "Confirmed" => GeyserCommitmentLevel::Confirmed as i32,
+        "Finalized" => GeyserCommitmentLevel::Finalized as i32,
+        _ => GeyserCommitmentLevel::Processed as i32,
     }
 }
