@@ -56,6 +56,7 @@ Create a `.env` file with the following configuration:
 
 ```env
 SHREDS_ENDPOINT=https://shreds-ams.erpc.global
+SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 ```
 
 ⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.

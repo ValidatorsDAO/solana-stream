@@ -24,7 +24,6 @@
     "format": "prettier --write .",
     "build": "tsup",
     "dev": "tsx src/index.ts",
-    "deploy:prod": "wrangler deploy",
     "update:packages": "pnpm update --latest"
   },
   "dependencies": {

@@ -3,10 +3,10 @@ import {
   credentials,
   ShredsCommitmentLevel,
   ShredsSubscribeEntriesRequestFns,
-  decodeSolanaEntries,
+  // decodeSolanaEntries,
 } from '@validators-dao/solana-stream-sdk'
 import 'dotenv/config'
-import { logDecodedEntries } from '@/utils/logDecodedEntries'
+// import { logDecodedEntries } from '@/utils/logDecodedEntries'
 
 const rawEndpoint = process.env.SHREDS_ENDPOINT!
 const endpoint = rawEndpoint.replace(/^https?:\/\//, '')
@@ -37,8 +37,9 @@ const connect = async () => {
   stream.on('data', (data) => {
     console.log(`\n🟢 Received slot: ${data.slot}`)
 
-    const decodedEntries = decodeSolanaEntries(data.entries)
-    logDecodedEntries(decodedEntries)
+    // You can see data with decoding entries
+    // const decodedEntries = decodeSolanaEntries(data.entries)
+    // logDecodedEntries(decodedEntries)
   })
 
   stream.on('error', (err) => {
