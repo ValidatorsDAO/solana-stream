@@ -1,5 +1,5 @@
 {
-  "name": "geyser-ts-temp-release",
+  "name": "geyser-ts-starter",
   "description": "Solana Stream SDK - Geyser Client for TypeScript",
   "version": "1.0.0",
   "main": "dist/index.js",
