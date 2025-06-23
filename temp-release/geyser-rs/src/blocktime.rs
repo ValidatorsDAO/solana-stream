@@ -2,7 +2,7 @@ use bs58;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::future::join_all;
 use log::info;
-use solana_rpc_client::rpc_client::RpcClient;
+use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_stream_sdk::{GeyserSubscribeUpdate, GeyserUpdateOneof};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -42,7 +42,7 @@ impl BlockTimeCache {
             fetching.insert(slot);
         }
 
-        let block_time_result = self.rpc_client.get_block_time(slot);
+        let block_time_result = self.rpc_client.get_block_time(slot).await;
 
         let block_time = match block_time_result {
             Ok(time) => Some(time),
