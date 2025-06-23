@@ -34,6 +34,6 @@ solana-pubkey = { workspace = true }
 solana-signature = { workspace = true }
 solana-hash = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"]  }
 tonic = { workspace = true }
 url = { workspace = true }

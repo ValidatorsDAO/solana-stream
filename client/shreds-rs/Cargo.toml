@@ -13,7 +13,12 @@ path = "src/main.rs"
 
 [dependencies]
 bincode = { workspace = true }
+chrono = { workspace = true }
+dotenvy = { workspace = true }
+env_logger = { workspace = true }
+futures = { workspace = true }
+log = { workspace = true }
 solana-stream-sdk = { workspace = true }
 solana-entry = { workspace = true }
-tokio = { workspace = true }
-dotenvy = { workspace = true }
+solana-rpc-client = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"]  }
