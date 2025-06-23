@@ -73,6 +73,7 @@ Create a `.env` file at `client/geyser-ts/.env` with your environment variables:
 ```env
 X_TOKEN=YOUR_X_TOKEN
 GEYSER_ENDPOINT=https://grpc-ams.erpc.global
+SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 ```
 
 ⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.
@@ -94,6 +95,7 @@ pnpm -F geyser-ts dev
 
 ```env
 SHREDS_ENDPOINT=https://shreds-ams.erpc.global
+SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 ```
 
 ⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.

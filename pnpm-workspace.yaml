@@ -1,3 +1,4 @@
 packages:
   - 'client/*-ts'
   - 'package/*'
+  - 'temp-release/*-ts'

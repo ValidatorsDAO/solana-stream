@@ -43,6 +43,7 @@ Create a `.env` file with the following configuration:
 ```env
 X_TOKEN=your_token_here
 GEYSER_ENDPOINT=https://grpc-ams.erpc.global
+SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 ```
 
 ⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.

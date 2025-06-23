@@ -21,11 +21,9 @@
     "./*"
   ],
   "scripts": {
-    "lint": "eslint --ext .ts,.js --fix .",
     "format": "prettier --write .",
-    "build": "tsc -p .",
-    "dev": "tsc -p . && node dist/index.js",
-    "deploy:prod": "wrangler deploy",
+    "build": "tsup",
+    "dev": "tsx src/index.ts",
     "update:packages": "pnpm update --latest"
   },
   "dependencies": {
@@ -35,6 +33,8 @@
   "devDependencies": {
     "@types/node": "22.15.27",
     "prettier": "3.5.3",
+    "tsup": "8.5.0",
+    "tsx": "4.19.4",
     "typescript": "5.8.3"
   }
 }
