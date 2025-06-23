@@ -174,13 +174,11 @@ fn log_message(
                     latencies.iter().copied().sum::<i64>() as f64 / latencies.len() as f64;
 
                 info!(
-                    "[Received: {}] TransactionStatus | Slot: {}, Signature: {}\n  - Block Time: {}\n  - Adjusted Latency: {} ms\n  - Slot Delay: {} slots\n  - Avg Latency: {:.2} ms",
+                    "[Received: {}] TransactionStatus | Signature: {}\n  - Block Time: {}\n  - Adjusted Latency: {} ms\n - Avg Latency: {:.2} ms",
                     received_time,
-                    tx.slot,
                     sig,
                     block_time,
                     latency,
-                    current_slot.saturating_sub(tx.slot),
                     avg_latency
                 );
             } else {
@@ -207,13 +205,11 @@ fn log_message(
                         latencies.iter().copied().sum::<i64>() as f64 / latencies.len() as f64;
 
                     info!(
-                        "[Received: {}] Transaction | Slot: {}, Signature: {}\n  - Block Time: {}\n  - Adjusted Latency: {} ms\n  - Slot Delay: {} slots\n  - Avg Latency: {:.2} ms",
+                        "[Received: {}] Transaction | Signature: {}\n  - Block Time: {}\n  - Adjusted Latency: {} ms\n - Avg Latency: {:.2} ms",
                         tx_received_time,
-                        block_meta.slot,
                         sig,
                         block_time,
                         latency,
-                        current_slot.saturating_sub(block_meta.slot),
                         avg_latency
                     );
                 }
@@ -243,9 +239,6 @@ fn log_message(
                 .or_default()
                 .1
                 .push((sig, received_time));
-        }
-        Some(GeyserUpdateOneof::Slot(slot_update)) => {
-            *current_slot = slot_update.slot;
         }
         _ => {}
     }

@@ -29,12 +29,7 @@
     }
   },
   "accounts": {},
-  "slots": {
-    "slot_updates": {
-      "filter_by_commitment": true,
-      "interslot_updates": false
-    }
-  },
+  "slots": {},
   "blocks": {},
   "blocks_meta": {
     "pumpfun_blocks_meta": {}
