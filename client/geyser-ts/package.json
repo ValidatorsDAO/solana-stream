@@ -1,7 +1,7 @@
 {
-  "name": "geyser-ts",
+  "name": "geyser-ts-client",
   "description": "Solana Geyser gRPC TypeScript Client",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "dist/index.js",
   "type": "module",
   "engines": {
@@ -27,6 +27,7 @@
     "update:packages": "pnpm update --latest"
   },
   "dependencies": {
+    "@solana/web3.js": "1.98.2",
     "@validators-dao/solana-stream-sdk": "workspace:*",
     "dotenv": "16.5.0"
   },
