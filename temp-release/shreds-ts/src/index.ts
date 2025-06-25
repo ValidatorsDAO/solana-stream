@@ -41,9 +41,9 @@ const connect = async () => {
     const receivedAt = new Date()
     const slot = data.slot
     if (!receivedSlots.has(slot)) {
-      receivedSlots.set(slot, [{ receivedAt, entries: data.entries }])
+      receivedSlots.set(slot, [{ receivedAt }])
     } else {
-      receivedSlots.get(slot)!.push({ receivedAt, entries: data.entries })
+      receivedSlots.get(slot)!.push({ receivedAt })
     }
 
     // You can see data with decoding entries
