@@ -38,24 +38,25 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 ## Usage
 
-The client will connect to the configured shreds endpoint and stream entries for the specified account.
-
-Default target account: `L1ocbjmuFUQDVwwUWi8HjXjg1RYEeN58qQx6iouAsGF`
-
-To modify the target account, edit `src/main.rs`:
-
 ```rust
-let request = ShredstreamClient::create_entries_request_for_account(
-    "YOUR_ACCOUNT_ADDRESS_HERE",
-    Some(CommitmentLevel::Processed),
-);
+    let mut client = ShredstreamClient::connect(&endpoint).await?;
+
+    // The filter is experimental
+    let request = ShredstreamClient::create_entries_request_for_accounts(
+        vec![],
+        vec![],
+        vec![],
+        Some(CommitmentLevel::Processed),
+    );
+
+    let mut stream = client.subscribe_entries(request).await?;
 ```
 
 ## Dependencies
 
 This project uses the published `solana-stream-sdk` crate:
 
-- `solana-stream-sdk = "0.2.5"` - Main SDK for Solana streaming
+- `solana-stream-sdk = "0.5.1"` - Main SDK for Solana streaming
 - `tokio` - Async runtime
 - `dotenvy` - Environment variable loading
 - `solana-entry` - Solana entry types
@@ -64,10 +65,24 @@ This project uses the published `solana-stream-sdk` crate:
 ## Example Output
 
 ```
-Slot: 12345, Entries: 3
-  Entry has 2 transactions
-  Entry has 1 transactions
-  Entry has 0 transactions
+Slot 349218153, Entry #14
+  ⏰ BlockTime: 2025-06-26T00:57:41.000Z
+  📥 ReceivedAt: 2025-06-26T00:57:42.466Z
+  🚀 Adjusted Latency: 966 ms
+
+Slot 349218153, Entry #15
+  ⏰ BlockTime: 2025-06-26T00:57:41.000Z
+  📥 ReceivedAt: 2025-06-26T00:57:42.477Z
+  🚀 Adjusted Latency: 977 ms
+
+📊 Average Latency (last 420 entries): 665.11 ms
+
+Slot 349218154, Entry #1
+  ⏰ BlockTime: 2025-06-26T00:57:42.000Z
+  📥 ReceivedAt: 2025-06-26T00:57:42.506Z
+  🚀 Adjusted Latency: 6 ms
+
+📊 Average Latency (last 420 entries): 664.33 ms
 ```
 
 ## ⚠️ Experimental Filtering Feature Notice
