@@ -210,94 +210,56 @@ Here's how to use the SDK to subscribe to Solana Shreds and decode entries:
 
 ```typescript
 import {
-  ShredstreamProxyClient,
-  credentials,
-  ShredsCommitmentLevel,
-  ShredsSubscribeEntriesRequestFns,
-  decodeSolanaEntries,
-  bs58,
+  ShredsClient,
+  ShredsClientCommitmentLevel,
+  // decodeSolanaEntries,
 } from '@validators-dao/solana-stream-sdk'
 import 'dotenv/config'
+// import { logDecodedEntries } from '@/utils/logDecodedEntries'
 
-const endpoint = process.env.SHREDS_ENDPOINT!.replace(/^https?:\/\//, '')
+import { receivedSlots, startLatencyCheck } from '@/utils/checkLatency'
 
-const client = new ShredstreamProxyClient(endpoint, credentials.createSsl())
+const endpoint = process.env.SHREDS_ENDPOINT!
 
-const request = ShredsSubscribeEntriesRequestFns.create({
-  accounts: {
-    pumpfun: {
-      account: [],
-      owner: [],
-      filters: [],
-    },
-  },
+const client = new ShredsClient(endpoint)
+
+// The filter is experimental
+const request = {
+  accounts: {},
   transactions: {},
   slots: {},
-  commitment: ShredsCommitmentLevel.PROCESSED,
-})
+  commitment: ShredsClientCommitmentLevel.Processed,
+}
 
-const connect = async () => {
+const connect = () => {
   console.log('Connecting to:', endpoint)
 
-  const stream = client.subscribeEntries(request)
+  client.subscribeEntries(
+    JSON.stringify(request),
+    (_error: any, buffer: any) => {
+      const receivedAt = new Date()
+      if (buffer) {
+        const {
+          slot,
+          // entries
+        } = JSON.parse(buffer)
 
-  stream.on('data', (data) => {
-    console.log(`\n🟢 Received slot: ${data.slot}`)
+        // You can decode entries as needed
+        // const decodedEntries = decodeSolanaEntries(new Uint8Array(entries))
+        // logDecodedEntries(decodedEntries)
 
-    const decodedEntries = decodeSolanaEntries(data.entries)
-
-    if (!Array.isArray(decodedEntries)) {
-      console.warn('⚠️ decodedEntries is not an array:', decodedEntries)
-      return
-    }
-
-    decodedEntries.forEach((entry, entryIdx) => {
-      console.log(`\n✅ Entry #${entryIdx + 1}`)
-      console.log(
-        `  - Hash: ${entry.hash ? bs58.encode(Buffer.from(entry.hash)) : 'N/A'}`,
-      )
-      console.log(`  - Num Hashes: ${entry.num_hashes ?? 'N/A'}`)
-
-      entry.transactions.forEach((tx, txIdx) => {
-        console.log(`\n📄 Transaction #${txIdx + 1}`)
-        const signaturesBase58 = tx.signatures
-          .slice(1)
-          .map((sig) => bs58.encode(Buffer.from(sig)))
-        console.log(`  - Signatures:`, signaturesBase58)
-
-        const message = tx.message[0]
-        if (message) {
-          message.accountKeys.forEach((key, idx) => {
-            console.log(`    [${idx}] ${bs58.encode(Buffer.from(key))}`)
-          })
-
-          message.instructions.forEach((inst, instIdx) => {
-            console.log(`    [${instIdx}]`)
-            console.log(`      - Program ID Index: ${inst.programIdIndex}`)
-            console.log(`      - Accounts: ${inst.accounts.join(', ')}`)
-            console.log(`      - Data: ${bs58.encode(Buffer.from(inst.data))}`)
-          })
-
-          console.log(
-            `  📌 Recent Blockhash: ${bs58.encode(Buffer.from(message.recentBlockhash))}`,
-          )
+        if (!receivedSlots.has(slot)) {
+          receivedSlots.set(slot, [{ receivedAt }])
+        } else {
+          receivedSlots.get(slot)!.push({ receivedAt })
         }
-      })
-    })
-  })
-
-  stream.on('error', (err) => {
-    console.error('🚨 Stream error:', err)
-    setTimeout(connect, 5000)
-  })
-
-  stream.on('end', () => {
-    console.log('🔚 Stream ended, reconnecting...')
-    setTimeout(connect, 5000)
-  })
+      }
+    },
+  )
 }
 
 connect()
+startLatencyCheck()
 ```
 
 Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
@@ -325,33 +287,21 @@ Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
 - `SubscribeRequestAccountsDataSlice`: Data slice configuration for account subscriptions.
 - `bs58`: Base58 encoding/decoding utilities for Solana addresses and data.
 
-### Shredstream Client Types
+### Shredstream Client
 
-- `ShredstreamProxyClient`: Client for streaming Solana shreds through proxy endpoints.
-- `ShredstreamClient`: Direct client for streaming Solana shreds.
-- `ShredsCommitmentLevel`: Commitment levels specifically for Shredstream data.
-- `ShredsSubscribeEntriesRequestFns`: Functions to construct entry subscription requests.
-- `ShredsEntryFns`: Utilities and functions for handling shred entries.
-
-### Shredstream Exported Type Definitions
-
-- `ShredsSubscribeEntriesRequest`: Request type definition for subscribing to entries.
-- `ShredsSubscribeRequestFilterAccounts`: Account filter type for shred subscriptions.
-- `ShredsSubscribeRequestFilterTransactions`: Transaction filter type for shred subscriptions.
-- `ShredsSubscribeRequestFilterSlots`: Slot filter type for shred subscriptions.
-- `ShredsEntry`: Entry type definition representing Solana shred entries.
+- `ShredsClient`: Client for streaming Solana shreds through shreds endpoints.
+- `ShredsClientCommitmentLevel`: Solana commitment levels (e.g., processed, confirmed, finalized).
 
 ### Utility Exports
 
 - `decodeSolanaEntries`: Function to decode raw Solana shred entry data into structured, human-readable formats.
-- `credentials`, `Metadata`: gRPC credentials and metadata utilities.
 
 ## Dependencies
 
 - `@triton-one/yellowstone-grpc`: For gRPC streaming capabilities
 - `bs58`: For base58 encoding/decoding
-- `@grpc/grpc-js`
 - `@validators-dao/solana-entry-decoder`: Utility for decoding Solana shred entries.
+- `@validators-dao/solana-shreds-client`: Solana Shreds Client for Scale. (NAPI-RS)
 
 ## ⚠️ Experimental Filtering Feature Notice
 
