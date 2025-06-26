@@ -18,6 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut client = ShredstreamClient::connect(&endpoint).await?;
 
+    // The filter is experimental
     let request = ShredstreamClient::create_entries_request_for_accounts(
         vec![],
         vec![],
