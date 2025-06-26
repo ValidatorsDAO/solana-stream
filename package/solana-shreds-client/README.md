@@ -70,7 +70,7 @@ To directly import this package, you'll need to use the Node.js `require` functi
 ```typescript
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
-const { SolanaShredsClient } = require('@validators-dao/solana-shreds-client')
+const { ShredsClient } = require('@validators-dao/solana-shreds-client')
 ```
 
 ### Recommended Usage
@@ -82,7 +82,7 @@ pnpm add @validators-dao/solana-stream-sdk
 ```
 
 ```typescript
-import { SolanaShredsClient } from '@validators-dao/solana-stream-sdk'
+import { ShredsClient } from '@validators-dao/solana-stream-sdk'
 ```
 
 You can find comprehensive usage examples [here](https://github.com/ValidatorsDAO/solana-stream/tree/main/client/shreds-ts).

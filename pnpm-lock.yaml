@@ -163,8 +163,8 @@ importers:
         specifier: 1.98.2
         version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 0.7.0
-        version: 0.7.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        specifier: 0.8.0
+        version: 0.8.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -191,8 +191,8 @@ importers:
         specifier: 1.98.2
         version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 0.7.0
-        version: 0.7.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        specifier: 0.8.0
+        version: 0.8.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -615,8 +615,12 @@ packages:
     resolution: {integrity: sha512-a4nP9cOqLkFzczMNAvYqPYfEdRau5gmdjg/ClbLUaI4PnEUiPf/QJ4l0HN7FmvFmybhv9gdhdKFabPolggm+9g==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
-  '@validators-dao/solana-stream-sdk@0.7.0':
-    resolution: {integrity: sha512-zSQScvOHrFV8DBGXFBeleL8LP5s7HDM7L1P70XlmtynbxAeT9Q70MsdrFGMtrZTzGRijbZR7+9Mq2s3abQ2Bag==}
+  '@validators-dao/solana-shreds-client@1.0.0':
+    resolution: {integrity: sha512-g1mbY4K0QWa++Fn0Y5LY8OlViCXUnN1lVb/DgvH4/YoIZmTErc5fLEqf3a2LAcCa3ZUgsV316B4R8gmC2+Gdsw==}
+    engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
+
+  '@validators-dao/solana-stream-sdk@0.8.0':
+    resolution: {integrity: sha512-IHwVmjh9tTUOwQro071bfDYDjXiHf8d0zaTAdt4kMeDax7ROqtMLq0zbDv9/vYFSRgEBpoYewRPy5CZyQtoezQ==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
   abbrev@1.1.1:
@@ -2195,7 +2199,9 @@ snapshots:
 
   '@validators-dao/solana-entry-decoder@2.2.0': {}
 
-  '@validators-dao/solana-stream-sdk@0.7.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@validators-dao/solana-shreds-client@1.0.0': {}
+
+  '@validators-dao/solana-stream-sdk@0.8.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@bufbuild/protobuf': 2.5.1
       '@grpc/grpc-js': 1.13.4
@@ -2203,6 +2209,7 @@ snapshots:
       '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@triton-one/yellowstone-grpc': 4.0.2
       '@validators-dao/solana-entry-decoder': 2.2.0
+      '@validators-dao/solana-shreds-client': 1.0.0
       bs58: 6.0.0
     transitivePeerDependencies:
       - bufferutil

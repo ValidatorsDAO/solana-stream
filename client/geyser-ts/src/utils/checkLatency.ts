@@ -78,7 +78,10 @@ export function startLatencyCheck(intervalMs: number = 420) {
     const slots = Array.from(receivedTransactions.keys())
 
     for (const slot of slots) {
-      const txArray = receivedTransactions.get(slot)!
+      const txArray = receivedTransactions.get(slot)
+      if (!txArray) {
+        continue
+      }
       const blockTime = await getCachedSlotTimestamp(slot)
 
       if (blockTime !== null) {

@@ -12,6 +12,7 @@ const endpoint = process.env.SHREDS_ENDPOINT!
 
 const client = new ShredsClient(endpoint)
 
+// The filter is experimental
 const request = {
   accounts: {},
   transactions: {},
