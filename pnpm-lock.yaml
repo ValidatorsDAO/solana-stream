@@ -145,8 +145,8 @@ importers:
         specifier: 1.98.2
         version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 0.9.0
-        version: 0.9.0
+        specifier: 0.10.0
+        version: 0.10.0
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -173,8 +173,8 @@ importers:
         specifier: 1.98.2
         version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 0.9.0
-        version: 0.9.0
+        specifier: 0.10.0
+        version: 0.10.0
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -594,8 +594,8 @@ packages:
     resolution: {integrity: sha512-xHqtHp4Qpp8Q6UolvNJhh3SAZFQ+Z97WuCvbKJlLn3SCKIbp0ftd1BLbawT1jDuJC3vwlnU5PVsPYttxWuvlLg==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
-  '@validators-dao/solana-stream-sdk@0.9.0':
-    resolution: {integrity: sha512-980IadsTHRFgUMtQMcVowGaIRoeCdzZk+kAo8qD5QR9z1W3ahLfUI3MUxnenAE4TpwLkmskrlGsKXvZuqn3bSg==}
+  '@validators-dao/solana-stream-sdk@0.10.0':
+    resolution: {integrity: sha512-ZrrMk33HNgV8OmDefh0Czrs8phSR6bYl5ToynelV2A3cWE/XbafV7YR5ZITDQbmRpNQMfCibRYpK5PQknxA/8w==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
   acorn@8.15.0:
@@ -1990,7 +1990,7 @@ snapshots:
 
   '@validators-dao/solana-shreds-client@1.0.1': {}
 
-  '@validators-dao/solana-stream-sdk@0.9.0':
+  '@validators-dao/solana-stream-sdk@0.10.0':
     dependencies:
       '@triton-one/yellowstone-grpc': 4.0.2
       '@validators-dao/solana-entry-decoder': 2.2.0
