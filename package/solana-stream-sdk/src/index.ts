@@ -22,24 +22,6 @@ export {
   SubscribeRequestFilterTransactions,
 }
 
-export {
-  CommitmentLevel as ShredsCommitmentLevel,
-  ShredstreamProxyClient,
-  ShredstreamClient,
-  SubscribeEntriesRequest as ShredsSubscribeEntriesRequestFns,
-  Entry as ShredsEntryFns,
-} from './generated/shredstream'
-
-export type {
-  SubscribeEntriesRequest as ShredsSubscribeEntriesRequest,
-  SubscribeRequestFilterAccounts as ShredsSubscribeRequestFilterAccounts,
-  SubscribeRequestFilterTransactions as ShredsSubscribeRequestFilterTransactions,
-  SubscribeRequestFilterSlots as ShredsSubscribeRequestFilterSlots,
-  Entry as ShredsEntry,
-} from './generated/shredstream'
-
-export { credentials, Metadata } from '@grpc/grpc-js'
-
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const { decodeSolanaEntries } = require('@validators-dao/solana-entry-decoder')
