@@ -8,10 +8,7 @@ const SOLANA_RPC_ENDPOINT =
   process.env.SOLANA_RPC_ENDPOINT || clusterApiUrl('mainnet-beta')
 const connection = new Connection(SOLANA_RPC_ENDPOINT)
 
-export const receivedSlots = new Map<
-  number,
-  Array<{ receivedAt: Date; entries: any }>
->()
+export const receivedSlots = new Map<number, Array<{ receivedAt: Date }>>()
 
 export function cacheSlotTimestamp(slot: number, timestamp: number) {
   if (slotTimestampCache.has(slot)) {

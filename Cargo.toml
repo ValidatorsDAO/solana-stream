@@ -7,6 +7,7 @@ members = [
     "client/geyser-rs",
 ]
 exclude = [
+    "package/solana-shreds-client",
     "package/solana-entry-decoder",
     "temp-release/shreds-rs",
     "temp-release/geyser-rs"
