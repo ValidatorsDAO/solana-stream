@@ -102,6 +102,15 @@ importers:
         specifier: 4.1.5
         version: 4.1.5
 
+  package/solana-shreds-client:
+    devDependencies:
+      '@napi-rs/cli':
+        specifier: 2.18.4
+        version: 2.18.4
+      npm-run-all:
+        specifier: 4.1.5
+        version: 4.1.5
+
   package/solana-stream-sdk:
     dependencies:
       '@bufbuild/protobuf':
@@ -122,6 +131,9 @@ importers:
       '@validators-dao/solana-entry-decoder':
         specifier: workspace:*
         version: link:../solana-entry-decoder
+      '@validators-dao/solana-shreds-client':
+        specifier: workspace:*
+        version: link:../solana-shreds-client
       bs58:
         specifier: 6.0.0
         version: 6.0.0

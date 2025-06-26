@@ -44,4 +44,12 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const { decodeSolanaEntries } = require('@validators-dao/solana-entry-decoder')
 
-export { decodeSolanaEntries }
+const { ShredsClient } = require('@validators-dao/solana-shreds-client')
+
+enum ShredsClientCommitmentLevel {
+  Processed = 'Processed',
+  Finalized = 'Finalized',
+  Confirmed = 'Confirmed',
+}
+
+export { decodeSolanaEntries, ShredsClient, ShredsClientCommitmentLevel }
