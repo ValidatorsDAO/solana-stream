@@ -47,7 +47,7 @@ cp .env.example .env
 3. Run the client:
 
 ```bash
-cargo run
+RUST_LOG=info cargo run
 ```
 
 ## Configuration
