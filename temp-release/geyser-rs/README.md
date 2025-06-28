@@ -29,6 +29,8 @@
 
 ```bash
 cargo run
+// show logs
+RUST_LOG=info cargo run
 ```
 
 Ensure your `.env` file contains:
