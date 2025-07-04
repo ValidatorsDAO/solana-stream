@@ -125,7 +125,7 @@ pub async fn latency_monitor_task(
                     .remove(&slot)
                     .unwrap_or_default();
 
-                for (sig, recv_time) in txs {
+                for (_, recv_time) in txs {
                     let latency = recv_time
                         .signed_duration_since(block_time)
                         .num_milliseconds()
@@ -139,9 +139,8 @@ pub async fn latency_monitor_task(
                         latency_buffer.iter().sum::<i64>() as f64 / latency_buffer.len() as f64;
 
                     log::info!(
-                        "Slot: {}\nTx: {}\n⏰ BlockTime: {}\n📥 ReceivedAt: {}\n🚀 Adjusted Latency: {} ms\n📊 Average Latency (latest {}): {:.2} ms\n",
+                        "Slot: {}\n⏰ BlockTime: {}\n📥 ReceivedAt: {}\n🚀 Adjusted Latency: {} ms\n📊 Average Latency (latest {}): {:.2} ms\n",
                         slot,
-                        sig,
                         block_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
                         recv_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
                         latency,
