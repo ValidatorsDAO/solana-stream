@@ -27,8 +27,8 @@
     "update:packages": "pnpm update --latest"
   },
   "dependencies": {
-    "@solana/web3.js": "1.98.2",
-    "@validators-dao/solana-stream-sdk": "0.10.0",
+    "@solana/web3.js": "1.98.4",
+    "@validators-dao/solana-stream-sdk": "0.11.0",
     "dotenv": "16.5.0"
   },
   "devDependencies": {

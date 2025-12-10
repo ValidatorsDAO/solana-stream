@@ -11,7 +11,17 @@ use solana_stream_sdk::{
     SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots,
     SubscribeRequestFilterTransactions,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Once};
+
+fn install_rustls_provider() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        // Rustls 0.23 requires an explicit crypto provider; use ring-based default.
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("install rustls default crypto provider");
+    });
+}
 
 #[napi]
 #[derive(Deserialize)]
@@ -94,6 +104,7 @@ impl ShredsClient {
         request_json: String,
         on_receive_callback: ThreadsafeFunction<String>,
     ) -> Result<()> {
+        install_rustls_provider();
         let endpoint = self.endpoint.clone();
 
         let request: SimpleEntriesRequest = serde_json::from_str(&request_json)

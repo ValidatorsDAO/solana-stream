@@ -1,6 +1,6 @@
 [package]
 name = "solana-shreds-client"
-version = "1.1.0"
+version = "1.2.0"
 description = "Solana Shreds Client for Scale."
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -16,3 +16,4 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 solana-stream-sdk = "0.6.1"
 futures = "0.3"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }

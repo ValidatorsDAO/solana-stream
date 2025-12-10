@@ -40,8 +40,8 @@ importers:
   client/geyser-ts:
     dependencies:
       '@solana/web3.js':
-        specifier: 1.98.2
-        version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        specifier: 1.98.4
+        version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
         specifier: workspace:*
         version: link:../../package/solana-stream-sdk
@@ -68,8 +68,8 @@ importers:
   client/shreds-ts:
     dependencies:
       '@solana/web3.js':
-        specifier: 1.98.2
-        version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        specifier: 1.98.4
+        version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
         specifier: workspace:*
         version: link:../../package/solana-stream-sdk
@@ -142,11 +142,11 @@ importers:
   temp-release/geyser-ts:
     dependencies:
       '@solana/web3.js':
-        specifier: 1.98.2
-        version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        specifier: 1.98.4
+        version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 0.10.0
-        version: 0.10.0
+        specifier: 0.11.0
+        version: 0.11.0
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -170,11 +170,11 @@ importers:
   temp-release/shreds-ts:
     dependencies:
       '@solana/web3.js':
-        specifier: 1.98.2
-        version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        specifier: 1.98.4
+        version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 0.10.0
-        version: 0.10.0
+        specifier: 0.11.0
+        version: 0.11.0
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -555,8 +555,8 @@ packages:
     peerDependencies:
       typescript: '>=5.3.3'
 
-  '@solana/web3.js@1.98.2':
-    resolution: {integrity: sha512-BqVwEG+TaG2yCkBMbD3C4hdpustR4FpuUFRPUmqRZYYlPI9Hg4XMWxHWOWRzHE9Lkc9NDjzXFX7lDXSgzC7R1A==}
+  '@solana/web3.js@1.98.4':
+    resolution: {integrity: sha512-vv9lfnvjUsRiq//+j5pBdXig0IQdtzA0BRZ3bXEP4KaIyF1CcaydWqgyzQgfZMNIsWNWmG+AUHwPy4AHOD6gpw==}
 
   '@swc/helpers@0.5.17':
     resolution: {integrity: sha512-5IKx/Y13RsYd+sauPb2x+U/xZikHjolzfuDgTAl/Tdf3Q8rslRvC19NKDLgAJQ6wsqADk10ntlv08nPFw/gO/A==}
@@ -586,16 +586,16 @@ packages:
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
-  '@validators-dao/solana-entry-decoder@2.2.0':
-    resolution: {integrity: sha512-a4nP9cOqLkFzczMNAvYqPYfEdRau5gmdjg/ClbLUaI4PnEUiPf/QJ4l0HN7FmvFmybhv9gdhdKFabPolggm+9g==}
+  '@validators-dao/solana-entry-decoder@2.3.0':
+    resolution: {integrity: sha512-7hh2rdYY6HYhsCfLnoMAXMUpZFWWM/ULYV+imHeUcyJsEijiV4fFUddRFVRJhrxH9TqoenTtaYCoxg+RSYlwBg==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
-  '@validators-dao/solana-shreds-client@1.0.1':
-    resolution: {integrity: sha512-xHqtHp4Qpp8Q6UolvNJhh3SAZFQ+Z97WuCvbKJlLn3SCKIbp0ftd1BLbawT1jDuJC3vwlnU5PVsPYttxWuvlLg==}
+  '@validators-dao/solana-shreds-client@1.1.0':
+    resolution: {integrity: sha512-KhUquKfc5ZdXQ6xxxaPBGPH4x+5QldhTS8Xm/PXx0py+j26rfartu/fhAGF1MJ7P2n34kon3njKlpaVSei9aHg==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
-  '@validators-dao/solana-stream-sdk@0.10.0':
-    resolution: {integrity: sha512-ZrrMk33HNgV8OmDefh0Czrs8phSR6bYl5ToynelV2A3cWE/XbafV7YR5ZITDQbmRpNQMfCibRYpK5PQknxA/8w==}
+  '@validators-dao/solana-stream-sdk@0.11.0':
+    resolution: {integrity: sha512-IEpCwXD3TXhRmqAmgRhKaz6+85W0wrTG4hCmC10bcCVYR+6iliVK5Jt3nrrwnN/jm9B47vZ0u3aZq8H5I3ejIw==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
   acorn@8.15.0:
@@ -1933,7 +1933,7 @@ snapshots:
       commander: 13.1.0
       typescript: 5.8.3
 
-  '@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@babel/runtime': 7.27.6
       '@noble/curves': 1.9.2
@@ -1986,15 +1986,15 @@ snapshots:
     dependencies:
       '@types/node': 22.15.27
 
-  '@validators-dao/solana-entry-decoder@2.2.0': {}
+  '@validators-dao/solana-entry-decoder@2.3.0': {}
 
-  '@validators-dao/solana-shreds-client@1.0.1': {}
+  '@validators-dao/solana-shreds-client@1.1.0': {}
 
-  '@validators-dao/solana-stream-sdk@0.10.0':
+  '@validators-dao/solana-stream-sdk@0.11.0':
     dependencies:
       '@triton-one/yellowstone-grpc': 4.0.2
-      '@validators-dao/solana-entry-decoder': 2.2.0
-      '@validators-dao/solana-shreds-client': 1.0.1
+      '@validators-dao/solana-entry-decoder': 2.3.0
+      '@validators-dao/solana-shreds-client': 1.1.0
       bs58: 6.0.0
 
   acorn@8.15.0: {}
