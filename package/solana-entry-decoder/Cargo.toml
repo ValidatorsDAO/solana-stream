@@ -1,6 +1,6 @@
 [package]
 name = "solana-entry-decoder"
-version = "2.2.0"
+version = "2.3.0"
 description = "For decoding Solana shred entry data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
