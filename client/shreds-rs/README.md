@@ -31,7 +31,7 @@ A Rust client for streaming Solana shreds data using the published `solana-strea
 
 ### Prerequisites
 
-- Rust 1.70+
+ - Rust 1.86+
 - Access to a Solana shreds streaming endpoint
 
 ### Installation
@@ -81,7 +81,7 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 This project uses the published `solana-stream-sdk` crate:
 
-- `solana-stream-sdk = "0.6.0"` - Main SDK for Solana streaming
+- `solana-stream-sdk = "0.6.1"` - Main SDK for Solana streaming
 - `tokio` - Async runtime
 - `dotenvy` - Environment variable loading
 - `solana-entry` - Solana entry types
