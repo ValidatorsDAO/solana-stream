@@ -85,7 +85,7 @@ pnpm -F @validators-dao/solana-stream-sdk build
 pnpm -F geyser-ts dev
 ```
 
-- A 7-day free trial for the Geyser gRPC endpoints is available by joining the Validators DAO Discord community. Please try it out:
+- A 1-day free trial for the Geyser gRPC endpoints is available by joining the Validators DAO Discord community. Please try it out:
 
 [https://discord.gg/C7ZQSrCkYR](https://discord.gg/C7ZQSrCkYR)
 
@@ -110,7 +110,7 @@ The sample code can be found at:
 
 [https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs](https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs)
 
-A 7-day free trial for the Shreds endpoints is available by joining the Validators DAO Discord community. Please try it out: [https://discord.gg/C7ZQSrCkYR](https://discord.gg/C7ZQSrCkYR)
+A 1-day free trial for the Shreds endpoints is available by joining the Validators DAO Discord community. Please try it out: [https://discord.gg/C7ZQSrCkYR](https://discord.gg/C7ZQSrCkYR)
 
 #### Usage with solana-stream-sdk
 
@@ -118,10 +118,10 @@ You can also use the published crate in your own projects:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "0.5.1"
+solana-stream-sdk = "0.6.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"
-solana-entry = "2.2.1"
+solana-entry = "3.0.12"
 bincode = "1.3.3"
 ```
 

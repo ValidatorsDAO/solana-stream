@@ -44,7 +44,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "0.5.1"
+solana-stream-sdk = "0.6.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```
