@@ -81,7 +81,3 @@ tonic-prost-build = "0.14.2"
 url = "2.5.4"
 yellowstone-grpc-client = "10.2.0"
 yellowstone-grpc-proto = "10.1.1"
-
-[patch.crates-io]
-# base64ct 1.8.x requires Rust 1.85/edition2024; pin to 1.7.x via git tag for Rust 1.84 toolchain.
-base64ct = { git = "https://github.com/RustCrypto/formats.git", tag = "base64ct/v1.7.3" }
