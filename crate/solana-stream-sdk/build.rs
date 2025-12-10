@@ -1,14 +1,17 @@
-use tonic_build::configure;
+use tonic_prost_build::configure;
 
 fn main() {
     const PROTOC_ENVAR: &str = "PROTOC";
     if std::env::var(PROTOC_ENVAR).is_err() {
         #[cfg(not(windows))]
-        std::env::set_var(PROTOC_ENVAR, protobuf_src::protoc());
+        // protobuf_src::protoc() is unsafe as it touches env paths; wrap explicitly.
+        unsafe {
+            std::env::set_var(PROTOC_ENVAR, protobuf_src::protoc());
+        }
     }
 
     configure()
-        .compile(
+        .compile_protos(
             &["protos/shared.proto", "protos/shredstream.proto"],
             &["protos"],
         )
