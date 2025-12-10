@@ -44,7 +44,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "0.6.0"
+solana-stream-sdk = "0.6.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```
@@ -394,7 +394,7 @@ For convenience, the following types are re-exported:
 
 ## Requirements
 
-- Rust 1.70+
+ - Rust 1.86+
 - Tokio runtime for async operations
 
 ## ⚠️ Experimental Filtering Feature Notice
