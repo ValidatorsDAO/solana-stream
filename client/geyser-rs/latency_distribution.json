@@ -1,0 +1,45 @@
+{
+  "totalTxns": 0,
+  "distribution": [
+    {
+      "label": "0-399ms",
+      "count": 0,
+      "percentage": "0.00"
+    },
+    {
+      "label": "400-799ms",
+      "count": 0,
+      "percentage": "0.00"
+    },
+    {
+      "label": "800-999ms",
+      "count": 0,
+      "percentage": "0.00"
+    },
+    {
+      "label": "1000-1199ms",
+      "count": 0,
+      "percentage": "0.00"
+    },
+    {
+      "label": "1200-1499ms",
+      "count": 0,
+      "percentage": "0.00"
+    },
+    {
+      "label": "1500-1799ms",
+      "count": 0,
+      "percentage": "0.00"
+    },
+    {
+      "label": "1800-1999ms",
+      "count": 0,
+      "percentage": "0.00"
+    },
+    {
+      "label": "2000ms+",
+      "count": 0,
+      "percentage": "0.00"
+    }
+  ]
+}
