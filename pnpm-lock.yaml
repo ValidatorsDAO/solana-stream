@@ -145,8 +145,8 @@ importers:
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 0.11.0
-        version: 0.11.0
+        specifier: 0.12.0
+        version: 0.12.0
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -173,8 +173,8 @@ importers:
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 0.11.0
-        version: 0.11.0
+        specifier: 0.12.0
+        version: 0.12.0
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -590,12 +590,12 @@ packages:
     resolution: {integrity: sha512-7hh2rdYY6HYhsCfLnoMAXMUpZFWWM/ULYV+imHeUcyJsEijiV4fFUddRFVRJhrxH9TqoenTtaYCoxg+RSYlwBg==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
-  '@validators-dao/solana-shreds-client@1.1.0':
-    resolution: {integrity: sha512-KhUquKfc5ZdXQ6xxxaPBGPH4x+5QldhTS8Xm/PXx0py+j26rfartu/fhAGF1MJ7P2n34kon3njKlpaVSei9aHg==}
+  '@validators-dao/solana-shreds-client@1.2.0':
+    resolution: {integrity: sha512-fhZXMcV4y/wijkeENL+wItorBl28vjmPngkrqhWZ/QiiNLffF1ctychL67e7/3Y5Xdu1on0FiMOZQO232ZywGQ==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
-  '@validators-dao/solana-stream-sdk@0.11.0':
-    resolution: {integrity: sha512-IEpCwXD3TXhRmqAmgRhKaz6+85W0wrTG4hCmC10bcCVYR+6iliVK5Jt3nrrwnN/jm9B47vZ0u3aZq8H5I3ejIw==}
+  '@validators-dao/solana-stream-sdk@0.12.0':
+    resolution: {integrity: sha512-rXq9J9XzIBN9MFRyPEyI4JBJ85+1OLeoO9NIkoyNmCX8h//B9+2ywQCoXOSIAGyTShgTaXg9pO303X0UXsTsnA==}
     engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
   acorn@8.15.0:
@@ -1988,13 +1988,13 @@ snapshots:
 
   '@validators-dao/solana-entry-decoder@2.3.0': {}
 
-  '@validators-dao/solana-shreds-client@1.1.0': {}
+  '@validators-dao/solana-shreds-client@1.2.0': {}
 
-  '@validators-dao/solana-stream-sdk@0.11.0':
+  '@validators-dao/solana-stream-sdk@0.12.0':
     dependencies:
       '@triton-one/yellowstone-grpc': 4.0.2
       '@validators-dao/solana-entry-decoder': 2.3.0
-      '@validators-dao/solana-shreds-client': 1.1.0
+      '@validators-dao/solana-shreds-client': 1.2.0
       bs58: 6.0.0
 
   acorn@8.15.0: {}
