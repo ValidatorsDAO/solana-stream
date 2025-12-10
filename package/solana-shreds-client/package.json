@@ -21,8 +21,8 @@
     "url": "https://discord.gg/C7ZQSrCkYR"
   },
   "scripts": {
-    "build:linux:x64": "OPENSSL_STATIC=1 PKG_CONFIG_ALLOW_CROSS=1 PROTOC_NO_VENDOR=1 PROTOC=$(which protoc) napi build --platform --release --target x86_64-unknown-linux-gnu --zig dist",
-    "build:linux:arm64": "OPENSSL_STATIC=1 PKG_CONFIG_ALLOW_CROSS=1 PROTOC_NO_VENDOR=1 PROTOC=$(which protoc) napi build --platform --release --target aarch64-unknown-linux-gnu --zig dist",
+    "build:linux:x64": "CC=x86_64-unknown-linux-gnu-gcc CXX=x86_64-unknown-linux-gnu-g++ AR=x86_64-unknown-linux-gnu-ar OPENSSL_STATIC=1 PKG_CONFIG_ALLOW_CROSS=1 PROTOC_NO_VENDOR=1 PROTOC=$(which protoc) napi build --platform --release --target x86_64-unknown-linux-gnu dist",
+    "build:linux:arm64": "CC=aarch64-unknown-linux-gnu-gcc CXX=aarch64-unknown-linux-gnu-g++ AR=aarch64-unknown-linux-gnu-ar OPENSSL_STATIC=1 PKG_CONFIG_ALLOW_CROSS=1 PROTOC_NO_VENDOR=1 PROTOC=$(which protoc) napi build --platform --release --target aarch64-unknown-linux-gnu dist",
     "build:mac:x64": "OPENSSL_DIR=$(brew --prefix openssl@3) OPENSSL_LIB_DIR=$(brew --prefix openssl@3)/lib OPENSSL_INCLUDE_DIR=$(brew --prefix openssl@3)/include arch -x86_64 napi build --release --platform --target x86_64-apple-darwin dist",
     "build:mac:arm64": "napi build --release --platform --target aarch64-apple-darwin dist",
     "build:all": "npm-run-all --parallel build:linux:x64 build:linux:arm64 build:mac:arm64 build:mac:x64",
