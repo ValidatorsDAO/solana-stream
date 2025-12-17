@@ -1,0 +1,26 @@
+[package]
+name = "shreds-udp-rs"
+version = { workspace = true }
+description = "Rust client for Solana Shredstream over UDP"
+authors = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "shreds-udp-rs"
+path = "src/main.rs"
+
+[dependencies]
+bincode = { workspace = true }
+chrono = { workspace = true }
+dotenvy = { workspace = true }
+env_logger = { workspace = true }
+futures = { workspace = true }
+log = { workspace = true }
+solana-entry = { workspace = true }
+solana-rpc-client = { workspace = true }
+solana-ledger = { workspace = true }
+solana-sdk = { workspace = true }
+solana-stream-sdk = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

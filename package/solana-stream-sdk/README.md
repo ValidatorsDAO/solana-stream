@@ -316,6 +316,18 @@ Other reports and suggestions are also highly appreciated.
 You can also join discussions or share feedback on Validators DAO's Discord community:
 https://discord.gg/C7ZQSrCkYR
 
+## Shreds UDP configuration (Rust client)
+
+- Load base config via `SHREDS_UDP_CONFIG=/path/to/config.{json,toml}`; env vars then override it.
+- Core envs:  
+  - `SHREDS_UDP_BIND_ADDR` (default `0.0.0.0:10001`), `SOLANA_RPC_ENDPOINT`  
+  - Logs: `SHREDS_UDP_LOG_RAW`, `SHREDS_UDP_LOG_SHREDS`, `SHREDS_UDP_LOG_ENTRIES`, `SHREDS_UDP_LOG_WATCH_HITS`, `SHREDS_UDP_LOG_DEFER`  
+  - Watch lists: `SHREDS_UDP_WATCH_PROGRAM_IDS`, `SHREDS_UDP_WATCH_AUTHORITIES` (defaults to pump.fun program/authority)  
+  - Hardening: `SHREDS_UDP_REQUIRE_CODE_MATCH`, `SHREDS_UDP_STRICT_FEC`, `SHREDS_UDP_STRICT_NUM_DATA`, `SHREDS_UDP_STRICT_NUM_CODING`  
+  - Slot window: `SHREDS_UDP_ROOT_SLOT`, `SHREDS_UDP_MAX_FUTURE` (default 512)  
+  - TTLs: `SHREDS_UDP_COMPLETED_TTL_MS` (default 30s), `SHREDS_UDP_EVICT_COOLDOWN_MS` (default 300ms), `SHREDS_UDP_WARN_ONCE` (default true)  
+- Pump.fun: program and mint-authority pubkeys are fixed; token mint addresses are discovered per transaction at runtime (not hardcoded).
+
 ## Repository
 
 This package is part of the [Solana Stream](https://github.com/ValidatorsDAO/solana-stream) monorepo.

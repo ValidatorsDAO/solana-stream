@@ -5,16 +5,18 @@ members = [
     "crate/r2-uploader",
     "client/shreds-rs",
     "client/geyser-rs",
+    "client/shreds-udp-rs",
 ]
 exclude = [
     "package/solana-shreds-client",
     "package/solana-entry-decoder",
     "temp-release/shreds-rs",
-    "temp-release/geyser-rs"
+    "temp-release/geyser-rs",
+    "temp-release/shreds-udp-rs",
 ]
 
 [workspace.package]
-version = "0.6.1"
+version = "1.0.0"
 description = ""
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -64,16 +66,19 @@ solana-perf = "3.0"
 solana-pubkey = "3.0"
 solana-signature = "3.0"
 solana-sdk = "3.0"
+solana-vote-program = "3.0"
 solana-streamer = "3.0"
 solana-stream-sdk = { path = "crate/solana-stream-sdk" }
-solana-ledger = { git = "https://github.com/jito-foundation/jito-solana.git", branch = "lb/v3.0.12-jito", package = "solana-ledger" }
+solana-ledger = { version = "3.0", features = ["agave-unstable-api"] }
 solana-entry = "3.0"
 solana-account-decoder = "3.0"
 solana-transaction-context = "3.0"
 solana-transaction-error = "3.0"
 solana-transaction-status = "3.0"
+solana-packet = "3.0"
 thiserror = "1"
 tokio = { version = "1.41.1" }
+tokio-util = "0.7.15"
 tonic = { version = "0.14.2" }
 tonic-build = "0.14.2"
 tonic-prost = "0.14.2"
