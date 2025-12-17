@@ -39,6 +39,8 @@ Keys and動き（サマリ）:
 - `token_program_ids`: 空なら Token/Token-2022。指定すれば上書き。
 - `pump_min_lamports`: pump.fun buy/sell の SOL 金額がこのラップポート未満ならログを抑制（0で無効）。create に数量が付いている場合も同じしきい値で抑制。
 - `mint_finder` は内部で複合: pump.fun (create/create_v2: accounts[0], buy/sell/buy_exact_sol_in: accounts[2]) + トップレベルSPL Token MintTo/Initialize系（tag 0/7/14/20, accounts[0]）。
+- UDP shreds を直接処理するため、RPC commitment (processed/confirmed/finalized) に依存しません。shreds に載ってくるものはそのまま流れます（失敗トランザクションもログに出ます）。
+- 失敗トランザクションや金額が取れないケースではアイコン/数量に `❓` を出す場合があります。取得精度向上の PR は歓迎です。
 
 ## Notes on mint detection
 - Only fires on Token / Token-2022 instructions with tags 0, 7, 14, 20.
