@@ -1,6 +1,6 @@
 [package]
 name = "solana-stream-sdk"
-version = "0.6.1"
+version = "1.0.0"
 description = "Rust SDK for Solana streaming data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -20,9 +20,20 @@ thiserror = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 serde_jsonc = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+solana-packet = { workspace = true }
+toml = "0.8"
 url = { workspace = true }
 yellowstone-grpc-client = { workspace = true }
 yellowstone-grpc-proto = { workspace = true, features = ["plugin"] }
+bincode = { workspace = true }
+solana-entry = { workspace = true }
+solana-ledger = { workspace = true, features = ["agave-unstable-api"] }
+solana-sdk = { workspace = true }
+solana-vote-program = { workspace = true }
+solana-rpc-client = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
 
 
 [build-dependencies]

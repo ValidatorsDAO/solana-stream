@@ -173,9 +173,14 @@ pub async fn upload_compiled_binary_to_r2(
         match find_binary_file(binary_name, target_dir) {
             Some(path) => path,
             None => {
-                eprintln!("❌ Could not find binary file for '{}' in directory '{}'", binary_name, target_dir);
-                eprintln!("💡 Searched for patterns: {}, {}.tar.gz, {}.tar.bz2, {}.tar.xz, {}.zip, {}.gz", 
-                    binary_name, binary_name, binary_name, binary_name, binary_name, binary_name);
+                eprintln!(
+                    "❌ Could not find binary file for '{}' in directory '{}'",
+                    binary_name, target_dir
+                );
+                eprintln!(
+                    "💡 Searched for patterns: {}, {}.tar.gz, {}.tar.bz2, {}.tar.xz, {}.zip, {}.gz",
+                    binary_name, binary_name, binary_name, binary_name, binary_name, binary_name
+                );
                 eprintln!("💡 Use --file-path to specify a custom file path");
                 return false;
             }

@@ -5,7 +5,9 @@
 //! for easier integration with Solana streaming services.
 
 pub mod error;
+pub mod shreds_udp;
 pub mod shredstream;
+pub mod txn;
 pub use yellowstone_grpc_client;
 pub use yellowstone_grpc_proto;
 
@@ -23,6 +25,8 @@ pub mod shredstream_proto {
 pub use error::SolanaStreamError;
 // Re-export shredstream client
 pub use shredstream::ShredstreamClient;
+// Re-export UDP receiver
+pub use shreds_udp::{deshred_shreds_to_entries, UdpDatagram, UdpShredReceiver};
 
 // Shredstream protobuf exports
 pub use shredstream_proto::{
