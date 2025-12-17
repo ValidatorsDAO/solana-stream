@@ -1,7 +1,7 @@
 use crate::{
     txn::{
         default_token_program_ids, detect_program_hit, first_signatures, parse_pubkeys, MintDetail,
-        ProgramWatchConfig,
+        ProgramHit, ProgramWatchConfig,
     },
     Result, SolanaStreamError,
 };
@@ -439,6 +439,17 @@ impl ShredsUdpConfig {
         .with_skip_vote_txs(self.skip_vote_sigs)
     }
 
+    /// Build a watch config without populating pump.fun defaults when the lists are empty.
+    pub fn watch_config_no_defaults(&self) -> ProgramWatchConfig {
+        ProgramWatchConfig::new(self.watch_program_ids.clone(), self.watch_authorities.clone())
+            .with_token_program_ids(if self.token_program_ids.is_empty() {
+                default_token_program_ids()
+            } else {
+                self.token_program_ids.clone()
+            })
+            .with_skip_vote_txs(self.skip_vote_sigs)
+    }
+
     pub fn describe(&self) -> String {
         format!(
             "bind_addr={} rpc={} slot_window_root={:?} max_future={} strict_fec={} num_data={} num_coding={} require_code_match={} log_raw={} log_shreds={} log_entries={} log_deshred_attempts={} evict_cooldown_ms={} completed_ttl_ms={} warn_once_per_fec={} pump_min_lamports={}",
@@ -502,6 +513,18 @@ impl ShredsUdpState {
     pub fn metrics(&self) -> Arc<ShredMetrics> {
         self.metrics.clone()
     }
+
+    pub async fn remove_batch(&self, key: &FecKey) {
+        self.shred_buffer.lock().await.remove(key);
+    }
+
+    pub async fn mark_completed(&self, key: FecKey) {
+        self.completed.lock().await.insert(key, Instant::now());
+    }
+
+    pub async fn mark_suppressed(&self, key: FecKey) {
+        self.suppressed.lock().await.insert(key, Instant::now());
+    }
 }
 
 pub async fn run_shreds_udp(
@@ -536,8 +559,14 @@ pub async fn run_shreds_udp(
         let state = state.clone();
         tokio::spawn(async move {
             loop {
-                if let Err(e) =
-                    handle_datagram(&mut receiver, &state, &cfg, policy, watch_cfg.clone()).await
+                if let Err(e) = handle_pumpfun_watcher(
+                    &mut receiver,
+                    &state,
+                    &cfg,
+                    policy,
+                    watch_cfg.clone(),
+                )
+                .await
                 {
                     error!("UDP handling error: {:?}", e);
                 }
@@ -573,21 +602,21 @@ struct ShredBatch {
 }
 
 #[derive(Debug)]
-struct BatchStatus {
-    data_len: usize,
-    code_len: usize,
-    required_data: Option<usize>,
-    required_data_from_data: Option<usize>,
-    required_data_from_code: Option<usize>,
-    data_complete_seen: bool,
-    missing: Vec<u32>,
-    missing_ranges: Vec<(u32, u32)>,
-    dup_data: usize,
-    dup_code: usize,
-    expected_first_coding_index: Option<u32>,
-    expected_num_data: Option<u16>,
-    expected_num_coding: Option<u16>,
-    coding_summary: CodingHeaderSummary,
+pub struct BatchStatus {
+    pub data_len: usize,
+    pub code_len: usize,
+    pub required_data: Option<usize>,
+    pub required_data_from_data: Option<usize>,
+    pub required_data_from_code: Option<usize>,
+    pub data_complete_seen: bool,
+    pub missing: Vec<u32>,
+    pub missing_ranges: Vec<(u32, u32)>,
+    pub dup_data: usize,
+    pub dup_code: usize,
+    pub expected_first_coding_index: Option<u32>,
+    pub expected_num_data: Option<u16>,
+    pub expected_num_coding: Option<u16>,
+    pub coding_summary: CodingHeaderSummary,
 }
 
 #[derive(Clone, Debug)]
@@ -599,20 +628,20 @@ struct CodingHeaderInfo {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-struct FecKey {
-    slot: u64,
-    version: u16,
-    fec_set: u32,
+pub struct FecKey {
+    pub slot: u64,
+    pub version: u16,
+    pub fec_set: u32,
 }
 
 #[derive(Clone, Debug, Default)]
-struct CodingHeaderSummary {
-    parsed: usize,
-    invalid: usize,
-    num_data_shreds: Vec<usize>,
-    num_coding_shreds: Vec<usize>,
-    first_coding_indices: Vec<u32>,
-    positions_preview: Vec<u16>,
+pub struct CodingHeaderSummary {
+    pub parsed: usize,
+    pub invalid: usize,
+    pub num_data_shreds: Vec<usize>,
+    pub num_coding_shreds: Vec<usize>,
+    pub first_coding_indices: Vec<u32>,
+    pub positions_preview: Vec<u16>,
 }
 
 impl CodingHeaderSummary {
@@ -646,6 +675,43 @@ enum ReadyToDeshred {
     Ready(Vec<Shred>),
     Gated(String),
     NotReady,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ShredSource {
+    Data,
+    Coding,
+}
+
+#[derive(Debug)]
+pub struct ShredReadyBatch {
+    pub key: FecKey,
+    pub shreds: Vec<Shred>,
+    pub status: Option<BatchStatus>,
+    pub source: ShredSource,
+}
+
+#[derive(Debug)]
+pub enum ShredInsertOutcome {
+    Ready(ShredReadyBatch),
+    Deferred {
+        key: FecKey,
+        source: ShredSource,
+        reason: String,
+        status: Option<BatchStatus>,
+    },
+    Buffered {
+        key: FecKey,
+        source: ShredSource,
+    },
+    Skipped,
+}
+
+#[derive(Debug)]
+pub struct WatchEvent {
+    pub slot: u64,
+    pub hit: ProgramHit,
+    pub details: Vec<MintDetail>,
 }
 
 #[derive(Clone)]
@@ -1041,7 +1107,7 @@ pub async fn latency_monitor_task(
     }
 }
 
-pub async fn handle_datagram(
+pub async fn handle_pumpfun_watcher(
     receiver: &mut UdpShredReceiver,
     state: &ShredsUdpState,
     cfg: &ShredsUdpConfig,
@@ -1070,16 +1136,50 @@ pub async fn handle_datagram(
         );
     }
 
-    if let Some(shred_info) = prefilter_shred(&datagram, state, cfg).await {
-        log_shred(
-            &shred_info,
+    if let Some(shred_info) = decode_udp_datagram(&datagram, state, cfg).await {
+        match insert_shred(
+            shred_info,
             &datagram,
             state,
             cfg,
-            policy,
-            watch_cfg.clone(),
+            &policy,
         )
-        .await;
+        .await
+        {
+            ShredInsertOutcome::Ready(ready) => {
+                if cfg.log_deshred_attempts {
+                    if let Some(st) = &ready.status {
+                        info!(
+                            "deshred attempt {}",
+                            format_status(ready.key.slot, ready.key.version, ready.key.fec_set, st)
+                        );
+                    }
+                }
+                process_ready_batch(ready, state, cfg, watch_cfg.clone()).await;
+            }
+            ShredInsertOutcome::Deferred {
+                key,
+                reason,
+                status,
+                ..
+            } => {
+                if cfg.log_deferred {
+                    if let Some(st) = status {
+                        info!(
+                            "deshred deferred reason={} {}",
+                            reason,
+                            format_status(key.slot, key.version, key.fec_set, &st)
+                        );
+                    } else {
+                        info!(
+                            "deshred deferred reason={} slot={} ver={} fec_set={}",
+                            reason, key.slot, key.version, key.fec_set
+                        );
+                    }
+                }
+            }
+            ShredInsertOutcome::Buffered { .. } | ShredInsertOutcome::Skipped => {}
+        }
         return Ok(());
     }
 
@@ -1090,14 +1190,287 @@ pub async fn handle_datagram(
     Ok(())
 }
 
-struct DecodedShred {
-    shred: Shred,
-    received_len: usize,
-    canonical_len: usize,
+/// Decode and prefilter a UDP datagram into a sanitized shred.
+pub async fn decode_udp_datagram(
+    datagram: &UdpDatagram,
+    state: &ShredsUdpState,
+    cfg: &ShredsUdpConfig,
+) -> Option<DecodedShred> {
+    prefilter_shred(datagram, state, cfg).await
+}
+
+/// Insert a decoded shred into the in-memory FEC buffer and report readiness.
+pub async fn insert_shred(
+    decoded: DecodedShred,
+    datagram: &UdpDatagram,
+    state: &ShredsUdpState,
+    cfg: &ShredsUdpConfig,
+    policy: &DeshredPolicy,
+) -> ShredInsertOutcome {
+    let slot = decoded.shred.slot();
+    let version = decoded.shred.version();
+    let fec_set = decoded.shred.fec_set_index();
+    let key = FecKey {
+        slot,
+        version,
+        fec_set,
+    };
+    let metrics = state.metrics();
+
+    {
+        let mut done = state.completed.lock().await;
+        done.retain(|_, until| until.elapsed() < state.completed_ttl());
+        if done.contains_key(&key) {
+            return ShredInsertOutcome::Skipped;
+        }
+    }
+    {
+        let mut sup = state.suppressed.lock().await;
+        sup.retain(|_, until| until.elapsed() < state.suppressed_ttl());
+        if sup.contains_key(&key) {
+            return ShredInsertOutcome::Skipped;
+        }
+    }
+
+    match &decoded.shred {
+        Shred::ShredData(_) => {
+            process_data_shred(decoded, datagram, state, cfg, policy, key, metrics).await
+        }
+        Shred::ShredCode(_) => {
+            process_code_shred(decoded, datagram, state, cfg, policy, key, metrics).await
+        }
+    }
+}
+
+async fn process_data_shred(
+    decoded: DecodedShred,
+    datagram: &UdpDatagram,
+    state: &ShredsUdpState,
+    cfg: &ShredsUdpConfig,
+    policy: &DeshredPolicy,
+    key: FecKey,
+    metrics: Arc<ShredMetrics>,
+) -> ShredInsertOutcome {
+    if let Some(txs) = state.transactions_by_slot() {
+        prepare_log_message(key.slot, &txs).await;
+    }
+    let last = decoded.shred.last_in_slot();
+    let complete = decoded.shred.data_complete();
+    if cfg.log_shreds {
+        info!(
+            "shred DATA slot={} idx={} ver={} fec_set={} last={} complete={} from={} bytes={} canonical={}",
+            key.slot,
+            decoded.shred.index(),
+            key.version,
+            key.fec_set,
+            last,
+            complete,
+            datagram.from,
+            decoded.received_len,
+            decoded.canonical_payload_len(),
+        );
+    }
+    let ready = {
+        let mut buf = state.shred_buffer.lock().await;
+        let entry = buf.entry(key).or_insert_with(ShredBatch::new);
+
+        if last || complete {
+            let required = (decoded.shred.index().saturating_sub(key.fec_set) as usize) + 1;
+            entry.update_required_data_from_data(required);
+        }
+
+        entry.insert_data_shred(decoded.shred.clone(), metrics.as_ref());
+        entry.ready_to_deshred(policy)
+    };
+
+    match ready {
+        ReadyToDeshred::Ready(shreds) => {
+            let status = {
+                let buf = state.shred_buffer.lock().await;
+                buf.get(&key).map(|b| b.status(key.fec_set))
+            };
+            ShredInsertOutcome::Ready(ShredReadyBatch {
+                key,
+                shreds,
+                status,
+                source: ShredSource::Data,
+            })
+        }
+        ReadyToDeshred::Gated(reason) => {
+            let status = {
+                let buf = state.shred_buffer.lock().await;
+                buf.get(&key).map(|b| b.status(key.fec_set))
+            };
+            ShredInsertOutcome::Deferred {
+                key,
+                source: ShredSource::Data,
+                reason,
+                status,
+            }
+        }
+        ReadyToDeshred::NotReady => ShredInsertOutcome::Buffered {
+            key,
+            source: ShredSource::Data,
+        },
+    }
+}
+
+async fn process_code_shred(
+    decoded: DecodedShred,
+    datagram: &UdpDatagram,
+    state: &ShredsUdpState,
+    cfg: &ShredsUdpConfig,
+    policy: &DeshredPolicy,
+    key: FecKey,
+    metrics: Arc<ShredMetrics>,
+) -> ShredInsertOutcome {
+    let ready = {
+        let mut buf = state.shred_buffer.lock().await;
+        let entry = buf.entry(key).or_insert_with(ShredBatch::new);
+
+        if let Some(header) = decode_coding_header(&decoded.shred) {
+            entry.update_required_data_from_code(header.num_data_shreds as usize);
+        }
+
+        entry.insert_code_shred(decoded.shred.clone(), metrics.as_ref());
+        entry.ready_to_deshred(policy)
+    };
+
+    let outcome = match ready {
+        ReadyToDeshred::Ready(shreds) => {
+            let status = {
+                let buf = state.shred_buffer.lock().await;
+                buf.get(&key).map(|b| b.status(key.fec_set))
+            };
+            ShredInsertOutcome::Ready(ShredReadyBatch {
+                key,
+                shreds,
+                status,
+                source: ShredSource::Coding,
+            })
+        }
+        ReadyToDeshred::Gated(reason) => {
+            let status = {
+                let buf = state.shred_buffer.lock().await;
+                buf.get(&key).map(|b| b.status(key.fec_set))
+            };
+            ShredInsertOutcome::Deferred {
+                key,
+                source: ShredSource::Coding,
+                reason,
+                status,
+            }
+        }
+        ReadyToDeshred::NotReady => ShredInsertOutcome::Buffered {
+            key,
+            source: ShredSource::Coding,
+        },
+    };
+
+    if cfg.log_shreds {
+        info!(
+            "shred CODE slot={} idx={} ver={} fec_set={} from={} bytes={} canonical={}",
+            key.slot,
+            decoded.shred.index(),
+            key.version,
+            key.fec_set,
+            datagram.from,
+            decoded.received_len,
+            decoded.canonical_payload_len(),
+        );
+    }
+
+    outcome
+}
+
+async fn process_ready_batch(
+    ready: ShredReadyBatch,
+    state: &ShredsUdpState,
+    cfg: &ShredsUdpConfig,
+    watch_cfg: Arc<ProgramWatchConfig>,
+) {
+    let metrics = state.metrics();
+    let ShredReadyBatch {
+        key,
+        shreds,
+        status,
+        source,
+    } = ready;
+
+    match deshred_shreds_to_entries(&shreds) {
+        Ok(entries) => {
+            let txs: Vec<&VersionedTransaction> =
+                entries.iter().flat_map(|e| e.transactions.iter()).collect();
+            info!(
+                "deshred slot={} entries={} txs={}",
+                key.slot,
+                entries.len(),
+                txs.len()
+            );
+
+            log_watch_events(
+                key.slot,
+                &txs,
+                watch_cfg.as_ref(),
+                cfg.log_watch_hits,
+                cfg.pump_min_lamports,
+            );
+
+            if cfg.log_entries {
+                let sigs: Vec<String> = first_signatures(
+                    txs.iter().copied(),
+                    usize::MAX, // include all non-vote sigs in preview
+                    watch_cfg.skip_vote_txs,
+                )
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect();
+                info!(
+                    "entries preview slot={} fec_set={} sigs_first_non_vote={:?}",
+                    key.slot, key.fec_set, sigs
+                );
+            }
+
+            state.remove_batch(&key).await;
+            if matches!(source, ShredSource::Data) {
+                state.mark_completed(key).await;
+            }
+        }
+        Err(e) => {
+            let err_str = e.to_string();
+            if err_str.contains("entry decode failed")
+                || err_str.contains("invalid transaction message version")
+            {
+                metrics.inc_entry_decode_failed();
+                metrics.inc_fec_set_evicted_on_decode();
+            }
+            if cfg.log_deshred_errors {
+                error!(
+                    "deshred failed for slot {} fec_set {}: {}",
+                    key.slot, key.fec_set, e
+                );
+                if let Some(st) = status {
+                    error!(
+                        "deshred context {}",
+                        format_status(key.slot, key.version, key.fec_set, &st)
+                    );
+                }
+            }
+            state.remove_batch(&key).await;
+            state.mark_suppressed(key).await;
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DecodedShred {
+    pub shred: Shred,
+    pub received_len: usize,
+    pub canonical_len: usize,
 }
 
 impl DecodedShred {
-    fn canonical_payload_len(&self) -> usize {
+    pub fn canonical_payload_len(&self) -> usize {
         self.canonical_len
     }
 }
@@ -1500,41 +1873,16 @@ fn filter_pump_details(details: &mut Vec<MintDetail>, pump_min_lamports: u64) {
     });
 }
 
-fn log_watch_events(
+pub fn collect_watch_events(
     slot: u64,
     txs: &[&VersionedTransaction],
     watch_cfg: &ProgramWatchConfig,
-    log_watch_hits: bool,
     pump_min_lamports: u64,
-) {
-    if !log_watch_hits {
-        return;
-    }
-    fn mint_priority(detail: &MintDetail) -> u8 {
-        if let Some(action) = detail.action {
-            if action == "create" {
-                return 0;
-            }
-            if action == "trade" {
-                return 1;
-            }
-        }
-        if let Some(label) = detail.label {
-            if label.starts_with("pump:") {
-                return 2;
-            }
-        }
-        10
-    }
-
+) -> Vec<WatchEvent> {
+    let _ = pump_min_lamports;
+    let mut events = Vec::new();
     for tx in txs {
         if let Some(hit) = detect_program_hit(tx, watch_cfg) {
-            let prefix = match (hit.program_hit, hit.authority_hit) {
-                (true, true) => "🎯🐣",
-                (true, false) => "🎯",
-                (false, true) => "🐣",
-                _ => "👀",
-            };
             let mut detail_map: BTreeMap<Pubkey, MintDetail> = hit
                 .mints
                 .iter()
@@ -1573,17 +1921,64 @@ fn log_watch_events(
                 continue;
             }
             let mut details: Vec<MintDetail> = detail_map.values().cloned().collect();
-            filter_pump_details(&mut details, pump_min_lamports);
-            details.sort_by(|a, b| {
-                mint_priority(a)
-                    .cmp(&mint_priority(b))
-                    .then_with(|| a.mint.cmp(&b.mint))
-            });
+            details.sort_by(|a, b| a.mint.cmp(&b.mint));
             details.dedup_by(|a, b| a.mint == b.mint);
-            if details.is_empty() {
-                continue;
+            events.push(WatchEvent {
+                slot,
+                hit,
+                details,
+            });
+        }
+    }
+    events
+}
+
+pub fn log_watch_events(
+    slot: u64,
+    txs: &[&VersionedTransaction],
+    watch_cfg: &ProgramWatchConfig,
+    log_watch_hits: bool,
+    pump_min_lamports: u64,
+) {
+    if !log_watch_hits {
+        return;
+    }
+    fn mint_priority(detail: &MintDetail) -> u8 {
+        if let Some(action) = detail.action {
+            if action == "create" {
+                return 0;
             }
-            if let Some(primary) = details.first() {
+            if action == "trade" {
+                return 1;
+            }
+        }
+        if let Some(label) = detail.label {
+            if label.starts_with("pump:") {
+                return 2;
+            }
+        }
+        10
+    }
+
+    for event in collect_watch_events(slot, txs, watch_cfg, pump_min_lamports) {
+        let prefix = match (event.hit.program_hit, event.hit.authority_hit) {
+            (true, true) => "🎯🐣",
+            (true, false) => "🎯",
+            (false, true) => "🐣",
+            _ => "👀",
+        };
+        let mut details = event.details;
+        filter_pump_details(&mut details, pump_min_lamports);
+        details.sort_by(|a, b| {
+            mint_priority(a)
+                .cmp(&mint_priority(b))
+                .then_with(|| a.mint.cmp(&b.mint))
+        });
+        details.dedup_by(|a, b| a.mint == b.mint);
+        if details.is_empty() {
+            continue;
+        }
+        if let Some(primary) = details.first() {
                 let is_create = primary.action == Some("create")
                     || primary.label == Some("pump:create");
                 let base_kind = primary.action.or(primary.label).unwrap_or("unknown");
@@ -1596,335 +1991,72 @@ fn log_watch_events(
                         base_kind
                     };
                 let missing_amounts = primary.sol_amount.is_none() && primary.token_amount.is_none();
+                // Pump.fun buy/create logs carry the max SOL cap, not the actual filled amount.
+                let is_pump_buy_cap = matches!(primary.action, Some("buy") | Some("create"))
+                    && primary
+                        .label
+                        .map(|l| l.starts_with("pump:"))
+                        .unwrap_or(false)
+                    && primary.sol_amount.is_some();
                 let icon = if missing_amounts {
                     "❓"
                 } else if is_create {
                     "🐣"
                 } else {
-                    match primary.action {
-                        Some("buy") => "🟢",
-                        Some("sell") => "🔻",
-                        _ => "🪙",
-                    }
+                match primary.action {
+                    Some("buy") => "🟢",
+                    Some("sell") => "🔻",
+                    _ => "🪙",
+                }
                 };
                 let lamports_display = primary
                     .sol_amount
-                    .map(|l| l.to_string())
+                    .map(|l| {
+                        if is_pump_buy_cap {
+                            format!("{} (max)", l)
+                        } else {
+                            l.to_string()
+                        }
+                    })
                     .unwrap_or_else(|| "-".to_string());
                 let sol_display = primary
                     .sol_amount
-                    .map(|lamports| format!("{:.9}", lamports as f64 / 1_000_000_000_f64))
+                    .map(|lamports| {
+                        let base = format!("{:.9}", lamports as f64 / 1_000_000_000_f64);
+                        if is_pump_buy_cap {
+                            format!("{} (max)", base)
+                        } else {
+                            base
+                        }
+                    })
                     .unwrap_or_else(|| "-".to_string());
-                let token_amount_display = primary
-                    .token_amount
-                    .map(|t| t.to_string())
-                    .unwrap_or_else(|| "-".to_string());
-                info!(
-                    "{} {}\n  slot: {}\n  sig: {}\n  mint: {}\n  kind: {}\n  lamports: {}\n  sol: {}\n  token_amount: {}",
-                    icon,
-                    prefix,
-                    slot,
-                    hit.signature,
-                    primary.mint,
-                    kind,
-                    lamports_display,
-                    sol_display,
-                    token_amount_display
-                );
-            } else {
-                let mint = hit
-                    .mints
-                    .get(0)
-                    .map(|m| m.mint.to_string())
-                    .unwrap_or_else(|| "<unknown>".to_string());
-                info!(
-                    "❓ {}\n  slot: {}\n  sig: {}\n  mint: {}\n  kind: unknown\n  lamports: -\n  sol: -\n  token_amount: -",
-                    prefix, slot, hit.signature, mint
-                );
-            }
-        }
-    }
-}
-
-async fn log_shred(
-    decoded: &DecodedShred,
-    datagram: &UdpDatagram,
-    state: &ShredsUdpState,
-    cfg: &ShredsUdpConfig,
-    policy: DeshredPolicy,
-    watch_cfg: Arc<ProgramWatchConfig>,
-) {
-    let slot = decoded.shred.slot();
-    let idx = decoded.shred.index();
-    let version = decoded.shred.version();
-    let fec_set = decoded.shred.fec_set_index();
-    let key = FecKey {
-        slot,
-        version,
-        fec_set,
-    };
-    let metrics = state.metrics();
-
-    {
-        let mut done = state.completed.lock().await;
-        done.retain(|_, until| until.elapsed() < state.completed_ttl);
-        if done.contains_key(&key) {
-            return;
-        }
-    }
-    {
-        let mut sup = state.suppressed.lock().await;
-        sup.retain(|_, until| until.elapsed() < state.suppressed_ttl());
-        if sup.contains_key(&key) {
-            return;
-        }
-    }
-
-    match &decoded.shred {
-        Shred::ShredData(_data) => {
-            if let Some(txs) = state.transactions_by_slot() {
-                prepare_log_message(slot, &txs).await;
-            }
-            let last = decoded.shred.last_in_slot();
-            let complete = decoded.shred.data_complete();
-            if cfg.log_shreds {
-                info!(
-                    "shred DATA slot={} idx={} ver={} fec_set={} last={} complete={} from={} bytes={} canonical={}",
-                    slot,
-                    idx,
-                    version,
-                    fec_set,
-                    last,
-                    complete,
-                    datagram.from,
-                    decoded.received_len,
-                    decoded.canonical_payload_len(),
-                );
-            }
-            let ready = {
-                let mut buf = state.shred_buffer.lock().await;
-                let entry = buf.entry(key).or_insert_with(ShredBatch::new);
-
-                if last || complete {
-                    let required = (idx.saturating_sub(fec_set) as usize) + 1;
-                    entry.update_required_data_from_data(required);
-                }
-
-                entry.insert_data_shred(decoded.shred.clone(), metrics.as_ref());
-                entry.ready_to_deshred(&policy)
-            };
-
-            match ready {
-                ReadyToDeshred::Ready(shreds) => {
-                    let status = {
-                        let buf = state.shred_buffer.lock().await;
-                        buf.get(&key).map(|b| b.status(fec_set))
-                    };
-                    if cfg.log_deshred_attempts {
-                        if let Some(st) = &status {
-                            info!(
-                                "deshred attempt {}",
-                                format_status(slot, version, fec_set, st)
-                            );
-                        }
-                    }
-                    match deshred_shreds_to_entries(&shreds) {
-                        Ok(entries) => {
-                            let txs: Vec<&VersionedTransaction> =
-                                entries.iter().flat_map(|e| e.transactions.iter()).collect();
-                            info!(
-                                "deshred slot={} entries={} txs={}",
-                                slot,
-                                entries.len(),
-                                txs.len()
-                            );
-
-                            log_watch_events(
-                                slot,
-                                &txs,
-                                watch_cfg.as_ref(),
-                                cfg.log_watch_hits,
-                                cfg.pump_min_lamports,
-                            );
-
-                            if cfg.log_entries {
-                                let sigs: Vec<String> = first_signatures(
-                                    txs.iter().copied(),
-                                    12,
-                                    watch_cfg.skip_vote_txs,
-                                )
-                                .into_iter()
-                                .map(|s| s.to_string())
-                                .collect();
-                                info!(
-                                    "entries preview slot={} fec_set={} sigs_first_non_vote={:?}",
-                                    slot, fec_set, sigs
-                                );
-                            }
-                            state.shred_buffer.lock().await.remove(&key);
-                            state.completed.lock().await.insert(key, Instant::now());
-                        }
-                        Err(e) => {
-                            let err_str = e.to_string();
-                            if err_str.contains("entry decode failed")
-                                || err_str.contains("invalid transaction message version")
-                            {
-                                metrics.inc_entry_decode_failed();
-                                metrics.inc_fec_set_evicted_on_decode();
-                            }
-                            if cfg.log_deshred_errors {
-                                error!(
-                                    "deshred failed for slot {} fec_set {}: {}",
-                                    slot, fec_set, e
-                                );
-                                if let Some(st) = status {
-                                    error!(
-                                        "deshred context {}",
-                                        format_status(slot, version, fec_set, &st)
-                                    );
-                                }
-                            }
-                            state.shred_buffer.lock().await.remove(&key);
-                            state.suppressed.lock().await.insert(key, Instant::now());
-                        }
-                    }
-                }
-                ReadyToDeshred::Gated(reason) => {
-                    if cfg.log_deferred {
-                        let status = {
-                            let buf = state.shred_buffer.lock().await;
-                            buf.get(&key).map(|b| b.status(fec_set))
-                        };
-                        if let Some(st) = status {
-                            info!(
-                                "deshred deferred reason={} {}",
-                                reason,
-                                format_status(slot, version, fec_set, &st)
-                            );
-                        }
-                    }
-                }
-                ReadyToDeshred::NotReady => {}
-            }
-        }
-        Shred::ShredCode(_code) => {
-            let ready = {
-                let mut buf = state.shred_buffer.lock().await;
-                let entry = buf.entry(key).or_insert_with(ShredBatch::new);
-
-                if let Some(header) = decode_coding_header(&decoded.shred) {
-                    entry.update_required_data_from_code(header.num_data_shreds as usize);
-                }
-
-                entry.insert_code_shred(decoded.shred.clone(), metrics.as_ref());
-                entry.ready_to_deshred(&policy)
-            };
-
-            match ready {
-                ReadyToDeshred::Ready(shreds) => {
-                    let status = {
-                        let buf = state.shred_buffer.lock().await;
-                        buf.get(&key).map(|b| b.status(fec_set))
-                    };
-                    if cfg.log_deshred_attempts {
-                        if let Some(st) = &status {
-                            info!(
-                                "deshred attempt {}",
-                                format_status(slot, version, fec_set, st)
-                            );
-                        }
-                    }
-                    match deshred_shreds_to_entries(&shreds) {
-                        Ok(entries) => {
-                            let txs: Vec<&VersionedTransaction> =
-                                entries.iter().flat_map(|e| e.transactions.iter()).collect();
-                            info!(
-                                "deshred slot={} entries={} txs={}",
-                                slot,
-                                entries.len(),
-                                txs.len()
-                            );
-
-                            log_watch_events(
-                                slot,
-                                &txs,
-                                watch_cfg.as_ref(),
-                                cfg.log_watch_hits,
-                                cfg.pump_min_lamports,
-                            );
-
-                            if cfg.log_entries {
-                                let sigs: Vec<String> = first_signatures(
-                                    txs.iter().copied(),
-                                    12,
-                                    watch_cfg.skip_vote_txs,
-                                )
-                                .into_iter()
-                                .map(|s| s.to_string())
-                                .collect();
-                                info!(
-                                    "entries preview slot={} fec_set={} sigs_first_non_vote={:?}",
-                                    slot, fec_set, sigs
-                                );
-                            }
-
-                            state.shred_buffer.lock().await.remove(&key);
-                        }
-                        Err(e) => {
-                            let err_str = e.to_string();
-                            if err_str.contains("entry decode failed")
-                                || err_str.contains("invalid transaction message version")
-                            {
-                                metrics.inc_entry_decode_failed();
-                                metrics.inc_fec_set_evicted_on_decode();
-                            }
-                            if cfg.log_deshred_errors {
-                                error!(
-                                    "deshred failed for slot {} fec_set {}: {}",
-                                    slot, fec_set, e
-                                );
-                                if let Some(st) = status {
-                                    error!(
-                                        "deshred context {}",
-                                        format_status(slot, version, fec_set, &st)
-                                    );
-                                }
-                            }
-                            state.shred_buffer.lock().await.remove(&key);
-                            state.suppressed.lock().await.insert(key, Instant::now());
-                        }
-                    }
-                }
-                ReadyToDeshred::Gated(reason) => {
-                    if cfg.log_deferred {
-                        let status = {
-                            let buf = state.shred_buffer.lock().await;
-                            buf.get(&key).map(|b| b.status(fec_set))
-                        };
-                        if let Some(st) = status {
-                            info!(
-                                "deshred deferred reason={} {}",
-                                reason,
-                                format_status(slot, version, fec_set, &st)
-                            );
-                        }
-                    }
-                }
-                ReadyToDeshred::NotReady => {}
-            }
-
-            if cfg.log_shreds {
-                info!(
-                    "shred CODE slot={} idx={} ver={} fec_set={} from={} bytes={} canonical={}",
-                    slot,
-                    idx,
-                    version,
-                    fec_set,
-                    datagram.from,
-                    decoded.received_len,
-                    decoded.canonical_payload_len(),
-                );
-            }
+            let token_amount_display = primary
+                .token_amount
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| "-".to_string());
+            info!(
+                "{} {}\n  slot: {}\n  sig: {}\n  mint: {}\n  kind: {}\n  lamports: {}\n  sol: {}\n  token_amount: {}",
+                icon,
+                prefix,
+                slot,
+                event.hit.signature,
+                primary.mint,
+                kind,
+                lamports_display,
+                sol_display,
+                token_amount_display
+            );
+        } else {
+            let mint = event
+                .hit
+                .mints
+                .get(0)
+                .map(|m| m.mint.to_string())
+                .unwrap_or_else(|| "<unknown>".to_string());
+            info!(
+                "❓ {}\n  slot: {}\n  sig: {}\n  mint: {}\n  kind: unknown\n  lamports: -\n  sol: -\n  token_amount: -",
+                prefix, slot, event.hit.signature, mint
+            );
         }
     }
 }

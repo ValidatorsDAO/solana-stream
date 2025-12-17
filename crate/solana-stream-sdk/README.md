@@ -184,6 +184,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### UDP pipeline helpers (shreds-udp)
+- Layered flow (5 layers): 1) UDP receive/prefilter → 2) FEC buffer → 3) deshred → 4) watcher/detailer → 5) sink (log/hook).
+- `handle_pumpfun_watcher`: one-call convenience with pump.fun defaults (watcher + detailer); wrapper over these stages.
+- `decode_udp_datagram` + `insert_shred`: tap the pipeline before logging; `ShredInsertOutcome` reports ready/gated/buffered shreds.
+- `deshred_shreds_to_entries`: convert a ready batch; `collect_watch_events`: structured watch hits without emitting logs.
+- `ShredsUdpConfig::watch_config_no_defaults()`: avoid pump.fun fallbacks; pass your own `MintFinder`/`MintDetailer` via `ProgramWatchConfig`.
+- `ShredsUdpState::{remove_batch, mark_completed, mark_suppressed}`: mirror default cleanup.
+- Pump.fun-free sample: `cargo run -p shreds-udp-rs --bin generic_logger` (set `GENERIC_WATCH_PROGRAM_IDS` / `GENERIC_WATCH_AUTHORITIES` to watch your own programs).
+
+Why modular? Many users want to do more than print logs (e.g., push to a queue or enrich hits). The layered functions let you plug a custom sink right after detection (`collect_watch_events`), while `handle_pumpfun_watcher` stays available for quick, pump.fun-ready runs.
+
 ### Basic Example (Geyser gRPC)
 
 ```rust
@@ -223,6 +234,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Custom Subscription Request
 
+> Note: gRPC-side filters are currently disabled. Send empty filter maps and handle filtering downstream (or use the UDP shreds pipeline for filtered workloads).
+
 ```rust
 use solana_stream_sdk::{
     CommitmentLevel, SubscribeEntriesRequest, SubscribeRequestFilterAccounts,
@@ -234,31 +247,10 @@ use std::collections::HashMap;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = ShredstreamClient::connect("https://shreds-ams.erpc.global").await?;
 
-    // Create custom subscription filters
-    let mut accounts = HashMap::new();
-    accounts.insert(
-        "my-filter".to_string(),
-        SubscribeRequestFilterAccounts {
-            account: vec!["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()], // USDC
-            owner: vec![],
-            filters: vec![],
-            nonempty_txn_signature: None,
-        },
-    );
-
-    let mut slots = HashMap::new();
-    slots.insert(
-        "slot-filter".to_string(),
-        SubscribeRequestFilterSlots {
-            filter_by_commitment: Some(true),
-            interslot_updates: Some(false),
-        },
-    );
-
     let request = SubscribeEntriesRequest {
-        accounts,
+        accounts: HashMap::new(),
         transactions: HashMap::new(),
-        slots,
+        slots: HashMap::new(),
         commitment: Some(CommitmentLevel::Confirmed as i32),
     };
 
@@ -273,6 +265,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 ### Custom Subscription Request (Geyser gRPC)
+
+> Note: gRPC-side filters are currently disabled. Send empty filter maps and handle filtering downstream (or use the UDP shreds pipeline for filtered workloads).
 
 ```rust
 use solana_stream_sdk::{
@@ -399,7 +393,7 @@ For convenience, the following types are re-exported:
 
 ## ⚠️ Experimental Filtering Feature Notice
 
-The filtering functionality provided by this SDK is currently experimental. Occasionally, data may not be fully available, and filters may not be applied correctly.
+Filtering remains experimental. Geyser gRPC-side filters are not usable right now—requests should send empty filter maps. For workloads that need filtering, prefer the UDP shreds path. Occasionally, data may not be fully available, and filters may not be applied correctly.
 
 If you encounter such cases, please report them by opening an issue at: https://github.com/ValidatorsDAO/solana-stream/issues
 

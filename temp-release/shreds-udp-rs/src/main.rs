@@ -3,7 +3,8 @@ use env_logger;
 use log::{error, info};
 use solana_stream_sdk::{
     shreds_udp::{
-        handle_datagram, latency_monitor_task, DeshredPolicy, ShredsUdpConfig, ShredsUdpState,
+        handle_pumpfun_watcher, latency_monitor_task, DeshredPolicy, ShredsUdpConfig,
+        ShredsUdpState,
     },
     UdpShredReceiver,
 };
@@ -66,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let cfg = cfg.clone();
         tokio::spawn(async move {
             loop {
-                if let Err(e) = handle_datagram(
+                if let Err(e) = handle_pumpfun_watcher(
                     &mut receiver,
                     &state,
                     &cfg,
