@@ -1,48 +1,50 @@
 # shreds-udp-rs
 
-Rust starter that listens for Shredstream over **UDP** and prints basic stats.
-Heartbeats are not required; point your Shredstream sender at the bound `ip:port`.
+Minimal Rust client that listens for Shredstream over **UDP** and prints signal-first logs. No heartbeat required—just point your sender to the bound `ip:port`.
 
-## Usage
+## Quick start
 
-1) 設定ファイルは `client/shreds-udp-rs/settings.jsonc`
-
-リポジトリ同梱の `settings.jsonc` を編集し、そのままビルドしてください（jsonc コメント可）。ビルド時にバイナリへ埋め込まれるので、実行時に `.env` や `SHREDS_UDP_CONFIG` は不要です。
-
-2) RPC などシークレットは環境変数で指定:
-
+1) Edit `client/shreds-udp-rs/settings.jsonc` (jsonc comments allowed). It is embedded into the binary at build time, so no runtime `SHREDS_UDP_CONFIG` is needed.
+2) Provide secrets (e.g., RPC) via env:
 ```env
 SOLANA_RPC_ENDPOINT=https://api.mainnet-beta.solana.com
 ```
-
-3) Run:
-
+3) Run (pump.fun defaults, one-call):
 ```bash
 cargo run -p shreds-udp-rs
 ```
+(`handle_pumpfun_watcher` keeps the pump.fun watcher/detailer wired up for a quick start.)
 
-## What gets logged
-- Minimal by default: successful deshreds + watch hits.
-- プレフィックス: `🎯` program hit, `🐣` authority hit（両方なら `🎯🐣`）。`auth_match=[...]` に最大2件の authority マッチ。
-- アクション: `🐣` create（数量が付いていれば kind 表示は `create/buy`）、`🟢` buy、`🔻` sell、`🪙` その他。
-- `SHREDS_UDP_LOG_ENTRIES=1` shows first non-vote signatures per FEC set.
-- `SHREDS_UDP_LOG_DESHRED_ATTEMPTS=1` dumps batch status before each deshred (noisy, for debugging gaps).
-- `SHREDS_UDP_LOG_DESHRED_ERRORS=1` re-enables detailed decode-failure logs (otherwise suppressed for speed).
+4) Modular pipeline (custom sinks/watchers):
+```bash
+GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run -p shreds-udp-rs --bin generic_logger
+```
+`generic_logger` shows the layered API (5 layers: `decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_entries` → `collect_watch_events` → any sink) with `SplTokenMintFinder` only. Leave `GENERIC_WATCH_*` unset to just log slots/entries without pump.fun defaults.
 
-## Config file (JSON/TOML)
-Keys and動き（サマリ）:
-- `bind_addr`: 受信アドレス。
-- `log_*`: デフォルト静か。`log_watch_hits`のみtrue。
-- `require_code_match`/`strict_*`: FECチェックの厳しさ。
-- `slot_window_*`/`*_ttl_ms`: 古い/将来スロットの抑制とTTL。
-- `watch_program_ids`/`watch_authorities`: ヒット判定対象。pump.funがデフォルト。
-- `token_program_ids`: 空なら Token/Token-2022。指定すれば上書き。
-- `pump_min_lamports`: pump.fun buy/sell の SOL 金額がこのラップポート未満ならログを抑制（0で無効）。create に数量が付いている場合も同じしきい値で抑制。
-- `mint_finder` は内部で複合: pump.fun (create/create_v2: accounts[0], buy/sell/buy_exact_sol_in: accounts[2]) + トップレベルSPL Token MintTo/Initialize系（tag 0/7/14/20, accounts[0]）。
-- UDP shreds を直接処理するため、RPC commitment (processed/confirmed/finalized) に依存しません。shreds に載ってくるものはそのまま流れます（失敗トランザクションもログに出ます）。
-- 失敗トランザクションや金額が取れないケースではアイコン/数量に `❓` を出す場合があります。取得精度向上の PR は歓迎です。
+## Log legend
+- Prefix: `🎯` program hit, `🐣` authority hit (`🎯🐣` means both)
+- Action: `🐣` create (`create/buy` when amounts are present), `🟢` buy, `🔻` sell, `🪙` other, `❓` missing/unknown
+- Votes are skipped by default (`skip_vote_txs=true`)
+- Set `SHREDS_UDP_LOG_*` to enable raw/shreds/entries/deshred debug logs; defaults are quiet except `log_watch_hits`
+
+## Config (JSONC/TOML keys)
+- `bind_addr`: listener address
+- `log_*`: logging toggles (only `log_watch_hits` is true by default)
+- `require_code_match` / `strict_*`: FEC strictness
+- `slot_window_*` / `*_ttl_ms`: slot window and eviction TTLs
+- `watch_program_ids` / `watch_authorities`: targets to watch (pump.fun defaults)
+- `token_program_ids`: empty = Token + Token-2022
+- `pump_min_lamports`: drop pump.fun buy/sell below this lamport threshold (0 = no filter). Applies to create-with-amount too.
+- `mint_finder`: composite of pump.fun (create/create_v2 accounts[0], buy/sell/buy_exact_sol_in accounts[2]) + SPL Token MintTo/Initialize (tags 0/7/14/20, accounts[0])
+- UDP shreds are processed directly; RPC commitment (processed/confirmed/finalized) is not used. Failed txs also appear; unknown amounts may show `❓`.
+
+### Modular hooks for custom watchers/detailers
+- Use `ShredsUdpConfig::watch_config_no_defaults()` or build `ProgramWatchConfig::new(...)` to avoid pump.fun fallbacks.
+- Pipeline building blocks (5 layers): 1) `decode_udp_datagram` (receive/prefilter) → 2) `insert_shred` (FEC buffer) → 3) `deshred_shreds_to_entries` (deshred) → 4) `collect_watch_events` (watcher/detailer) → 5) any sink (log/queue/custom processing).
+- State helpers: `ShredsUdpState::{remove_batch, mark_completed, mark_suppressed}` mirror the default cleanup performed by the one-call handler.
+- Quick-start convenience: `handle_pumpfun_watcher` runs the full pump.fun-oriented stack in one call before you dive into customizations.
+- Sample custom hook: set `SHREDS_UDP_CUSTOM_HOOK=1` to enable the placeholder hook in `main.rs`, then replace its body to push hits to your own sink (queue, RPC call, etc.). `collect_watch_events` delivers structured hits; `pump_min_lamports` continues to filter buys/sells.
 
 ## Notes on mint detection
-- Only fires on Token / Token-2022 instructions with tags 0, 7, 14, 20.
-- Assumes the mint account is `accounts[0]` in the instruction (standard SPL layout).
-- Swaps alone (e.g., pump.fun swap) will not emit `mint=...`; look for actual MintTo/InitializeMint calls.
+- Triggers on Token/Token-2022 instructions with tags 0, 7, 14, 20 (assumes mint at accounts[0]).
+- Swaps alone do not emit `mint=...`; look for MintTo/InitializeMint calls.
