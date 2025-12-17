@@ -1,33 +1,24 @@
 # Shreds-UDP-RS (Temp Release)
 
-Ultra-simple Rust starter that listens for Shredstream over **UDP** and prints basic stats. No heartbeat is required—once you run it, it is ready to receive packets immediately.
+シンプルな UDP 版クライアントです。`solana-stream-sdk` v1.0.1 を crates.io から利用しています。設定は同梱の `settings.jsonc` をビルド時にバイナリへ埋め込みます（非シークレットのみ）。RPC などシークレットは環境変数で上書きしてください。
 
-- It does **not assume proto** for UDP. It logs a hex preview of each packet and *then* best-effort tries to decode it as a `shredstream::Entry` proto. Adjust the decode path to match the Jito shredstream proxy payload you receive.
+## 使い方
 
-## Quick Start
-
-### 1) Configure
-
-Create `.env` (or export env vars):
+1) `.env` を用意（または環境変数をエクスポート）
 
 ```env
-SHREDS_UDP_BIND_ADDR=0.0.0.0:10001
 SOLANA_RPC_ENDPOINT=https://api.mainnet-beta.solana.com
 ```
 
-`SHREDS_UDP_BIND_ADDR` is the local socket to bind. Point your Shredstream sender at this `ip:port`.
-
-### 2) Run
+2) 実行
 
 ```bash
 RUST_LOG=info cargo run
 ```
 
-The client binds, logs every packet (size + hex preview), then best-effort decodes:
-- If it matches `shredstream::Entry` proto, it bincode-decodes `Vec<Entry>`, counts txs, and reports latency vs block time.
-- If not, it still logs raw payload info so you can inspect/adjust decoding quickly.
+デコードは `solana-stream-sdk::shreds_udp` に任せています。`watch_program_ids` などの公開設定は `settings.jsonc` を編集してビルドしてください（jsonc コメント可）。シークレットは環境変数で上書きできます（例: `SOLANA_RPC_ENDPOINT`）。
 
-### Notes
+## 備考
 
-- Ensure the sender can reach the bound `ip:port` (consider NAT/firewall).
-- If your payload format differs from the `shredstream::Entry` proto, adjust decoding accordingly in `src/main.rs`.
+- NAT/ファイアウォールで受信ポートが開いていることを確認してください。
+- payload 形式は SDK 標準の shredstream Entry デコードに沿います。必要に応じて `src/main.rs` を調整してください。

@@ -170,7 +170,6 @@ For specific packages, navigate to the package directory and install dependencie
 `client/shreds-udp-rs` listens for Shredstream over UDP and highlights watched programs (defaults to pump.fun).
 
 ```env
-SHREDS_UDP_BIND_ADDR=0.0.0.0:10001
 SOLANA_RPC_ENDPOINT=https://api.mainnet-beta.solana.com
 SHREDS_UDP_LOG_WATCH_HITS=1
 SHREDS_UDP_LOG_ENTRIES=0               # entries preview off by default
