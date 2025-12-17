@@ -885,7 +885,6 @@ fn apply_env_overrides(mut cfg: ShredsUdpConfig) -> ShredsUdpConfig {
     let warn_once_per_fec = env_bool_opt("SHREDS_UDP_WARN_ONCE");
     let pump_min_lamports = env_parse_u64("SHREDS_UDP_PUMP_MIN_LAMPORTS");
 
-    cfg.bind_addr = env::var("SHREDS_UDP_BIND_ADDR").unwrap_or(cfg.bind_addr);
     cfg.rpc_endpoint = env::var("SOLANA_RPC_ENDPOINT").unwrap_or(cfg.rpc_endpoint);
     if let Some(v) = log_raw {
         cfg.log_raw = v;
@@ -1596,7 +1595,10 @@ fn log_watch_events(
                     } else {
                         base_kind
                     };
-                let icon = if is_create {
+                let missing_amounts = primary.sol_amount.is_none() && primary.token_amount.is_none();
+                let icon = if missing_amounts {
+                    "❓"
+                } else if is_create {
                     "🐣"
                 } else {
                     match primary.action {

@@ -320,7 +320,7 @@ https://discord.gg/C7ZQSrCkYR
 
 - Load base config via `SHREDS_UDP_CONFIG=/path/to/config.{json,toml}`; env vars then override it.
 - Core envs:  
-  - `SHREDS_UDP_BIND_ADDR` (default `0.0.0.0:10001`), `SOLANA_RPC_ENDPOINT`  
+  - `SOLANA_RPC_ENDPOINT`  
   - Logs: `SHREDS_UDP_LOG_RAW`, `SHREDS_UDP_LOG_SHREDS`, `SHREDS_UDP_LOG_ENTRIES`, `SHREDS_UDP_LOG_WATCH_HITS`, `SHREDS_UDP_LOG_DEFER`  
   - Watch lists: `SHREDS_UDP_WATCH_PROGRAM_IDS`, `SHREDS_UDP_WATCH_AUTHORITIES` (defaults to pump.fun program/authority)  
   - Hardening: `SHREDS_UDP_REQUIRE_CODE_MATCH`, `SHREDS_UDP_STRICT_FEC`, `SHREDS_UDP_STRICT_NUM_DATA`, `SHREDS_UDP_STRICT_NUM_CODING`  

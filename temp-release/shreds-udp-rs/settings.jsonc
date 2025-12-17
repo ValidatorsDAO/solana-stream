@@ -1,0 +1,43 @@
+{
+  // Non-secret defaults for shreds-udp-rs-temp-release.
+  // Secrets like RPC endpoints should be set via env (e.g. SOLANA_RPC_ENDPOINT).
+
+  // Listener
+  "bind_addr": "0.0.0.0:10001",
+
+  // Logging (all default to false except log_watch_hits)
+  "log_raw": false,
+  "log_shreds": false,
+  "log_entries": false,
+  "log_deshred_attempts": false,
+  "log_deshred_errors": false,
+  "log_watch_hits": true,
+  "log_deferred": false,
+
+  // Strictness
+  "require_code_match": false,
+  "skip_vote_sigs": true,
+  "strict_fec": true,
+  "strict_num_data": 32,
+  "strict_num_coding": 32,
+  "warn_once_per_fec": true,
+
+  // Slot window and eviction
+  "slot_window_root": null,
+  "slot_window_max_future": 512,
+  "evict_cooldown_ms": 300,
+  "completed_ttl_ms": 30000,
+
+  // Latency monitor
+  "enable_latency_monitor": false,
+
+  // Watch targets (pump.fun defaults; override as needed)
+  "watch_program_ids": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+  "watch_authorities": "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM",
+
+  // Token programs for mint detection (defaults to SPL Token + Token2022 when empty)
+  "token_program_ids": "",
+
+  // Only log pump.fun buy/sell when SOL amount >= this lamport threshold (0 = no filter)
+  "pump_min_lamports": 1000000000
+}
