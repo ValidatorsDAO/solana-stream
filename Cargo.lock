@@ -2032,7 +2032,7 @@ dependencies = [
 
 [[package]]
 name = "geyser-rs"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "backoff",
@@ -4933,7 +4933,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "shreds-rs"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "bincode",
  "chrono",
@@ -4949,7 +4949,7 @@ dependencies = [
 
 [[package]]
 name = "shreds-udp-rs"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "bincode",
  "chrono",
@@ -7179,7 +7179,7 @@ dependencies = [
 
 [[package]]
 name = "solana-stream-sdk"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "bincode",
  "chrono",

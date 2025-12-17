@@ -1,6 +1,6 @@
 # Shreds-UDP-RS (Temp Release)
 
-Minimal UDP client using `solana-stream-sdk` v1.1.0 from crates.io. Public settings live in `settings.jsonc` (jsonc comments allowed) and are embedded at build time; secrets like RPC go in environment variables.
+Minimal UDP client using `solana-stream-sdk` v1.1.1 from crates.io. Public settings live in `settings.jsonc` (jsonc comments allowed) and are embedded at build time; secrets like RPC go in environment variables.
 
 ## Usage
 
