@@ -21,42 +21,59 @@
 
 # Solana Geyser Client Example (geyser-rs)
 
-This example demonstrates how to use the Geyser client (`geyser-rs`) from the [solana-stream-sdk](https://github.com/ValidatorsDAO/solana-stream) to stream Solana blockchain data via gRPC.
+Resilient Geyser gRPC sample using the [solana-stream-sdk](https://github.com/ValidatorsDAO/solana-stream). It shows how to filter transactions/accounts/slots/blocks and keep the stream healthy in production (ping/pong, backoff, gap recovery).
 
 <a href="https://solana.com/">
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
 </a>
 
-## Usage
+## Quick start
 
-Clone the repository and install dependencies:
-
+1) `cd client/geyser-rs` (or `cd temp-release/geyser-rs` for the temp bundle)
+2) Provide env:
+```env
+GRPC_ENDPOINT=https://your-geyser-grpc-endpoint
+X_TOKEN=your_token_if_needed    # optional header for auth
+SOLANA_RPC_ENDPOINT=https://api.mainnet-beta.solana.com
+CONFIG_PATH=./config.jsonc      # optional override
+```
+3) Edit `config.jsonc` (JSONC allowed). Example filters are below.
+4) Run:
 ```bash
-git clone https://github.com/ValidatorsDAO/solana-stream.git
-cd solana-stream/client/geyser-rs
 RUST_LOG=info cargo run
 ```
 
-Ensure your `solana-stream/client/geyser-rs/.env` file contains:
+## What this sample includes (best-practice defaults)
+- Config-driven filters for transactions/accounts/slots/blocks; sample tx filter removes vote/failed tx (bandwidth savings)
+- Ping/Pong handling to keep Yellowstone gRPC connections alive
+- Gap recovery with `from_slot` based on the last seen slot (resumes from `slot-1`)
+- Exponential reconnect backoff that resets after successful traffic
+- Ingress/processing split via a bounded channel (10_000); slow consumers are warned and updates may be dropped when full
+- Latency monitor using `SOLANA_RPC_ENDPOINT` for blocktime lookups
 
-```env
-GRPC_ENDPOINT=https://grpc.erpc.global/
-X_TOKEN=your_token # Optional
-SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
+### macOS libclang note
+If you hit `@rpath/libclang.dylib` errors (common on Apple Silicon), point to Homebrew LLVM:
+```bash
+export LIBCLANG_PATH=/opt/homebrew/opt/llvm/lib
+export DYLD_LIBRARY_PATH=/opt/homebrew/opt/llvm/lib
+export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 ```
+Then run `cargo run` as usual.
 
-⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.
+## Sample `config.jsonc`
 
-Here's an example `config.jsonc`:
+The defaults follow the recommended "drop vote/failed tx" pattern; expand as needed.
 
 ```jsonc
 {
   "commitment": "Processed",
   "transactions": {
     "example": {
-      "account_include": [],
+      "account_include": ["6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"],
       "account_exclude": [],
       "account_required": [],
+      "vote": false,
+      "failed": false
     },
   },
   "accounts": {
@@ -89,9 +106,14 @@ Here's an example `config.jsonc`:
 }
 ```
 
-## ⚠️ Experimental Feature Notice
+⚠️ The sample endpoints above are placeholders—configure your own Geyser gRPC endpoint and auth token.
 
-This Geyser client and its filtering functionality are experimental. If you encounter issues or have suggestions, please open an issue:
+## Notes
+- `CONFIG_PATH` can point to any JSONC file; default is `config.jsonc` in this folder.
+- `SOLANA_RPC_ENDPOINT` is only used for blocktime/latency logging; the stream itself is pure gRPC.
+- Adjust `UPDATE_CHANNEL_CAPACITY` in `src/main.rs` if you need tighter or looser backpressure.
+
+If you encounter issues or have suggestions, please open an issue:
 
 - [GitHub Issues](https://github.com/ValidatorsDAO/solana-stream/issues)
 
