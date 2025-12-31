@@ -3,6 +3,7 @@ use crate::{
     config::{commitment_from_str, Config},
 };
 use anyhow::Context;
+use backoff::backoff::Backoff;
 use backoff::{future::retry, ExponentialBackoff};
 use dotenv::dotenv;
 use env_logger;
