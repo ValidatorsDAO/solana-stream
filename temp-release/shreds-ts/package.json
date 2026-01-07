@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@solana/web3.js": "1.98.4",
-    "@validators-dao/solana-stream-sdk": "0.12.0",
+    "@validators-dao/solana-stream-sdk": "1.0.0",
     "dotenv": "16.5.0"
   },
   "devDependencies": {

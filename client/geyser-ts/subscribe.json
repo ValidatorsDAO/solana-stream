@@ -1,0 +1,19 @@
+{
+  "accounts": {},
+  "slots": {},
+  "transactions": {
+    "pumpfun": {
+      "vote": false,
+      "failed": false,
+      "accountInclude": ["6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"],
+      "accountExclude": [],
+      "accountRequired": []
+    }
+  },
+  "transactionsStatus": {},
+  "blocks": {},
+  "blocksMeta": {},
+  "entry": {},
+  "accountsDataSlice": [],
+  "commitment": 0
+}

@@ -33,6 +33,18 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 - Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
 - Faster real-time Geyser streams for TypeScript clients with lower overhead
 
+## Production-Ready Geyser Client (TypeScript Best Practices)
+
+- Ping/Pong handling to keep Yellowstone gRPC streams alive
+- Exponential reconnect backoff plus `fromSlot` gap recovery
+- Bounded in-memory queue with drop logging for backpressure safety
+- Hot-swappable subscriptions via a JSON file (no reconnect)
+- Optional runtime metrics logging (rates, queue size, drops)
+- Default filters drop vote/failed transactions to reduce traffic
+
+Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
+duplicates are expected.
+
 ## Installation
 
 ```bash

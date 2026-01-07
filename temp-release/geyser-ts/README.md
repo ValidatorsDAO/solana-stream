@@ -48,6 +48,40 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 ⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.
 
+## Optional Runtime Settings
+
+Enable hot-reloadable subscriptions and metrics with environment flags:
+
+```env
+# Watch a JSON file and hot-swap subscriptions without reconnecting
+GEYSER_SUBSCRIBE_FILE=./subscribe.json
+
+# Log periodic metrics (queue size, rates, drops)
+GEYSER_LOG_METRICS=1
+
+# Log drop warnings when backpressure kicks in
+GEYSER_LOG_DROPS=1
+
+# Log when subscriptions are reloaded
+GEYSER_LOG_SUBSCRIBE=1
+```
+
+`GEYSER_SUBSCRIBE_FILE` expects a JSON object matching the subscribe request shape
+(accounts/slots/transactions/blocks/etc.). Missing fields fall back to defaults.
+See `subscribe.json` for a config that matches the current default behavior.
+
+## Production-Ready Best Practices
+
+- Ping/Pong handling to keep Yellowstone gRPC streams alive
+- Exponential reconnect backoff plus `fromSlot` gap recovery
+- Bounded in-memory queue with drop logging for backpressure safety
+- Hot-swappable subscriptions via a JSON file (no reconnect)
+- Optional runtime metrics logging (rates, queue size, drops)
+- Default filters drop vote/failed transactions to reduce traffic
+
+Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
+duplicates are expected.
+
 ## Usage
 
 The client will connect to the configured Yellowstone gRPC endpoint and stream Solana data.
