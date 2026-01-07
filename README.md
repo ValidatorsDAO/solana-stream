@@ -31,23 +31,61 @@ A collection of Rust and TypeScript packages for Solana stream data, operated by
 
 This project provides libraries and tools for streaming real-time data from the Solana blockchain. It supports both Geyser and Shreds approaches, making it easier for developers to access Solana data streams.
 
-## What's New (TypeScript v1.0.0)
+## What's New (TypeScript v1.0.1)
 
 - Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
+- NAPI-powered Shreds client/decoder so TypeScript can tap Rust-grade throughput
 - Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
 - Faster real-time Geyser streams for TypeScript clients with lower overhead
 
-## Production-Ready Geyser Client (TypeScript Best Practices)
+## Production-Ready Geyser Clients (TypeScript + Rust)
 
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
-- Exponential reconnect backoff plus `fromSlot` gap recovery
-- Bounded in-memory queue with drop logging for backpressure safety
-- Hot-swappable subscriptions via a JSON file (no reconnect)
-- Optional runtime metrics logging (rates, queue size, drops)
+- Exponential reconnect backoff plus gap recovery (`fromSlot` / `from_slot`)
+- Bounded queues/channels with drop logging for backpressure safety
+- Hot-swappable subscriptions via a JSON file (TypeScript)
+- Optional runtime metrics logging (TypeScript)
 - Default filters drop vote/failed transactions to reduce traffic
+- Rust Geyser client ships the same safeguards and powers UDP Shreds for fastest signal
 
 Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
 duplicates are expected.
+
+## Rust Highlight: UDP Shreds (Fastest Signal)
+
+If you have **ERPC Dedicated Shreds**, you can forward raw Shreds over UDP to your own listener.
+This is Solana’s fastest observation layer—before Geyser gRPC and far ahead of RPC/WebSocket.
+The SDK includes a simple Rust sample; pump.fun is used only because it’s the most common
+question we get.
+
+### Why this is the fastest path
+
+- Shreds arrive first: validator-to-validator Shreds land before Geyser gRPC or RPC/WebSocket,
+  so latency-critical flows see events earliest.
+- UDP keeps overhead tiny: no connection setup, retransmit, or ordering; matches the on-wire
+  format between validators.
+- Trade-off: pre-finalization data can be missing/out-of-order/failed—handle that as part of the
+  speed bargain.
+
+Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP Shreds.
+
+### Try it with Solana Stream SDK
+
+- Sample code (`shreds-udp-rs`, Rust): pump.fun is just a common example—swap in your own target.  
+  https://github.com/ValidatorsDAO/solana-stream/tree/main/temp-release/shreds-udp-rs  
+- Dedicated Shreds users: point your Shreds sender to the sample’s `ip:port` to see detections.
+- Not on UDP yet? Run it locally or on your own server to explore logs and customize hooks.
+
+### Pump.fun example log
+
+![pump.fun hits over UDP Shreds](/news/2025/12/17/SolanaStreamSDKUDPClientExample.jpg)
+
+This example comes from the SDK sample; clone and run it to see hits, or swap in your own target.
+
+### Resources
+
+- All code and README docs are in the Solana Stream SDK repo:  
+  https://github.com/ValidatorsDAO/solana-stream
 
 ## Package Structure
 

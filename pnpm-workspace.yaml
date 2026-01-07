@@ -1,4 +1,8 @@
 packages:
-  - 'client/*-ts'
-  - 'package/*'
-  - 'temp-release/*-ts'
+  - client/*-ts
+  - package/*
+  - temp-release/*-ts
+
+ignoredBuiltDependencies:
+  - bufferutil
+  - esbuild
