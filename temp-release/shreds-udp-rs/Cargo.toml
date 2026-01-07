@@ -1,6 +1,6 @@
 [package]
 name = "shreds-udp-rs-starter"
-version = "1.1.1"
+version = "1.1.2"
 description = "Rust UDP client for Solana Shredstream"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"

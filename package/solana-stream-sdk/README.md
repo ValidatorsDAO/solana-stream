@@ -27,9 +27,10 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
 </a>
 
-## What's New in v1.0.0
+## What's New in v1.0.1
 
 - Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
+- NAPI-powered Shreds client/decoder so TypeScript can tap Rust-grade throughput
 - Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
 - Faster real-time Geyser streams for TypeScript clients with lower overhead
 
@@ -44,6 +45,13 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 
 Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
 duplicates are expected.
+
+## Performance Highlights
+
+- NAPI-powered Geyser gRPC and Shreds client/decoder for high-throughput streaming
+- TypeScript ergonomics with Rust-grade performance under the hood
+- For the absolute fastest signal path, see Rust UDP Shreds in the repo:
+  https://github.com/ValidatorsDAO/solana-stream#shreds-udp-pumpfun-watcher-rust
 
 ## Installation
 

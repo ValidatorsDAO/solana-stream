@@ -1,7 +1,7 @@
 {
   "name": "@validators-dao/solana-stream-sdk",
   "description": "Solana Stream SDK by Validators DAO",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
