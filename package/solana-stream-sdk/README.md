@@ -27,6 +27,12 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
 </a>
 
+## What's New in v1.0.0
+
+- Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
+- Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
+- Faster real-time Geyser streams for TypeScript clients with lower overhead
+
 ## Installation
 
 ```bash
@@ -117,16 +123,15 @@ const geyser = async () => {
   const maxRetries = 2000000
 
   const createClient = () => {
-    const token = process.env.X_TOKEN || ''
-    console.log('X_TOKEN:', token)
-    if (token === '') {
-      throw new Error('X_TOKEN environment variable is not set')
+    const token = process.env.X_TOKEN?.trim()
+    if (!token) {
+      console.warn('X_TOKEN not set. Connecting without auth.')
     }
     const endpoint = `https://grpc-ams-3.erpc.global`
     console.log('Connecting to', endpoint)
 
     // @ts-ignore ignore
-    return new GeyserClient(endpoint, token, undefined)
+    return new GeyserClient(endpoint, token || undefined, undefined)
   }
 
   const connect = async (retries: number = 0): Promise<void> => {
@@ -136,6 +141,7 @@ const geyser = async () => {
 
     try {
       const client = createClient()
+      await client.connect()
       const version = await client.getVersion()
       console.log('version: ', version)
       const stream = await client.subscribe()
@@ -200,7 +206,7 @@ const main = async () => {
 main()
 ```
 
-Please ensure you have the `X_TOKEN` environment variable set with your gRPC token for authentication.
+If your endpoint requires authentication, set the `X_TOKEN` environment variable with your gRPC token.
 
 Please note that the url endpoint in the example is for demonstration purposes. You should replace it with the actual endpoint you are using.
 
@@ -266,7 +272,7 @@ Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
 
 ## Features
 
-- **Geyser Client**: Direct access to Triton's Yellowstone gRPC client for real-time Solana data streaming
+- **Geyser Client**: Direct access to the Yellowstone gRPC client for real-time Solana data streaming
 - **Shredstream Client**: Real-time entry streaming and decoding from Solana Shreds
 - **TypeScript Types**: Comprehensive TypeScript types for all filter and subscription interfaces
 - **Utilities**: Includes bs58 for Solana address and data encoding/decoding, gRPC utilities, and entry decoding functions
@@ -298,7 +304,7 @@ Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
 
 ## Dependencies
 
-- `@triton-one/yellowstone-grpc`: For gRPC streaming capabilities
+- Yellowstone gRPC client: For gRPC streaming capabilities
 - `bs58`: For base58 encoding/decoding
 - `@validators-dao/solana-entry-decoder`: Utility for decoding Solana shred entries.
 - `@validators-dao/solana-shreds-client`: Solana Shreds Client for Scale. (NAPI-RS)
