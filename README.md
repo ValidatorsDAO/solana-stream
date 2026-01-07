@@ -31,6 +31,12 @@ A collection of Rust and TypeScript packages for Solana stream data, operated by
 
 This project provides libraries and tools for streaming real-time data from the Solana blockchain. It supports both Geyser and Shreds approaches, making it easier for developers to access Solana data streams.
 
+## Choose Your Path
+
+- Geyser gRPC (TypeScript/Rust): production-ready streaming with resilient reconnects
+- Shreds gRPC (TypeScript/Rust): raw shreds over gRPC for high-throughput ingestion
+- UDP Shreds (Rust): lowest-latency signal for detection and trading workflows
+
 ## What's New (TypeScript v1.0.1)
 
 - Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
@@ -73,6 +79,7 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 
 - Sample code (`shreds-udp-rs`, Rust): pump.fun is just a common example—swap in your own target.  
   https://github.com/ValidatorsDAO/solana-stream/tree/main/temp-release/shreds-udp-rs  
+- Quick start requires `settings.jsonc` plus env (e.g., `SOLANA_RPC_ENDPOINT`); see the sample README.
 - Dedicated Shreds users: point your Shreds sender to the sample’s `ip:port` to see detections.
 - Not on UDP yet? Run it locally or on your own server to explore logs and customize hooks.
 

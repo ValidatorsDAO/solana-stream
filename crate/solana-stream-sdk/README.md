@@ -60,6 +60,8 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 
 - Sample code (`shreds-udp-rs`, Rust): pump.fun is just a common example—swap in your own target.  
   https://github.com/ValidatorsDAO/solana-stream/tree/main/temp-release/shreds-udp-rs  
+- Quick start (local): configure `settings.jsonc`, set env like `SOLANA_RPC_ENDPOINT`, then run
+  `cargo run -p shreds-udp-rs`
 - Dedicated Shreds users: point your Shreds sender to the sample’s `ip:port` to see detections.
 - Not on UDP yet? Run it locally or on your own server to explore logs and customize hooks.
 
