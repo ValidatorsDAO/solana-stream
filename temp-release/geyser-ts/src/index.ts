@@ -32,79 +32,87 @@ const request: SubscribeRequest = {
 const geyser = async () => {
   console.log('Starting geyser client...')
   const maxRetries = 2000000
+  let warnedMissingToken = false
 
   const createClient = () => {
-    const token = process.env.X_TOKEN || ''
-    console.log('X_TOKEN:', token)
-    if (token === '') {
-      throw new Error('X_TOKEN environment variable is not set')
+    const token = process.env.X_TOKEN?.trim()
+    if (!token && !warnedMissingToken) {
+      console.warn('X_TOKEN not set. Connecting without auth.')
+      warnedMissingToken = true
     }
     const endpoint = process.env.GEYSER_ENDPOINT || 'http://localhost:10000'
     console.log('Connecting to', endpoint)
 
-    return new GeyserClient(endpoint, token, undefined)
+    return new GeyserClient(endpoint, token || undefined, undefined)
   }
 
-  const connect = async (retries: number = 0): Promise<void> => {
-    if (retries > maxRetries) {
-      throw new Error('Max retries reached')
-    }
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-    try {
-      const client = createClient()
-      const version = await client.getVersion()
-      console.log('version: ', version)
-      const stream = await client.subscribe()
-      stream.on('data', async (data: any) => {
-        if (data.transaction != undefined) {
-          // Checking Latency
-          const slot = Number(data.transaction.slot)
-          const receivedAt = new Date()
-          const txSignature = bs58.encode(
-            new Uint8Array(data.transaction.transaction.signature),
-          )
+  const connect = async (): Promise<void> => {
+    let retries = 0
 
-          if (!receivedTransactions.has(slot)) {
-            receivedTransactions.set(slot, [])
+    while (retries <= maxRetries) {
+      try {
+        const client = createClient()
+        await client.connect()
+        const version = await client.getVersion()
+        console.log('version: ', version)
+        const stream = await client.subscribe()
+        stream.on('data', async (data: any) => {
+          if (data.transaction != undefined) {
+            // Checking Latency
+            const slot = Number(data.transaction.slot)
+            const receivedAt = new Date()
+            const txSignature = bs58.encode(
+              new Uint8Array(data.transaction.transaction.signature),
+            )
+
+            if (!receivedTransactions.has(slot)) {
+              receivedTransactions.set(slot, [])
+            }
+            receivedTransactions.get(slot)!.push({ receivedAt, tx: txSignature })
+            return
           }
-          receivedTransactions.get(slot)!.push({ receivedAt, tx: txSignature })
-          return
-        }
-        if (data.account != undefined) {
-          const accounts = data.account
-          const rawPubkey = accounts.account.pubkey
-          const rawTxnSignature = accounts.account.txnSignature
-          const pubkey = bs58.encode(new Uint8Array(rawPubkey))
-          const txnSignature = bs58.encode(new Uint8Array(rawTxnSignature))
-          console.log('pubkey:', pubkey)
-          console.log('txnSignature:', txnSignature)
-          return
-        }
-        // console.log('data:', JSON.stringify(data, null, 2))
-      })
-
-      stream.on('error', async (e: any) => {
-        console.error('Stream error:', e)
-        console.log(`Reconnecting ...`)
-        await connect(retries + 1)
-      })
-
-      await new Promise<void>((resolve, reject) => {
-        stream.write(request, (err: any) => {
-          if (!err) {
-            resolve()
-          } else {
-            console.error('Request error:', err)
-            reject(err)
+          if (data.account != undefined) {
+            const accounts = data.account
+            const rawPubkey = accounts.account.pubkey
+            const rawTxnSignature = accounts.account.txnSignature
+            const pubkey = bs58.encode(new Uint8Array(rawPubkey))
+            const txnSignature = bs58.encode(new Uint8Array(rawTxnSignature))
+            console.log('pubkey:', pubkey)
+            console.log('txnSignature:', txnSignature)
+            return
           }
+          // console.log('data:', JSON.stringify(data, null, 2))
         })
-      }).catch((reason) => {
-        console.error(reason)
-        throw reason
-      })
-    } catch (error) {
-      console.error(`Connection failed. Retrying ...`, error)
-      await connect(retries + 1)
+
+        const streamClosed = new Promise<void>((_, reject) => {
+          stream.on('error', (e: any) => reject(e))
+          stream.on('end', () => reject(new Error('Stream ended')))
+          stream.on('close', () => reject(new Error('Stream closed')))
+        })
+
+        await new Promise<void>((resolve, reject) => {
+          stream.write(request, (err: any) => {
+            if (!err) {
+              resolve()
+            } else {
+              console.error('Request error:', err)
+              reject(err)
+            }
+          })
+        })
+
+        await streamClosed
+      } catch (error) {
+        retries += 1
+        if (retries > maxRetries) {
+          throw error
+        }
+        console.error(`Connection failed. Retrying ...`, error)
+        const delayMs = Math.min(1000 * 2 ** Math.min(retries, 5), 30000)
+        await sleep(delayMs)
+      }
     }
   }
 

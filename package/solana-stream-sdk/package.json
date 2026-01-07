@@ -1,7 +1,7 @@
 {
   "name": "@validators-dao/solana-stream-sdk",
   "description": "Solana Stream SDK by Validators DAO",
-  "version": "0.12.0",
+  "version": "1.0.0",
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,7 +28,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@triton-one/yellowstone-grpc": "4.0.2",
+    "@triton-one/yellowstone-grpc": "5.0.1",
     "@validators-dao/solana-entry-decoder": "workspace:*",
     "@validators-dao/solana-shreds-client": "workspace:*",
     "bs58": "6.0.0"

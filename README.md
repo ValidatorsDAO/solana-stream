@@ -31,6 +31,12 @@ A collection of Rust and TypeScript packages for Solana stream data, operated by
 
 This project provides libraries and tools for streaming real-time data from the Solana blockchain. It supports both Geyser and Shreds approaches, making it easier for developers to access Solana data streams.
 
+## What's New (TypeScript v1.0.0)
+
+- Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
+- Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
+- Faster real-time Geyser streams for TypeScript clients with lower overhead
+
 ## Package Structure
 
 ### Rust Clients
@@ -72,6 +78,7 @@ pnpm install
 Create a `.env` file at `client/geyser-ts/.env` with your environment variables:
 
 ```env
+# Optional: required only if your endpoint enforces auth
 X_TOKEN=YOUR_X_TOKEN
 GEYSER_ENDPOINT=https://grpc-ams.erpc.global
 SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
