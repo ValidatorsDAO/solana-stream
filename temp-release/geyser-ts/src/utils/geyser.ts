@@ -34,4 +34,5 @@ export interface SubscribeRequest {
   commitment?: CommitmentLevel | undefined
   accountsDataSlice: SubscribeRequestAccountsDataSlice[]
   ping?: any
+  fromSlot?: string
 }
