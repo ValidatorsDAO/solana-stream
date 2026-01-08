@@ -146,5 +146,5 @@ MIT License
 
 For more details about the Solana Stream SDK, visit:
 
-- [GitHub Repository](https://github.com/elsoul/solana-stream)
+- [GitHub Repository](https://github.com/ValidatorsDAO/solana-stream)
 - [Crates.io](https://crates.io/crates/solana-stream-sdk)
