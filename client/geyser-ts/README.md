@@ -137,4 +137,4 @@ For more details about Yellowstone gRPC and Solana streaming:
 
 - [Yellowstone gRPC Documentation](https://github.com/rpcpool/yellowstone-grpc)
 - [Solana Web3.js Documentation](https://solana-labs.github.io/solana-web3.js/)
-- [GitHub Repository](https://github.com/elsoul/solana-stream)
+- [GitHub Repository](https://github.com/ValidatorsDAO/solana-stream)

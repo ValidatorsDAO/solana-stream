@@ -6,7 +6,7 @@ authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/elsoul/solana-stream"
+repository = "https://github.com/ValidatorsDAO/solana-stream"
 publish = false
 
 [[bin]]
