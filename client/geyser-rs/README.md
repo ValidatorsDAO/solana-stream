@@ -51,6 +51,11 @@ RUST_LOG=info cargo run
 - Ingress/processing split via a bounded channel (10_000); slow consumers are warned and updates may be dropped when full
 - Latency monitor using `SOLANA_RPC_ENDPOINT` for blocktime lookups
 
+## Where to edit
+- Trading and detection logic: `src/handlers/processor.rs`
+- Filters: `config.jsonc`
+- Runtime wiring: `src/main.rs` (helpers live under `src/runtime` and `src/utils`)
+
 ### macOS libclang note
 If you hit `@rpath/libclang.dylib` errors (common on Apple Silicon), point to Homebrew LLVM:
 ```bash
