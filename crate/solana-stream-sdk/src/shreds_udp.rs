@@ -6,6 +6,7 @@ use crate::{
     Result, SolanaStreamError,
 };
 use chrono::{DateTime, LocalResult, TimeZone, Utc};
+use dashmap::DashMap;
 use futures::future::join_all;
 use log::{error, info, warn};
 use serde::Deserialize;
@@ -144,7 +145,7 @@ pub struct ShredsUdpConfig {
 
 #[derive(Clone)]
 pub struct ShredsUdpState {
-    transactions_by_slot: Option<Arc<Mutex<HashMap<u64, Vec<(String, DateTime<Utc>)>>>>>,
+    transactions_by_slot: Option<Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>>,
     shred_buffer: Arc<Mutex<HashMap<FecKey, ShredBatch>>>,
     completed: Arc<Mutex<HashMap<FecKey, Instant>>>,
     suppressed: Arc<Mutex<HashMap<FecKey, Instant>>>,
@@ -478,7 +479,7 @@ impl ShredsUdpState {
         Self {
             transactions_by_slot: cfg
                 .enable_latency_monitor
-                .then(|| Arc::new(Mutex::new(HashMap::new()))),
+                .then(|| Arc::new(DashMap::new())),
             shred_buffer: Arc::new(Mutex::new(HashMap::new())),
             completed: Arc::new(Mutex::new(HashMap::new())),
             suppressed: Arc::new(Mutex::new(HashMap::new())),
@@ -498,7 +499,7 @@ impl ShredsUdpState {
 
     pub fn transactions_by_slot(
         &self,
-    ) -> Option<Arc<Mutex<HashMap<u64, Vec<(String, DateTime<Utc>)>>>>> {
+    ) -> Option<Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>> {
         self.transactions_by_slot.clone()
     }
 
@@ -1023,22 +1024,20 @@ fn apply_env_overrides(mut cfg: ShredsUdpConfig) -> ShredsUdpConfig {
     cfg
 }
 
-async fn prepare_log_message(
+fn prepare_log_message(
     slot: u64,
-    transactions_by_slot: &Arc<Mutex<HashMap<u64, Vec<(String, DateTime<Utc>)>>>>,
+    transactions_by_slot: &Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>,
 ) {
     let received_time = Utc::now();
     transactions_by_slot
-        .lock()
-        .await
         .entry(slot)
-        .or_default()
+        .or_insert_with(Vec::new)
         .push(("dummy_signature".to_string(), received_time));
 }
 
 pub async fn latency_monitor_task(
     block_time_cache: BlockTimeCache,
-    transactions_by_slot: Arc<Mutex<HashMap<u64, Vec<(String, DateTime<Utc>)>>>>,
+    transactions_by_slot: Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>,
 ) {
     const MAX_LATENCIES: usize = 420;
     let mut latency_buffer = Vec::new();
@@ -1046,7 +1045,10 @@ pub async fn latency_monitor_task(
     loop {
         tokio::time::sleep(Duration::from_millis(420)).await;
 
-        let slots: Vec<u64> = transactions_by_slot.lock().await.keys().cloned().collect();
+        let slots: Vec<u64> = transactions_by_slot
+            .iter()
+            .map(|entry| *entry.key())
+            .collect();
 
         let block_time_futures = slots.iter().map(|&slot| {
             let value = block_time_cache.clone();
@@ -1073,9 +1075,8 @@ pub async fn latency_monitor_task(
                 };
 
                 let txs = transactions_by_slot
-                    .lock()
-                    .await
                     .remove(&slot)
+                    .map(|(_, entries)| entries)
                     .unwrap_or_default();
 
                 for (_, recv_time) in txs {
@@ -1252,7 +1253,7 @@ async fn process_data_shred(
     metrics: Arc<ShredMetrics>,
 ) -> ShredInsertOutcome {
     if let Some(txs) = state.transactions_by_slot() {
-        prepare_log_message(key.slot, &txs).await;
+        prepare_log_message(key.slot, &txs);
     }
     let last = decoded.shred.last_in_slot();
     let complete = decoded.shred.data_complete();

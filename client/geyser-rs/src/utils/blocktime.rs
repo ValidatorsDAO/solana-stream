@@ -1,11 +1,12 @@
 use bs58;
 use chrono::{DateTime, TimeZone, Utc};
+use dashmap::DashMap;
 use futures::future::join_all;
 use log::info;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_stream_sdk::{GeyserSubscribeUpdate, GeyserUpdateOneof};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     sync::Arc,
 };
 use tokio::sync::Mutex;
@@ -15,6 +16,12 @@ pub struct BlockTimeCache {
     rpc_client: Arc<RpcClient>,
     cache: Arc<Mutex<HashMap<u64, i64>>>,
     fetching: Arc<Mutex<HashSet<u64>>>,
+}
+
+pub type TransactionsBySlot = Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>;
+
+pub fn create_transactions_by_slot() -> TransactionsBySlot {
+    Arc::new(DashMap::new())
 }
 
 impl BlockTimeCache {
@@ -75,10 +82,7 @@ impl BlockTimeCache {
     }
 }
 
-pub async fn prepare_log_message(
-    msg: &GeyserSubscribeUpdate,
-    transactions_by_slot: &Arc<Mutex<BTreeMap<u64, Vec<(String, DateTime<Utc>)>>>>,
-) {
+pub fn prepare_log_message(msg: &GeyserSubscribeUpdate, transactions_by_slot: &TransactionsBySlot) {
     match &msg.update_oneof {
         Some(GeyserUpdateOneof::Transaction(tx_info)) => {
             let received_time = Utc::now();
@@ -88,10 +92,8 @@ pub async fn prepare_log_message(
                     if let Some(sig) = inner_tx.signatures.first() {
                         let sig_str = bs58::encode(sig).into_string();
                         transactions_by_slot
-                            .lock()
-                            .await
                             .entry(slot)
-                            .or_default()
+                            .or_insert_with(Vec::new)
                             .push((sig_str, received_time));
                     }
                 }
@@ -103,7 +105,7 @@ pub async fn prepare_log_message(
 
 pub async fn latency_monitor_task(
     block_time_cache: BlockTimeCache,
-    transactions_by_slot: Arc<Mutex<BTreeMap<u64, Vec<(String, DateTime<Utc>)>>>>,
+    transactions_by_slot: TransactionsBySlot,
 ) {
     const MAX_LATENCIES: usize = 420;
     let mut latency_buffer = Vec::new();
@@ -111,7 +113,10 @@ pub async fn latency_monitor_task(
     loop {
         tokio::time::sleep(std::time::Duration::from_millis(420)).await;
 
-        let slots: Vec<u64> = transactions_by_slot.lock().await.keys().cloned().collect();
+        let slots: Vec<u64> = transactions_by_slot
+            .iter()
+            .map(|entry| *entry.key())
+            .collect();
 
         let block_time_futures = slots.iter().map(|&slot| {
             let value = block_time_cache.clone();
@@ -127,9 +132,8 @@ pub async fn latency_monitor_task(
             if let Some(block_time_unix) = block_time_unix_opt {
                 let block_time = Utc.timestamp_opt(block_time_unix, 0).unwrap();
                 let txs = transactions_by_slot
-                    .lock()
-                    .await
                     .remove(&slot)
+                    .map(|(_, entries)| entries)
                     .unwrap_or_default();
 
                 for (sig, recv_time) in txs {
@@ -146,15 +150,15 @@ pub async fn latency_monitor_task(
                         latency_buffer.iter().sum::<i64>() as f64 / latency_buffer.len() as f64;
 
                     info!(
-                        "Slot: {}\nTx: {}\n⏰ BlockTime: {}\n📥 ReceivedAt: {}\n🚀 Adjusted Latency: {} ms\n📊 Average Latency (latest {}): {:.2} ms\n",
-                        slot,
-                        sig,
-                        block_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                        recv_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                        latency,
-                        latency_buffer.len(),
-                        avg_latency
-                    );
+                      "Slot: {}\nTx: {}\n⏰ BlockTime: {}\n📥 ReceivedAt: {}\n🚀 Adjusted Latency: {} ms\n📊 Average Latency (latest {}): {:.2} ms\n",
+                      slot,
+                      sig,
+                      block_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                      recv_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                      latency,
+                      latency_buffer.len(),
+                      avg_latency
+                  );
                 }
             }
         }

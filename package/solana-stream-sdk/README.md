@@ -27,10 +27,11 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
 </a>
 
-## What's New in v1.0.1
+## What's New in v1.1.0
 
+- Refreshed starter layout and docs to highlight trading hooks
 - Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
-- NAPI-powered Shreds client/decoder so TypeScript can tap Rust-grade throughput
+- NAPI-powered Shreds client/decoder so TypeScript can tap near-native throughput
 - Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
 - Faster real-time Geyser streams for TypeScript clients with lower overhead
 
@@ -39,7 +40,7 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus `fromSlot` gap recovery
 - Bounded in-memory queue with drop logging for backpressure safety
-- Hot-swappable subscriptions via a JSON file (no reconnect)
+- Update subscriptions by writing a new request to the stream (no reconnect)
 - Optional runtime metrics logging (rates, queue size, drops)
 - Default filters drop vote/failed transactions to reduce traffic
 
@@ -49,9 +50,7 @@ duplicates are expected.
 ## Performance Highlights
 
 - NAPI-powered Geyser gRPC and Shreds client/decoder for high-throughput streaming
-- TypeScript ergonomics with Rust-grade performance under the hood
-- For the absolute fastest signal path, see Rust UDP Shreds in the repo:
-  https://github.com/ValidatorsDAO/solana-stream#shreds-udp-pumpfun-watcher-rust
+- TypeScript ergonomics with native performance under the hood
 
 ## Installation
 
@@ -67,69 +66,36 @@ pnpm add @validators-dao/solana-stream-sdk
 
 ## Usage
 
-Example of using the GeyserClient to subscribe to Solana Pump Fun transactions and accounts:
+### Geyser Client (TypeScript)
+
+For a production-ready runner (reconnects, backpressure handling, metrics),
+see https://github.com/ValidatorsDAO/solana-stream/tree/main/client/geyser-ts.
+
+Minimal SDK usage (filters defined in code):
 
 ```typescript
 import {
+  CommitmentLevel,
+  SubscribeRequestFilterTransactions,
   GeyserClient,
   bs58,
-  CommitmentLevel,
-  SubscribeRequestAccountsDataSlice,
-  SubscribeRequestFilterAccounts,
-  SubscribeRequestFilterBlocks,
-  SubscribeRequestFilterBlocksMeta,
-  SubscribeRequestFilterEntry,
-  SubscribeRequestFilterSlots,
-  SubscribeRequestFilterTransactions,
 } from '@validators-dao/solana-stream-sdk'
 import 'dotenv/config'
 
-interface SubscribeRequest {
-  accounts: {
-    [key: string]: SubscribeRequestFilterAccounts
-  }
-  slots: {
-    [key: string]: SubscribeRequestFilterSlots
-  }
-  transactions: {
-    [key: string]: SubscribeRequestFilterTransactions
-  }
-  transactionsStatus: {
-    [key: string]: SubscribeRequestFilterTransactions
-  }
-  blocks: {
-    [key: string]: SubscribeRequestFilterBlocks
-  }
-  blocksMeta: {
-    [key: string]: SubscribeRequestFilterBlocksMeta
-  }
-  entry: {
-    [key: string]: SubscribeRequestFilterEntry
-  }
-  commitment?: CommitmentLevel | undefined
-  accountsDataSlice: SubscribeRequestAccountsDataSlice[]
-  ping?: any
-}
-
-// const PUMP_FUN_MINT_AUTHORITY = 'TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM'
 const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
 
-const tran: SubscribeRequestFilterTransactions = {
+const pumpfun: SubscribeRequestFilterTransactions = {
+  vote: false,
+  failed: false,
   accountInclude: [PUMP_FUN_PROGRAM_ID],
   accountExclude: [],
   accountRequired: [],
 }
 
-const request: SubscribeRequest = {
-  accounts: {
-    pumpfun: {
-      account: [],
-      owner: [],
-      filters: [],
-    },
-  },
+const request = {
+  accounts: {},
   slots: {},
-  transactions: { elsol: tran },
+  transactions: { pumpfun },
   transactionsStatus: {},
   blocks: {},
   blocksMeta: {},
@@ -138,101 +104,55 @@ const request: SubscribeRequest = {
   commitment: CommitmentLevel.PROCESSED,
 }
 
-const geyser = async () => {
-  console.log('Starting geyser client...')
-  const maxRetries = 2000000
-
-  const createClient = () => {
-    const token = process.env.X_TOKEN?.trim()
-    if (!token) {
-      console.warn('X_TOKEN not set. Connecting without auth.')
-    }
-    const endpoint = `https://grpc-ams-3.erpc.global`
-    console.log('Connecting to', endpoint)
-
-    // @ts-ignore ignore
-    return new GeyserClient(endpoint, token || undefined, undefined)
-  }
-
-  const connect = async (retries: number = 0): Promise<void> => {
-    if (retries > maxRetries) {
-      throw new Error('Max retries reached')
-    }
-
-    try {
-      const client = createClient()
-      await client.connect()
-      const version = await client.getVersion()
-      console.log('version: ', version)
-      const stream = await client.subscribe()
-      stream.on('data', async (data: any) => {
-        if (data.transaction !== undefined) {
-          const transaction = data.transaction
-          const txnSignature = transaction.transaction.signature
-          const tx = bs58.encode(new Uint8Array(txnSignature))
-          console.log('tx:', tx)
-          return
-        }
-        if (data.account === undefined) {
-          return
-        }
-        // console.log('data:', JSON.stringify(data, null, 2))
-
-        const accounts = data.account
-        const rawPubkey = accounts.account.pubkey
-        const rawTxnSignature = accounts.account.txnSignature
-        const pubkey = bs58.encode(new Uint8Array(rawPubkey))
-        const txnSignature = bs58.encode(new Uint8Array(rawTxnSignature))
-        console.log('pubkey:', pubkey)
-        console.log('txnSignature:', txnSignature)
-      })
-
-      stream.on('error', async (e: any) => {
-        console.error('Stream error:', e)
-        console.log(`Reconnecting ...`)
-        await connect(retries + 1)
-      })
-
-      await new Promise<void>((resolve, reject) => {
-        stream.write(request, (err: any) => {
-          if (!err) {
-            resolve()
-          } else {
-            console.error('Request error:', err)
-            reject(err)
-          }
-        })
-      }).catch((reason) => {
-        console.error(reason)
-        throw reason
-      })
-    } catch (error) {
-      console.error(`Connection failed. Retrying ...`, error)
-      await connect(retries + 1)
-    }
-  }
-
-  await connect()
-}
-
 const main = async () => {
-  try {
-    await geyser()
-  } catch (error) {
-    console.log(error)
-  }
+  const endpoint = process.env.GEYSER_ENDPOINT || 'http://localhost:10000'
+  const token = process.env.X_TOKEN?.trim()
+  const client = new GeyserClient(endpoint, token || undefined, undefined)
+
+  await client.connect()
+  const stream = await client.subscribe()
+
+  stream.on('data', (data: any) => {
+    if (data?.ping != undefined) {
+      stream.write({ ping: { id: 1 } }, () => undefined)
+      return
+    }
+    if (data?.pong != undefined) {
+      return
+    }
+    if (data?.transaction != undefined) {
+      const signature = data.transaction.transaction.signature
+      const txSignature = bs58.encode(new Uint8Array(signature))
+
+      // TODO: Add your trade logic here.
+      console.log('tx:', txSignature)
+    }
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    stream.write(request, (err: any) => {
+      if (!err) {
+        resolve()
+      } else {
+        console.error('Request error:', err)
+        reject(err)
+      }
+    })
+  })
 }
 
-main()
+void main()
 ```
 
 If your endpoint requires authentication, set the `X_TOKEN` environment variable with your gRPC token.
-
-Please note that the url endpoint in the example is for demonstration purposes. You should replace it with the actual endpoint you are using.
+Please note that the endpoint in the example is for demonstration purposes. Replace it with your actual endpoint.
 
 ### Shreds Client
 
-Here's how to use the SDK to subscribe to Solana Shreds and decode entries:
+For a working starter that includes latency checks, see
+https://github.com/ValidatorsDAO/solana-stream/tree/main/client/shreds-ts.
+
+Here's a minimal example:
 
 ```typescript
 import {
@@ -241,9 +161,6 @@ import {
   // decodeSolanaEntries,
 } from '@validators-dao/solana-stream-sdk'
 import 'dotenv/config'
-// import { logDecodedEntries } from '@/utils/logDecodedEntries'
-
-import { receivedSlots, startLatencyCheck } from '@/utils/checkLatency'
 
 const endpoint = process.env.SHREDS_ENDPOINT!
 
@@ -263,29 +180,20 @@ const connect = () => {
   client.subscribeEntries(
     JSON.stringify(request),
     (_error: any, buffer: any) => {
-      const receivedAt = new Date()
-      if (buffer) {
-        const {
-          slot,
-          // entries
-        } = JSON.parse(buffer)
-
-        // You can decode entries as needed
-        // const decodedEntries = decodeSolanaEntries(new Uint8Array(entries))
-        // logDecodedEntries(decodedEntries)
-
-        if (!receivedSlots.has(slot)) {
-          receivedSlots.set(slot, [{ receivedAt }])
-        } else {
-          receivedSlots.get(slot)!.push({ receivedAt })
-        }
+      if (!buffer) {
+        return
       }
+      const { slot } = JSON.parse(buffer)
+
+      // You can decode entries as needed
+      // const decodedEntries = decodeSolanaEntries(new Uint8Array(entries))
+
+      console.log('slot:', slot)
     },
   )
 }
 
 connect()
-startLatencyCheck()
 ```
 
 Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
@@ -341,18 +249,6 @@ Other reports and suggestions are also highly appreciated.
 
 You can also join discussions or share feedback on Validators DAO's Discord community:
 https://discord.gg/C7ZQSrCkYR
-
-## Shreds UDP configuration (Rust client)
-
-- Load base config via `SHREDS_UDP_CONFIG=/path/to/config.{json,toml}`; env vars then override it.
-- Core envs:  
-  - `SOLANA_RPC_ENDPOINT`  
-  - Logs: `SHREDS_UDP_LOG_RAW`, `SHREDS_UDP_LOG_SHREDS`, `SHREDS_UDP_LOG_ENTRIES`, `SHREDS_UDP_LOG_WATCH_HITS`, `SHREDS_UDP_LOG_DEFER`  
-  - Watch lists: `SHREDS_UDP_WATCH_PROGRAM_IDS`, `SHREDS_UDP_WATCH_AUTHORITIES` (defaults to pump.fun program/authority)  
-  - Hardening: `SHREDS_UDP_REQUIRE_CODE_MATCH`, `SHREDS_UDP_STRICT_FEC`, `SHREDS_UDP_STRICT_NUM_DATA`, `SHREDS_UDP_STRICT_NUM_CODING`  
-  - Slot window: `SHREDS_UDP_ROOT_SLOT`, `SHREDS_UDP_MAX_FUTURE` (default 512)  
-  - TTLs: `SHREDS_UDP_COMPLETED_TTL_MS` (default 30s), `SHREDS_UDP_EVICT_COOLDOWN_MS` (default 300ms), `SHREDS_UDP_WARN_ONCE` (default true)  
-- Pump.fun: program and mint-authority pubkeys are fixed; token mint addresses are discovered per transaction at runtime (not hardcoded).
 
 ## Repository
 

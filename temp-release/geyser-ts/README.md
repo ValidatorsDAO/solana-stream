@@ -50,32 +50,25 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 ## Optional Runtime Settings
 
-Enable hot-reloadable subscriptions and metrics with environment flags:
+Enable metrics/drop/subscription logs with environment flags:
 
 ```env
-# Watch a JSON file and hot-swap subscriptions without reconnecting
-GEYSER_SUBSCRIBE_FILE=./subscribe.json
-
 # Log periodic metrics (queue size, rates, drops)
 GEYSER_LOG_METRICS=1
 
 # Log drop warnings when backpressure kicks in
 GEYSER_LOG_DROPS=1
 
-# Log when subscriptions are reloaded
+# Log when subscription requests are sent
 GEYSER_LOG_SUBSCRIBE=1
 ```
-
-`GEYSER_SUBSCRIBE_FILE` expects a JSON object matching the subscribe request shape
-(accounts/slots/transactions/blocks/etc.). Missing fields fall back to defaults.
-See `subscribe.json` for a config that matches the current default behavior.
 
 ## Production-Ready Best Practices
 
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus `fromSlot` gap recovery
 - Bounded in-memory queue with drop logging for backpressure safety
-- Hot-swappable subscriptions via a JSON file (no reconnect)
+- Code-based subscription filters in TypeScript (`src/utils/filter.ts`)
 - Optional runtime metrics logging (rates, queue size, drops)
 - Default filters drop vote/failed transactions to reduce traffic
 
@@ -86,17 +79,18 @@ duplicates are expected.
 
 The client will connect to the configured Yellowstone gRPC endpoint and stream Solana data.
 
-To modify the streaming configuration, edit `src/index.ts`:
+To customize streaming and trading logic, edit these files:
+
+- `src/index.ts`: `onUpdate`/`onTransaction`/`onAccount` hooks (add trading logic here)
+- `src/utils/filter.ts`: subscription filters (TypeScript, `CommitmentLevel` enums)
+- `src/handlers/logUpdate.ts`: console logging helpers (optional)
+- `src/handlers/latency.ts`: latency tracking helper
+
+Example hook:
 
 ```typescript
-// Configure what data to stream
-const subscribeRequest = {
-  // Add your subscription filters here
-  accounts: {},
-  slots: {},
-  transactions: {},
-  blocks: {},
-  // ... other filters
+const onTransaction = (transactionUpdate: any) => {
+  // TODO: Add your trade logic here.
 }
 ```
 

@@ -6,6 +6,7 @@ authors = { workspace = true }
 homepage = { workspace = true }
 edition = { workspace = true }
 publish = false
+default-run = "shreds-udp-rs"
 
 [[bin]]
 name = "shreds-udp-rs"

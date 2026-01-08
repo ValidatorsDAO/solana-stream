@@ -26,6 +26,7 @@ GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run -p shreds-udp-rs --bin gen
 - Action: `🐣` create (`create/buy` when amounts are present), `🟢` buy, `🔻` sell, `🪙` other, `❓` missing/unknown
 - Votes are skipped by default (`skip_vote_txs=true`)
 - Set `SHREDS_UDP_LOG_*` to enable raw/shreds/entries/deshred debug logs; defaults are quiet except `log_watch_hits`
+- Latency monitor uses a DashMap-backed slot tracker to reduce lock contention (enabled via `SHREDS_UDP_ENABLE_LATENCY=1`).
 
 ## Config (JSONC/TOML keys)
 - `bind_addr`: listener address

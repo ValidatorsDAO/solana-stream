@@ -4,20 +4,21 @@ Minimal Rust client that listens for Shredstream over **UDP** and prints signal-
 
 ## Quick start
 
-1) Edit `client/shreds-udp-rs/settings.jsonc` (jsonc comments allowed). It is embedded into the binary at build time, so no runtime `SHREDS_UDP_CONFIG` is needed.
-2) Provide secrets (e.g., RPC) via env:
+1) `cd temp-release/shreds-udp-rs` (from repo root)
+2) Edit `settings.jsonc` (jsonc comments allowed). It is embedded into the binary at build time, so no runtime `SHREDS_UDP_CONFIG` is needed.
+3) Provide secrets (e.g., RPC) via env:
 ```env
 SOLANA_RPC_ENDPOINT=https://api.mainnet-beta.solana.com
 ```
-3) Run (pump.fun defaults, one-call):
+4) Run (pump.fun defaults, one-call):
 ```bash
-cargo run -p shreds-udp-rs
+cargo run
 ```
 (`handle_pumpfun_watcher` keeps the pump.fun watcher/detailer wired up for a quick start.)
 
-4) Modular pipeline (custom sinks/watchers):
+5) Modular pipeline (custom sinks/watchers):
 ```bash
-GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run -p shreds-udp-rs --bin generic_logger
+GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run --bin generic_logger
 ```
 `generic_logger` shows the layered API (5 layers: `decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_entries` → `collect_watch_events` → any sink) with `SplTokenMintFinder` only. Leave `GENERIC_WATCH_*` unset to just log slots/entries without pump.fun defaults.
 
@@ -26,6 +27,7 @@ GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run -p shreds-udp-rs --bin gen
 - Action: `🐣` create (`create/buy` when amounts are present), `🟢` buy, `🔻` sell, `🪙` other, `❓` missing/unknown
 - Votes are skipped by default (`skip_vote_txs=true`)
 - Set `SHREDS_UDP_LOG_*` to enable raw/shreds/entries/deshred debug logs; defaults are quiet except `log_watch_hits`
+- Latency monitor uses a DashMap-backed slot tracker to reduce lock contention (enabled via `SHREDS_UDP_ENABLE_LATENCY=1`).
 
 ## Config (JSONC/TOML keys)
 - `bind_addr`: listener address

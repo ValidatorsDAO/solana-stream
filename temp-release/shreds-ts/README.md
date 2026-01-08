@@ -35,14 +35,6 @@ Make sure you have installed the necessary package:
 pnpm i
 ```
 
-## Installation
-
-Make sure you have installed the necessary package:
-
-```bash
-pnpm i
-```
-
 ## Usage
 
 ```typescript

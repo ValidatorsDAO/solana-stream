@@ -37,14 +37,15 @@ A Rust client for streaming Solana shreds data using the published `solana-strea
 ### Installation
 
 1. Clone or download this project
-2. Set up environment variables:
+2. `cd client/shreds-rs`
+3. Set up environment variables:
 
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
-3. Run the client:
+4. Run the client:
 
 ```bash
 RUST_LOG=info cargo run
@@ -81,7 +82,7 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 This project uses the published `solana-stream-sdk` crate:
 
-- `solana-stream-sdk = "1.1.1"` - Main SDK for Solana streaming
+- `solana-stream-sdk = "1.2.0"` - Main SDK for Solana streaming
 - `tokio` - Async runtime
 - `dotenvy` - Environment variable loading
 - `solana-entry` - Solana entry types

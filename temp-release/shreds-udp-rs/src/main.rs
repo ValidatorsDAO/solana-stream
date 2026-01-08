@@ -4,8 +4,8 @@ use log::{error, info};
 use solana_stream_sdk::{
     shreds_udp::{
         collect_watch_events, decode_udp_datagram, deshred_shreds_to_entries, insert_shred,
-        latency_monitor_task, log_watch_events, DeshredPolicy, ShredInsertOutcome,
-        ShredReadyBatch, ShredSource, ShredsUdpConfig, ShredsUdpState, WatchEvent,
+        latency_monitor_task, DeshredPolicy, ShredInsertOutcome, ShredReadyBatch, ShredSource,
+        ShredsUdpConfig, ShredsUdpState, WatchEvent, log_watch_events,
     },
     UdpShredReceiver,
 };
@@ -13,7 +13,6 @@ use std::sync::Arc;
 use tokio::signal;
 
 const EMBEDDED_CONFIG: &str = include_str!("../settings.jsonc");
-
 async fn handle_ready_batch(
     ready: ShredReadyBatch,
     state: &ShredsUdpState,
@@ -140,13 +139,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv().ok();
     env_logger::init();
 
-    // Use the embedded settings.jsonc (non-secret), allow env to override RPC etc.
+    // Always start from the crate-local settings.jsonc (next to Cargo.toml), embedded at build time.
     let cfg = ShredsUdpConfig::from_embedded(EMBEDDED_CONFIG);
     let receiver = UdpShredReceiver::bind(&cfg.bind_addr, None).await?;
     let local_addr = receiver.local_addr()?;
     info!("Listening for UDP shreds on {}", local_addr);
     info!("Ensure the sender targets this ip:port.");
 
+    // Configurable flags are still easy to tweak here before starting the loop.
     let policy = DeshredPolicy {
         require_code_match: cfg.require_code_match,
     };
