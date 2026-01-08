@@ -78,14 +78,14 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 ### Try it with Solana Stream SDK
 
 - Sample code (`shreds-udp-rs`, Rust): pump.fun is just a common example—swap in your own target.  
-  https://github.com/ValidatorsDAO/solana-stream/tree/main/temp-release/shreds-udp-rs  
+  https://github.com/ValidatorsDAO/solana-stream/tree/main/temp-release/shreds-udp-rs
 - Quick start requires `settings.jsonc` plus env (e.g., `SOLANA_RPC_ENDPOINT`); see the sample README.
 - Dedicated Shreds users: point your Shreds sender to the sample’s `ip:port` to see detections.
 - Not on UDP yet? Run it locally or on your own server to explore logs and customize hooks.
 
 ### Pump.fun example log
 
-![pump.fun hits over UDP Shreds](/news/2025/12/17/SolanaStreamSDKUDPClientExample.jpg)
+![pump.fun hits over UDP Shreds](https://storage.validators.solutions/SolanaStreamSDKUDPClientExample.jpg)
 
 This example comes from the SDK sample; clone and run it to see hits, or swap in your own target.
 
@@ -234,12 +234,14 @@ For specific packages, navigate to the package directory and install dependencie
 `client/shreds-udp-rs` listens for Shredstream over **UDP** and highlights watched programs (defaults to pump.fun). Settings live in `client/shreds-udp-rs/settings.jsonc` and are embedded at build time; secrets like RPC can be overridden via environment variables.
 
 Quick start:
+
 ```bash
 export SOLANA_RPC_ENDPOINT=https://api.mainnet-beta.solana.com   # pass secrets via env only
 cargo run -p shreds-udp-rs                                       # settings already in settings.jsonc
 ```
 
 Log legend:
+
 - Prefix: `🎯` program hit, `🐣` authority hit (`🎯🐣` means both)
 - Action: `🐣` create, `🟢` buy, `🔻` sell, `🪙` other, `❓` unknown/missing amounts
 - Votes skipped by default (`skip_vote_txs=true`)
@@ -247,6 +249,7 @@ Log legend:
 - UDP shreds are processed directly; not dependent on RPC commitment. Failed transactions may still appear; missing fields show as `❓`.
 
 Components from `crate/solana-stream-sdk` (5 layers):
+
 - Config loader (`ShredsUdpConfig`): reads JSONC/env and builds `ProgramWatchConfig` (pump.fun defaults; composite mint finder = pump.fun accounts + SPL Token MintTo/Initialize). Use `watch_config_no_defaults()` to opt out of pump.fun fallbacks.
 - Receiver (`UdpShredReceiver`): minimal UDP socket reader with timestamps.
 - Pipeline (5 layers): ① receive/prefilter (`decode_udp_datagram`) → ② FEC buffer (`insert_shred` + `ShredsUdpState`) → ③ deshred (`deshred_shreds_to_entries`) → ④ watcher/detail (`collect_watch_events` + detailers) → ⑤ sink (logs/custom hooks).
@@ -256,6 +259,7 @@ Components from `crate/solana-stream-sdk` (5 layers):
 - Samples: `cargo run -p shreds-udp-rs` (pump.fun defaults, one-call wrapper) or `cargo run -p shreds-udp-rs --bin generic_logger` (pump.fun-free logger; set `GENERIC_WATCH_PROGRAM_IDS` / `GENERIC_WATCH_AUTHORITIES` to watch your own programs).
 
 Design notes
+
 - Layered pipeline (5 layers): ① UDP receive → ② FEC buffer/pre-deshred → ③ deshred → ④ watcher (mint extraction) → ⑤ detailer/sink (labeling + log output). Each stage can be swapped or reused.
 - Pure UDP/FEC path: single-purpose deshredder tuned for Agave merkle sizing; leaves ledger/rpc out of the hot path.
 - Config is JSONC/env: secrets (RPC) in env, behavior (watch ids, logging) in JSONC; defaults prefill pump.fun watch ids.
@@ -265,10 +269,12 @@ Design notes
 - Small, dependency-light SDK crate backing a CLI client; intended to embed into larger consumers as well.
 
 Quick choices:
+
 - Want a one-call, pump.fun-ready loop? Use `handle_pumpfun_watcher` in your own binary and set watch IDs/env as needed. This matches the out-of-the-box behavior shown in the screenshots.
 - Need to act on detections (e.g., push to a queue, custom filtering, alternate watchers/detailers)? Use the modular pipeline (`decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_entries` → `collect_watch_events`) and hook your own sink right after detection (see `client/shreds-udp-rs` custom hook example).
 
 Minimal usage example (Rust):
+
 ```rust
 use solana_stream_sdk::shreds_udp::{ShredsUdpConfig, ShredsUdpState, DeshredPolicy, handle_pumpfun_watcher};
 use solana_stream_sdk::UdpShredReceiver;
@@ -288,6 +294,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 ```
 
 Modular pipeline example (pump.fun opt-out):
+
 ```rust
 use solana_stream_sdk::shreds_udp::{
     collect_watch_events, decode_udp_datagram, deshred_shreds_to_entries, insert_shred,

@@ -59,7 +59,7 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 ### Try it with Solana Stream SDK
 
 - Sample code (`shreds-udp-rs`, Rust): pump.fun is just a common example—swap in your own target.  
-  https://github.com/ValidatorsDAO/solana-stream/tree/main/temp-release/shreds-udp-rs  
+  https://github.com/ValidatorsDAO/solana-stream/tree/main/temp-release/shreds-udp-rs
 - Quick start (local): configure `settings.jsonc`, set env like `SOLANA_RPC_ENDPOINT`, then run
   `cargo run -p shreds-udp-rs`
 - Dedicated Shreds users: point your Shreds sender to the sample’s `ip:port` to see detections.
@@ -67,14 +67,9 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 
 ### Pump.fun example log
 
-![pump.fun hits over UDP Shreds](/news/2025/12/17/SolanaStreamSDKUDPClientExample.jpg)
+![pump.fun hits over UDP Shreds](https://storage.validators.solutions/SolanaStreamSDKUDPClientExample.jpg)
 
 This example comes from the SDK sample; clone and run it to see hits, or swap in your own target.
-
-### Resources
-
-- All code and README docs are in the Solana Stream SDK repo:  
-  https://github.com/ValidatorsDAO/solana-stream
 
 ## Installation
 
@@ -223,6 +218,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 ### UDP pipeline helpers (shreds-udp)
+
 - Layered flow (5 layers): 1) UDP receive/prefilter → 2) FEC buffer → 3) deshred → 4) watcher/detailer → 5) sink (log/hook).
 - `handle_pumpfun_watcher`: one-call convenience with pump.fun defaults (watcher + detailer); wrapper over these stages.
 - `decode_udp_datagram` + `insert_shred`: tap the pipeline before logging; `ShredInsertOutcome` reports ready/gated/buffered shreds.
@@ -426,7 +422,7 @@ For convenience, the following types are re-exported:
 
 ## Requirements
 
- - Rust 1.86+
+- Rust 1.86+
 - Tokio runtime for async operations
 
 ## ⚠️ Experimental Filtering Feature Notice
