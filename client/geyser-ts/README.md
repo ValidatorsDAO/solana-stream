@@ -92,10 +92,11 @@ The client will connect to the configured Yellowstone gRPC endpoint and stream S
 
 To customize streaming and trading logic, edit these files:
 
-- `src/index.ts`: subscription filters plus `onTransaction`/`onAccount` hooks
+- `src/index.ts`: `onUpdate`/`onTransaction`/`onAccount` hooks (add trading logic here)
+- `subscribe.json`: subscription filters (default, hot-reloaded)
+- `src/utils/fallback.ts`: fallback request shape when `subscribe.json` is missing
 - `src/handlers/logUpdate.ts`: console logging helpers (optional)
 - `src/handlers/latency.ts`: latency tracking helper
-- `src/utils/fallback.ts`: fallback request shape when `subscribe.json` is missing
 
 Example hook:
 

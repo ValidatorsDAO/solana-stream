@@ -19,8 +19,6 @@
   </a>
 </p>
 
-# @validators-dao/solana-stream-sdk
-
 # Solana Stream SDK
 
 A Rust SDK for streaming Solana Data by Validators DAO.

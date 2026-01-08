@@ -31,7 +31,7 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 
 - Refreshed starter layout and docs to highlight trading hooks
 - Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
-- NAPI-powered Shreds client/decoder so TypeScript can tap Rust-grade throughput
+- NAPI-powered Shreds client/decoder so TypeScript can tap near-native throughput
 - Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
 - Faster real-time Geyser streams for TypeScript clients with lower overhead
 
@@ -50,9 +50,7 @@ duplicates are expected.
 ## Performance Highlights
 
 - NAPI-powered Geyser gRPC and Shreds client/decoder for high-throughput streaming
-- TypeScript ergonomics with Rust-grade performance under the hood
-- For the absolute fastest signal path, see Rust UDP Shreds in the repo:
-  https://github.com/ValidatorsDAO/solana-stream#shreds-udp-pumpfun-watcher-rust
+- TypeScript ergonomics with native performance under the hood
 
 ## Installation
 
@@ -73,81 +71,49 @@ pnpm add @validators-dao/solana-stream-sdk
 For a production-ready starter (JSON subscriptions, backpressure handling, reconnects),
 see https://github.com/ValidatorsDAO/solana-stream/tree/main/client/geyser-ts.
 
+Recommended flow (subscribe.json + hooks):
+
+1. Copy `.env` and set `GEYSER_ENDPOINT`, `X_TOKEN`, `SOLANA_RPC_ENDPOINT`.
+2. Edit `subscribe.json` for filters (this file is hot-reloaded).
+3. Add your trading logic in `src/index.ts` inside `onTransaction`/`onAccount`.
+
+Example `subscribe.json`:
+
+```json
+{
+  "accounts": {},
+  "slots": {},
+  "transactions": {
+    "pumpfun": {
+      "vote": false,
+      "failed": false,
+      "accountInclude": ["6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"],
+      "accountExclude": [],
+      "accountRequired": []
+    }
+  },
+  "transactionsStatus": {},
+  "blocks": {},
+  "blocksMeta": {},
+  "entry": {},
+  "accountsDataSlice": [],
+  "commitment": 0
+}
+```
+
+`commitment: 0` maps to `Processed`. If you delete `subscribe.json`, the fallback in
+`src/utils/fallback.ts` is used instead.
+
+Example hook in `src/index.ts`:
+
 ```typescript
-import {
-  GeyserClient,
-  bs58,
-  CommitmentLevel,
-  SubscribeRequestFilterTransactions,
-} from '@validators-dao/solana-stream-sdk'
-import 'dotenv/config'
-
-// const PUMP_FUN_MINT_AUTHORITY = 'TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM'
-const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
-
-const pumpfun: SubscribeRequestFilterTransactions = {
-  vote: false,
-  failed: false,
-  accountInclude: [PUMP_FUN_PROGRAM_ID],
-  accountExclude: [],
-  accountRequired: [],
+const onTransaction = (transactionUpdate: any) => {
+  // TODO: Add your trade logic here.
 }
-
-const request = {
-  accounts: {},
-  slots: {},
-  transactions: { pumpfun },
-  transactionsStatus: {},
-  blocks: {},
-  blocksMeta: {},
-  entry: {},
-  accountsDataSlice: [],
-  commitment: CommitmentLevel.PROCESSED,
-}
-
-const main = async () => {
-  const endpoint = process.env.GEYSER_ENDPOINT || 'http://localhost:10000'
-  const token = process.env.X_TOKEN?.trim()
-  const client = new GeyserClient(endpoint, token || undefined, undefined)
-
-  await client.connect()
-  const stream = await client.subscribe()
-
-  stream.on('data', (data: any) => {
-    if (data?.ping != undefined) {
-      stream.write({ ping: { id: 1 } }, () => undefined)
-      return
-    }
-    if (data?.pong != undefined) {
-      return
-    }
-    if (data?.transaction != undefined) {
-      const signature = data.transaction.transaction.signature
-      const txSignature = bs58.encode(new Uint8Array(signature))
-
-      // TODO: Add your trade logic here.
-      console.log('tx:', txSignature)
-    }
-  })
-
-  await new Promise<void>((resolve, reject) => {
-    stream.write(request, (err: any) => {
-      if (!err) {
-        resolve()
-      } else {
-        console.error('Request error:', err)
-        reject(err)
-      }
-    })
-  })
-}
-
-void main()
 ```
 
 If your endpoint requires authentication, set the `X_TOKEN` environment variable with your gRPC token.
-
-Please note that the url endpoint in the example is for demonstration purposes. You should replace it with the actual endpoint you are using.
+Please note that the endpoint in the example is for demonstration purposes. Replace it with your actual endpoint.
 
 ### Shreds Client
 

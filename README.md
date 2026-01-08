@@ -184,7 +184,7 @@ You can also use the published crate in your own projects:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "1.1.1"
+solana-stream-sdk = "1.2.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"
 solana-entry = "3.0.12"
