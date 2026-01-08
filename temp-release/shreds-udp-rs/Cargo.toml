@@ -8,6 +8,7 @@ edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/elsoul/solana-stream"
 publish = false
+default-run = "shreds-udp-rs-temp-release"
 
 [[bin]]
 name = "shreds-udp-rs-temp-release"

@@ -53,6 +53,7 @@ question we get.
   format between validators.
 - Trade-off: pre-finalization data can be missing/out-of-order/failed—handle that as part of the
   speed bargain.
+- The optional latency monitor uses a DashMap-backed slot tracker to reduce lock contention.
 
 Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP Shreds.
 

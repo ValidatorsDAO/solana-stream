@@ -7631,6 +7631,7 @@ version = "1.2.0"
 dependencies = [
  "bincode",
  "chrono",
+ "dashmap 6.1.0",
  "futures",
  "http 0.2.12",
  "log",
