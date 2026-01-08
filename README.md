@@ -71,6 +71,7 @@ question we get.
   so latency-critical flows see events earliest.
 - UDP keeps overhead tiny: no connection setup, retransmit, or ordering; matches the on-wire
   format between validators.
+- Optional latency monitoring uses a DashMap-backed slot tracker to reduce lock contention.
 - Trade-off: pre-finalization data can be missing/out-of-order/failed—handle that as part of the
   speed bargain.
 
