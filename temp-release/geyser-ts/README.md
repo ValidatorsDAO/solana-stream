@@ -50,35 +50,25 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 ## Optional Runtime Settings
 
-Enable hot-reloadable subscriptions and metrics with environment flags.
-By default, `subscribe.json` in the working directory is loaded and watched.
-If you prefer the fallback request, delete `subscribe.json` and edit
-`src/utils/fallback.ts` instead.
+Enable metrics/drop/subscription logs with environment flags:
 
 ```env
-# Optional: override the JSON file path
-GEYSER_SUBSCRIBE_FILE=./subscribe.json
-
 # Log periodic metrics (queue size, rates, drops)
 GEYSER_LOG_METRICS=1
 
 # Log drop warnings when backpressure kicks in
 GEYSER_LOG_DROPS=1
 
-# Log when subscriptions are reloaded
+# Log when subscription requests are sent
 GEYSER_LOG_SUBSCRIBE=1
 ```
-
-`GEYSER_SUBSCRIBE_FILE` expects a JSON object matching the subscribe request shape
-(accounts/slots/transactions/blocks/etc.). Missing fields fall back to defaults.
-See `subscribe.json` for a config that matches the current default behavior.
 
 ## Production-Ready Best Practices
 
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus `fromSlot` gap recovery
 - Bounded in-memory queue with drop logging for backpressure safety
-- Hot-swappable subscriptions via a JSON file (no reconnect)
+- Code-based subscription filters in TypeScript (`src/utils/filter.ts`)
 - Optional runtime metrics logging (rates, queue size, drops)
 - Default filters drop vote/failed transactions to reduce traffic
 
@@ -92,8 +82,7 @@ The client will connect to the configured Yellowstone gRPC endpoint and stream S
 To customize streaming and trading logic, edit these files:
 
 - `src/index.ts`: `onUpdate`/`onTransaction`/`onAccount` hooks (add trading logic here)
-- `subscribe.json`: subscription filters (default, hot-reloaded)
-- `src/utils/fallback.ts`: fallback request shape when `subscribe.json` is missing
+- `src/utils/filter.ts`: subscription filters (TypeScript, `CommitmentLevel` enums)
 - `src/handlers/logUpdate.ts`: console logging helpers (optional)
 - `src/handlers/latency.ts`: latency tracking helper
 

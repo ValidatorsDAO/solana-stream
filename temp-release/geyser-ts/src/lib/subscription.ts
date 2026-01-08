@@ -1,34 +1,4 @@
-import { readFileSync } from 'node:fs'
-
-import { getFallbackRequest } from '@/utils/fallback'
 import { SubscribeRequest } from '@/utils/geyser'
-
-export const normalizeRequest = (
-  input: Partial<SubscribeRequest>,
-): SubscribeRequest => {
-  const baseRequest = getFallbackRequest()
-  return {
-    ...baseRequest,
-    ...input,
-    accounts: input.accounts ?? baseRequest.accounts,
-    slots: input.slots ?? baseRequest.slots,
-    transactions: input.transactions ?? baseRequest.transactions,
-    transactionsStatus: input.transactionsStatus ?? baseRequest.transactionsStatus,
-    blocks: input.blocks ?? baseRequest.blocks,
-    blocksMeta: input.blocksMeta ?? baseRequest.blocksMeta,
-    entry: input.entry ?? baseRequest.entry,
-    accountsDataSlice: input.accountsDataSlice ?? baseRequest.accountsDataSlice,
-  }
-}
-
-export const loadSubscriptionFile = (filePath: string): SubscribeRequest => {
-  const raw = readFileSync(filePath, 'utf8')
-  const parsed = JSON.parse(raw) as Partial<SubscribeRequest>
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Invalid subscription JSON')
-  }
-  return normalizeRequest(parsed)
-}
 
 export const buildSubscribeRequest = (
   baseRequest: SubscribeRequest,

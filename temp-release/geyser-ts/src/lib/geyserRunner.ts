@@ -1,18 +1,16 @@
 import { GeyserClient } from '@validators-dao/solana-stream-sdk'
-import { watchFile } from 'node:fs'
-import { resolve as resolvePath } from 'node:path'
 
-import { getFallbackRequest } from '@/utils/fallback'
-import { SubscribeRequest } from '@/utils/geyser'
 import { createUpdateQueue } from '@/lib/updateQueue'
 import { getUpdateSlot } from '@/lib/updateSlots'
-import { loadSubscriptionFile, writeSubscription } from '@/lib/subscription'
+import { writeSubscription } from '@/lib/subscription'
+import { SubscribeRequest } from '@/utils/geyser'
 
 export type UpdateHandler = (update: any) => void | Promise<void>
 
 export interface GeyserRunnerOptions {
   onUpdate: UpdateHandler
   createClient: () => GeyserClient
+  request: SubscribeRequest
   maxRetries?: number
   maxQueueSize?: number
   dropLogIntervalMs?: number
@@ -20,12 +18,12 @@ export interface GeyserRunnerOptions {
   logMetrics?: boolean
   logDrops?: boolean
   logSubscriptions?: boolean
-  subscribeFile?: string
 }
 
 export const runGeyser = async ({
   onUpdate,
   createClient,
+  request,
   maxRetries = 2000000,
   maxQueueSize = 10000,
   dropLogIntervalMs = 10000,
@@ -33,7 +31,6 @@ export const runGeyser = async ({
   logMetrics = false,
   logDrops = true,
   logSubscriptions = true,
-  subscribeFile,
 }: GeyserRunnerOptions): Promise<void> => {
   console.log('Starting geyser client...')
 
@@ -48,9 +45,8 @@ export const runGeyser = async ({
   let lastMetricsReceived = 0
   let lastMetricsProcessed = 0
   let lastMetricsDropped = 0
-  let lastSubscribeErrorLog = 0
 
-  let currentRequest: SubscribeRequest = getFallbackRequest()
+  let currentRequest: SubscribeRequest = request
   let activeStream: any = null
 
   const enqueueUpdate = (update: any) => {
@@ -124,45 +120,6 @@ export const runGeyser = async ({
     }, metricsIntervalMs)
   }
 
-  const applySubscription = (nextRequest: SubscribeRequest, reason: string) => {
-    currentRequest = nextRequest
-    if (logSubscriptions) {
-      console.log(`Subscription updated (${reason}).`)
-    }
-    if (activeStream) {
-      void writeSubscription(activeStream, currentRequest, lastSeenSlot, false).catch(
-        (error) => {
-          console.warn('Subscription update failed:', error)
-        },
-      )
-    }
-  }
-
-  if (subscribeFile) {
-    const filePath = resolvePath(subscribeFile)
-    const applyFromFile = () => {
-      try {
-        const nextRequest = loadSubscriptionFile(filePath)
-        applySubscription(nextRequest, `file:${filePath}`)
-      } catch (error) {
-        const now = Date.now()
-        if (now - lastSubscribeErrorLog >= 10000) {
-          console.warn('Failed to load subscription file:', filePath, error)
-          lastSubscribeErrorLog = now
-        }
-      }
-    }
-    if (logSubscriptions) {
-      console.log(`Watching subscription file: ${filePath}`)
-    }
-    applyFromFile()
-    watchFile(filePath, { interval: 1000 }, (curr, prev) => {
-      if (curr.mtimeMs !== prev.mtimeMs) {
-        applyFromFile()
-      }
-    })
-  }
-
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
   const connect = async (): Promise<void> => {
@@ -209,6 +166,9 @@ export const runGeyser = async ({
           stream.on('close', () => handleClose(new Error('Stream closed')))
         })
 
+        if (logSubscriptions) {
+          console.log('Sending subscription request...')
+        }
         await writeSubscription(stream, currentRequest, lastSeenSlot, true)
         await streamClosed
       } catch (error) {

@@ -40,7 +40,7 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus `fromSlot` gap recovery
 - Bounded in-memory queue with drop logging for backpressure safety
-- Hot-swappable subscriptions via a JSON file (no reconnect)
+- Update subscriptions by writing a new request to the stream (no reconnect)
 - Optional runtime metrics logging (rates, queue size, drops)
 - Default filters drop vote/failed transactions to reduce traffic
 
@@ -68,48 +68,80 @@ pnpm add @validators-dao/solana-stream-sdk
 
 ### Geyser Client (TypeScript)
 
-For a production-ready starter (JSON subscriptions, backpressure handling, reconnects),
+For a production-ready runner (reconnects, backpressure handling, metrics),
 see https://github.com/ValidatorsDAO/solana-stream/tree/main/client/geyser-ts.
 
-Recommended flow (subscribe.json + hooks):
-
-1. Copy `.env` and set `GEYSER_ENDPOINT`, `X_TOKEN`, `SOLANA_RPC_ENDPOINT`.
-2. Edit `subscribe.json` for filters (this file is hot-reloaded).
-3. Add your trading logic in `src/index.ts` inside `onTransaction`/`onAccount`.
-
-Example `subscribe.json`:
-
-```json
-{
-  "accounts": {},
-  "slots": {},
-  "transactions": {
-    "pumpfun": {
-      "vote": false,
-      "failed": false,
-      "accountInclude": ["6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"],
-      "accountExclude": [],
-      "accountRequired": []
-    }
-  },
-  "transactionsStatus": {},
-  "blocks": {},
-  "blocksMeta": {},
-  "entry": {},
-  "accountsDataSlice": [],
-  "commitment": 0
-}
-```
-
-`commitment: 0` maps to `Processed`. If you delete `subscribe.json`, the fallback in
-`src/utils/fallback.ts` is used instead.
-
-Example hook in `src/index.ts`:
+Minimal SDK usage (filters defined in code):
 
 ```typescript
-const onTransaction = (transactionUpdate: any) => {
-  // TODO: Add your trade logic here.
+import {
+  CommitmentLevel,
+  SubscribeRequestFilterTransactions,
+  GeyserClient,
+  bs58,
+} from '@validators-dao/solana-stream-sdk'
+import 'dotenv/config'
+
+const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
+
+const pumpfun: SubscribeRequestFilterTransactions = {
+  vote: false,
+  failed: false,
+  accountInclude: [PUMP_FUN_PROGRAM_ID],
+  accountExclude: [],
+  accountRequired: [],
 }
+
+const request = {
+  accounts: {},
+  slots: {},
+  transactions: { pumpfun },
+  transactionsStatus: {},
+  blocks: {},
+  blocksMeta: {},
+  entry: {},
+  accountsDataSlice: [],
+  commitment: CommitmentLevel.PROCESSED,
+}
+
+const main = async () => {
+  const endpoint = process.env.GEYSER_ENDPOINT || 'http://localhost:10000'
+  const token = process.env.X_TOKEN?.trim()
+  const client = new GeyserClient(endpoint, token || undefined, undefined)
+
+  await client.connect()
+  const stream = await client.subscribe()
+
+  stream.on('data', (data: any) => {
+    if (data?.ping != undefined) {
+      stream.write({ ping: { id: 1 } }, () => undefined)
+      return
+    }
+    if (data?.pong != undefined) {
+      return
+    }
+    if (data?.transaction != undefined) {
+      const signature = data.transaction.transaction.signature
+      const txSignature = bs58.encode(new Uint8Array(signature))
+
+      // TODO: Add your trade logic here.
+      console.log('tx:', txSignature)
+    }
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    stream.write(request, (err: any) => {
+      if (!err) {
+        resolve()
+      } else {
+        console.error('Request error:', err)
+        reject(err)
+      }
+    })
+  })
+}
+
+void main()
 ```
 
 If your endpoint requires authentication, set the `X_TOKEN` environment variable with your gRPC token.

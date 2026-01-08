@@ -50,7 +50,7 @@ This project provides libraries and tools for streaming real-time data from the 
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus gap recovery (`fromSlot` / `from_slot`)
 - Bounded queues/channels with drop logging for backpressure safety
-- Hot-swappable subscriptions via a JSON file (TypeScript)
+- Code-based subscription filters in TypeScript
 - Optional runtime metrics logging (TypeScript)
 - Default filters drop vote/failed transactions to reduce traffic
 - Rust Geyser client ships the same safeguards and powers UDP Shreds for fastest signal

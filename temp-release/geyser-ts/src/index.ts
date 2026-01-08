@@ -9,6 +9,7 @@ import { createEnvClient } from '@/lib/createClient'
 import { runGeyser } from '@/lib/geyserRunner'
 import { loadRuntimeConfig } from '@/lib/runtimeConfig'
 import { startLatencyCheck } from '@/utils/checkLatency'
+import { getSubscribeRequest } from '@/utils/filter'
 
 const onTransaction = (transactionUpdate: any) => {
   trackTransactionLatency(transactionUpdate)
@@ -37,6 +38,7 @@ const main = async () => {
     await runGeyser({
       onUpdate,
       createClient: createEnvClient,
+      request: getSubscribeRequest(),
       ...loadRuntimeConfig(),
     })
   } catch (error) {
