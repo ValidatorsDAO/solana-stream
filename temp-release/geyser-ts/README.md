@@ -50,10 +50,13 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 ## Optional Runtime Settings
 
-Enable hot-reloadable subscriptions and metrics with environment flags:
+Enable hot-reloadable subscriptions and metrics with environment flags.
+By default, `subscribe.json` in the working directory is loaded and watched.
+If you prefer the fallback request, delete `subscribe.json` and edit
+`src/utils/fallback.ts` instead.
 
 ```env
-# Watch a JSON file and hot-swap subscriptions without reconnecting
+# Optional: override the JSON file path
 GEYSER_SUBSCRIBE_FILE=./subscribe.json
 
 # Log periodic metrics (queue size, rates, drops)
@@ -86,17 +89,18 @@ duplicates are expected.
 
 The client will connect to the configured Yellowstone gRPC endpoint and stream Solana data.
 
-To modify the streaming configuration, edit `src/index.ts`:
+To customize streaming and trading logic, edit these files:
+
+- `src/index.ts`: subscription filters plus `onTransaction`/`onAccount` hooks
+- `src/handlers/logUpdate.ts`: console logging helpers (optional)
+- `src/handlers/latency.ts`: latency tracking helper
+- `src/utils/fallback.ts`: fallback request shape when `subscribe.json` is missing
+
+Example hook:
 
 ```typescript
-// Configure what data to stream
-const subscribeRequest = {
-  // Add your subscription filters here
-  accounts: {},
-  slots: {},
-  transactions: {},
-  blocks: {},
-  // ... other filters
+const onTransaction = (transactionUpdate: any) => {
+  // TODO: Add your trade logic here.
 }
 ```
 

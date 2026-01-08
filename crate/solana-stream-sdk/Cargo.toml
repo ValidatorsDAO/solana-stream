@@ -1,6 +1,6 @@
 [package]
 name = "solana-stream-sdk"
-version = "1.1.2"
+version = "1.2.0"
 description = "Rust SDK for Solana streaming data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"

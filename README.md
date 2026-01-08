@@ -37,8 +37,9 @@ This project provides libraries and tools for streaming real-time data from the 
 - Shreds gRPC (TypeScript/Rust): raw shreds over gRPC for high-throughput ingestion
 - UDP Shreds (Rust): lowest-latency signal for detection and trading workflows
 
-## What's New (TypeScript v1.0.1)
+## What's New (TypeScript v1.1.0)
 
+- Refreshed starter layout and docs to highlight trading hooks
 - Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
 - NAPI-powered Shreds client/decoder so TypeScript can tap Rust-grade throughput
 - Improved backpressure handling and up to 4x streaming efficiency (400% improvement)

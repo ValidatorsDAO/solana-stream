@@ -2,15 +2,17 @@ use crate::handlers::processor::process_updates;
 use crate::runtime::runner::run_geyser_stream;
 use crate::runtime::settings::Settings;
 use crate::runtime::subscription::build_subscribe_request;
-use crate::utils::blocktime::{latency_monitor_task, BlockTimeCache};
+use crate::utils::blocktime::{
+    create_transactions_by_slot, latency_monitor_task, BlockTimeCache,
+};
 use crate::utils::config::Config;
 use dotenv::dotenv;
 use env_logger;
 use serde_jsonc;
 use solana_stream_sdk::GeyserSubscribeUpdate;
-use std::{collections::BTreeMap, fs, sync::Arc};
+use std::{fs, sync::Arc};
 use std::sync::atomic::AtomicU64;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 
 mod handlers;
 mod runtime;
@@ -28,7 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let config: Config = serde_jsonc::from_str(&config_content)?;
     let request = build_subscribe_request(&config);
 
-    let transactions_by_slot = Arc::new(Mutex::new(BTreeMap::new()));
+    let transactions_by_slot = create_transactions_by_slot();
     let block_time_cache = BlockTimeCache::new(&settings.rpc_endpoint);
     let tracked_slot = Arc::new(AtomicU64::new(0));
     let (updates_tx, updates_rx) = mpsc::channel::<GeyserSubscribeUpdate>(UPDATE_CHANNEL_CAPACITY);
