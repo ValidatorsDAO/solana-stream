@@ -25,6 +25,7 @@ GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run --bin generic_logger
 ## Log legend
 - Prefix: `🎯` program hit, `🐣` authority hit (`🎯🐣` means both)
 - Action: `🐣` create (`create/buy` when amounts are present), `🟢` buy, `🔻` sell, `🪙` other, `❓` missing/unknown
+- Pump.fun SOL values are instruction limits (max for buy/create, min for sell); actual fills require event/meta data (e.g., Geyser/RPC).
 - Votes are skipped by default (`skip_vote_txs=true`)
 - Set `SHREDS_UDP_LOG_*` to enable raw/shreds/entries/deshred debug logs; defaults are quiet except `log_watch_hits`
 - Latency monitor uses a DashMap-backed slot tracker to reduce lock contention (enabled via `SHREDS_UDP_ENABLE_LATENCY=1`).
@@ -36,7 +37,7 @@ GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run --bin generic_logger
 - `slot_window_*` / `*_ttl_ms`: slot window and eviction TTLs
 - `watch_program_ids` / `watch_authorities`: targets to watch (pump.fun defaults)
 - `token_program_ids`: empty = Token + Token-2022
-- `pump_min_lamports`: drop pump.fun buy/sell below this lamport threshold (0 = no filter). Applies to create-with-amount too.
+- `pump_min_lamports`: drop pump.fun buy/sell below this SOL limit threshold (0 = no filter). Applies to create-with-amount too.
 - `mint_finder`: composite of pump.fun (create/create_v2 accounts[0], buy/sell/buy_exact_sol_in accounts[2]) + SPL Token MintTo/Initialize (tags 0/7/14/20, accounts[0])
 - UDP shreds are processed directly; RPC commitment (processed/confirmed/finalized) is not used. Failed txs also appear; unknown amounts may show `❓`.
 

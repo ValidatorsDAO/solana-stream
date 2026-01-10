@@ -7,7 +7,7 @@
   "engines": {
     "pnpm": ">=10",
     "npm": "please_use_pnpm_instead",
-    "node": "22",
+    "node": ">=22 <23 || >=24 <25",
     "version": "0.0.1"
   },
   "repository": {
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@solana/web3.js": "1.98.4",
-    "@validators-dao/solana-stream-sdk": "1.1.0",
+    "@validators-dao/solana-stream-sdk": "1.2.0",
     "dotenv": "16.5.0"
   },
   "devDependencies": {

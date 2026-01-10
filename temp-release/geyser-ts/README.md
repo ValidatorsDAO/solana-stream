@@ -6,7 +6,7 @@ A TypeScript client for streaming Solana data using Yellowstone gRPC Geyser plug
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22 or 24 (LTS)
 - pnpm (recommended) or npm
 - Access to a Yellowstone gRPC endpoint
 
@@ -78,6 +78,11 @@ duplicates are expected.
 ## Usage
 
 The client will connect to the configured Yellowstone gRPC endpoint and stream Solana data.
+
+## Notes on Meta/Events
+
+- Shreds-only pipelines can decode instruction data but do not include execution meta/logs.
+- For exact fills or program events, use Yellowstone gRPC transaction updates and/or RPC `getTransaction` (confirmed/finalized).
 
 To customize streaming and trading logic, edit these files:
 
