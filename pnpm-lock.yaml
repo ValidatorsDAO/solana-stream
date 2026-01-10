@@ -145,8 +145,8 @@ importers:
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 1.1.0
-        version: 1.1.0(typescript@5.8.3)
+        specifier: 1.2.0
+        version: 1.2.0(typescript@5.8.3)
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -173,8 +173,8 @@ importers:
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 1.1.0
-        version: 1.1.0(typescript@5.8.3)
+        specifier: 1.2.0
+        version: 1.2.0(typescript@5.8.3)
       dotenv:
         specifier: 16.5.0
         version: 16.5.0
@@ -704,17 +704,17 @@ packages:
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
-  '@validators-dao/solana-entry-decoder@2.3.0':
-    resolution: {integrity: sha512-7hh2rdYY6HYhsCfLnoMAXMUpZFWWM/ULYV+imHeUcyJsEijiV4fFUddRFVRJhrxH9TqoenTtaYCoxg+RSYlwBg==}
-    engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
+  '@validators-dao/solana-entry-decoder@2.4.0':
+    resolution: {integrity: sha512-7JXk+cVq6MEtXBSJqHjjiAis/Wb0MFWtR7eCTygfl0TUmL6qMO0YwKa39vkUn+b3/HDaWld2PdJ5rSTZxxAh5A==}
+    engines: {node: '>=22 <23 || >=24 <25', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
-  '@validators-dao/solana-shreds-client@1.2.0':
-    resolution: {integrity: sha512-fhZXMcV4y/wijkeENL+wItorBl28vjmPngkrqhWZ/QiiNLffF1ctychL67e7/3Y5Xdu1on0FiMOZQO232ZywGQ==}
-    engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
+  '@validators-dao/solana-shreds-client@1.3.0':
+    resolution: {integrity: sha512-1XHCvgWIWzYTYglBUkO0KNd/dS6jNhAddzNbAgYDIqnAupRwJZcW4GS12GWh7E7Ki82qB8t2y+sTk7zPFZCHCw==}
+    engines: {node: '>=22 <23 || >=24 <25', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
-  '@validators-dao/solana-stream-sdk@1.1.0':
-    resolution: {integrity: sha512-qYJ3wv+74bWtjMaRDBxbjmQ3TtL92ewgDx5YkrRb8IS4Kswkspf1iE1HgUUu6+98oQ1YJibeKN+CZ1eo+bCq5w==}
-    engines: {node: '22', npm: please_use_pnpm_instead, pnpm: '>=10'}
+  '@validators-dao/solana-stream-sdk@1.2.0':
+    resolution: {integrity: sha512-8636nOCL0OGg2gkwQlSSnaYBRUFgV+NnJqFm81guBeCOoYH29mTCT0ZaUSYGIoDvNU9FFEgcBtVSrpN8BAUfQA==}
+    engines: {node: '>=22 <23 || >=24 <25', npm: please_use_pnpm_instead, pnpm: '>=10'}
 
   acorn@8.15.0:
     resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
@@ -2105,15 +2105,15 @@ snapshots:
     dependencies:
       '@types/node': 22.15.27
 
-  '@validators-dao/solana-entry-decoder@2.3.0': {}
+  '@validators-dao/solana-entry-decoder@2.4.0': {}
 
-  '@validators-dao/solana-shreds-client@1.2.0': {}
+  '@validators-dao/solana-shreds-client@1.3.0': {}
 
-  '@validators-dao/solana-stream-sdk@1.1.0(typescript@5.8.3)':
+  '@validators-dao/solana-stream-sdk@1.2.0(typescript@5.8.3)':
     dependencies:
       '@triton-one/yellowstone-grpc': 5.0.1(typescript@5.8.3)
-      '@validators-dao/solana-entry-decoder': 2.3.0
-      '@validators-dao/solana-shreds-client': 1.2.0
+      '@validators-dao/solana-entry-decoder': 2.4.0
+      '@validators-dao/solana-shreds-client': 1.3.0
       bs58: 6.0.0
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
