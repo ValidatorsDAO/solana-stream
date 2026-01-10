@@ -248,6 +248,7 @@ Log legend:
 - Action: `🐣` create, `🟢` buy, `🔻` sell, `🪙` other, `❓` unknown/missing amounts
 - Votes skipped by default (`skip_vote_txs=true`)
 - `pump_min_lamports` can suppress small pump.fun buy/sell logs
+- Pump.fun SOL values are instruction limits (max for buy/create, min for sell); actual fills require event/meta data (e.g., Geyser/RPC).
 - UDP shreds are processed directly; not dependent on RPC commitment. Failed transactions may still appear; missing fields show as `❓`.
 
 Components from `crate/solana-stream-sdk` (5 layers):
@@ -265,7 +266,7 @@ Design notes
 - Layered pipeline (5 layers): ① UDP receive → ② FEC buffer/pre-deshred → ③ deshred → ④ watcher (mint extraction) → ⑤ detailer/sink (labeling + log output). Each stage can be swapped or reused.
 - Pure UDP/FEC path: single-purpose deshredder tuned for Agave merkle sizing; leaves ledger/rpc out of the hot path.
 - Config is JSONC/env: secrets (RPC) in env, behavior (watch ids, logging) in JSONC; defaults prefill pump.fun watch ids.
-- Pump filters: optional `pump_min_lamports` to log only pump.fun buy/sell with SOL amount above a threshold; logs also show `sol:` when amount is parsed.
+- Pump filters: optional `pump_min_lamports` to log only pump.fun buy/sell with SOL limit above a threshold; logs show `sol:` when the limit is parsed.
 - Composable stages: receiver → deshred → watcher → detailer → sink; each stage can be swapped or reused.
 - Signal-first logging: emoji at a glance, vote-filtered by default, and mint-level detail with adapters (pump.fun).
 - Small, dependency-light SDK crate backing a CLI client; intended to embed into larger consumers as well.

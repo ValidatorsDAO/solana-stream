@@ -1891,6 +1891,7 @@ pub fn collect_watch_events(
                     let action = match m.label {
                         Some("pump:create") => Some("create"),
                         Some("pump:buy") => Some("buy"),
+                        Some("pump:buy_exact") => Some("buy"),
                         Some("pump:sell") => Some("sell"),
                         Some("pump:trade") => Some("trade"),
                         _ => None,
@@ -1980,57 +1981,68 @@ pub fn log_watch_events(
             continue;
         }
         if let Some(primary) = details.first() {
-                let is_create = primary.action == Some("create")
-                    || primary.label == Some("pump:create");
-                let base_kind = primary.action.or(primary.label).unwrap_or("unknown");
-                let kind =
-                    if is_create && (primary.sol_amount.is_some() || primary.token_amount.is_some()) {
-                        "create/buy"
-                    } else if is_create {
-                        "create"
-                    } else {
-                        base_kind
-                    };
-                let missing_amounts = primary.sol_amount.is_none() && primary.token_amount.is_none();
-                // Pump.fun buy/create logs carry the max SOL cap, not the actual filled amount.
-                let is_pump_buy_cap = matches!(primary.action, Some("buy") | Some("create"))
-                    && primary
-                        .label
-                        .map(|l| l.starts_with("pump:"))
-                        .unwrap_or(false)
-                    && primary.sol_amount.is_some();
-                let icon = if missing_amounts {
-                    "❓"
+            let is_create = primary.action == Some("create") || primary.label == Some("pump:create");
+            let base_kind = primary.action.or(primary.label).unwrap_or("unknown");
+            let kind =
+                if is_create && (primary.sol_amount.is_some() || primary.token_amount.is_some()) {
+                    "create/buy"
                 } else if is_create {
-                    "🐣"
+                    "create"
                 } else {
+                    base_kind
+                };
+            let missing_amounts = primary.sol_amount.is_none() && primary.token_amount.is_none();
+            // Pump.fun instruction data includes SOL limits (max for buy/create, min for sell).
+            // Exact-SOL buys use the precise input amount.
+            enum SolLimit {
+                Max,
+                Min,
+            }
+            let is_pump = primary
+                .label
+                .map(|l| l.starts_with("pump:"))
+                .unwrap_or(false);
+            let is_buy_exact = primary.label == Some("pump:buy_exact");
+            let sol_limit = if is_pump && primary.sol_amount.is_some() {
+                match primary.action {
+                    Some("buy") if !is_buy_exact => Some(SolLimit::Max),
+                    Some("create") => Some(SolLimit::Max),
+                    Some("sell") => Some(SolLimit::Min),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            let icon = if missing_amounts {
+                "❓"
+            } else if is_create {
+                "🐣"
+            } else {
                 match primary.action {
                     Some("buy") => "🟢",
                     Some("sell") => "🔻",
                     _ => "🪙",
                 }
-                };
-                let lamports_display = primary
-                    .sol_amount
-                    .map(|l| {
-                        if is_pump_buy_cap {
-                            format!("{} (max)", l)
-                        } else {
-                            l.to_string()
-                        }
-                    })
-                    .unwrap_or_else(|| "-".to_string());
-                let sol_display = primary
-                    .sol_amount
-                    .map(|lamports| {
-                        let base = format!("{:.9}", lamports as f64 / 1_000_000_000_f64);
-                        if is_pump_buy_cap {
-                            format!("{} (max)", base)
-                        } else {
-                            base
-                        }
-                    })
-                    .unwrap_or_else(|| "-".to_string());
+            };
+            let lamports_display = primary
+                .sol_amount
+                .map(|l| match sol_limit {
+                    Some(SolLimit::Max) => format!("{} (max)", l),
+                    Some(SolLimit::Min) => format!("{} (min)", l),
+                    None => l.to_string(),
+                })
+                .unwrap_or_else(|| "-".to_string());
+            let sol_display = primary
+                .sol_amount
+                .map(|lamports| {
+                    let base = format!("{:.9}", lamports as f64 / 1_000_000_000_f64);
+                    match sol_limit {
+                        Some(SolLimit::Max) => format!("{} (max)", base),
+                        Some(SolLimit::Min) => format!("{} (min)", base),
+                        None => base,
+                    }
+                })
+                .unwrap_or_else(|| "-".to_string());
             let token_amount_display = primary
                 .token_amount
                 .map(|t| t.to_string())

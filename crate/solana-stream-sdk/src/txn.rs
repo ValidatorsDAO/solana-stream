@@ -310,6 +310,7 @@ impl MintFinder for PumpfunAccountMintFinder {
                     Some("pump:create")
                 }
                 Some(bytes) if bytes == PUMPFUN_BUY_DISC => Some("pump:buy"),
+                Some(bytes) if bytes == PUMPFUN_BUY_EXACT_SOL_IN_DISC => Some("pump:buy_exact"),
                 Some(bytes) if bytes == PUMPFUN_SELL_DISC => Some("pump:sell"),
                 _ => None,
             };
@@ -324,7 +325,7 @@ impl MintFinder for PumpfunAccountMintFinder {
                         }
                     }
                 }
-                Some("pump:buy") | Some("pump:sell") => {
+                Some("pump:buy") | Some("pump:buy_exact") | Some("pump:sell") => {
                     if ix.accounts.len() > 2 {
                         if let Some(mint_idx) = ix.accounts.get(2) {
                             if let Some(mint) = keys.get(*mint_idx as usize) {
@@ -429,16 +430,13 @@ impl MintDetailer for PumpfunDetailer {
                         .map(u64::from_le_bytes),
                 ),
             };
-            let action = match kind {
-                Some("buy_exact") => Some("buy"),
-                other => other,
+            let (action, label) = match kind {
+                Some("create") => (Some("create"), Some("pump:create")),
+                Some("buy") => (Some("buy"), Some("pump:buy")),
+                Some("buy_exact") => (Some("buy"), Some("pump:buy_exact")),
+                Some("sell") => (Some("sell"), Some("pump:sell")),
+                _ => (None, None),
             };
-            let label = action.map(|k| match k {
-                "create" => "pump:create",
-                "buy" => "pump:buy",
-                "sell" => "pump:sell",
-                _ => "pump:trade",
-            });
             let entry = out.entry(*mint).or_insert(MintDetail {
                 mint: *mint,
                 label,
@@ -466,10 +464,10 @@ impl MintDetailer for PumpfunDetailer {
             if !out.contains_key(&m.mint) {
                 let action = m.label.map(|l| {
                     let trimmed = l.trim_start_matches("pump:");
-                    if trimmed == "trade" {
-                        "sell"
-                    } else {
-                        trimmed
+                    match trimmed {
+                        "trade" => "sell",
+                        "buy_exact" => "buy",
+                        other => other,
                     }
                 });
                 out.insert(m.mint, MintDetail {

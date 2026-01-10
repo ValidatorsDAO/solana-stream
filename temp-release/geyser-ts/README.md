@@ -79,6 +79,11 @@ duplicates are expected.
 
 The client will connect to the configured Yellowstone gRPC endpoint and stream Solana data.
 
+## Notes on Meta/Events
+
+- Shreds-only pipelines can decode instruction data but do not include execution meta/logs.
+- For exact fills or program events, use Yellowstone gRPC transaction updates and/or RPC `getTransaction` (confirmed/finalized).
+
 To customize streaming and trading logic, edit these files:
 
 - `src/index.ts`: `onUpdate`/`onTransaction`/`onAccount` hooks (add trading logic here)

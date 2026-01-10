@@ -38,6 +38,6 @@
   // Token programs for mint detection (defaults to SPL Token + Token2022 when empty)
   "token_program_ids": "",
 
-  // Only log pump.fun buy/sell when SOL amount >= this lamport threshold (0 = no filter)
+  // Only log pump.fun buy/sell when SOL limit (from instruction data) >= this lamport threshold (0 = no filter)
   "pump_min_lamports": 1000000000
 }
