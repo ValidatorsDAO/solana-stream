@@ -118,7 +118,7 @@ This example comes from the SDK sample; clone and run it to see hits, or swap in
 
 ### Prerequisites
 
-- Node.js (for TypeScript packages)
+- Node.js 22 or 24 (LTS) for TypeScript packages
 - Rust (for Rust packages)
 - pnpm (for package management)
 
