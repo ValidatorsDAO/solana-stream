@@ -36,6 +36,9 @@ lerna-debug.log*
 dist/
 build/
 out/
+deps/openssl/
+deps/openssl-build/
+deps/openssl-src/
 
 # Dependencies
 node_modules/

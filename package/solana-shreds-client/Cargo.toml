@@ -17,3 +17,6 @@ serde_json = "1.0"
 solana-stream-sdk = "1.2.0"
 futures = "0.3"
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+bzip2 = { version = "0.4.4", features = ["static"] }
+# Explicitly pin `home` to a toolchain-compatible release (rustc 1.86).
+home = "=0.5.11"
