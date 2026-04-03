@@ -1,0 +1,31 @@
+{
+  // commitment level:
+  // - "Processed" (fastest, lowest finality)
+  // - "Confirmed" (medium finality)
+  // - "Finalized" (highest finality, slowest)
+  "commitment": "Processed",
+
+  "transactions": {
+    "pumpswap": {
+      // Watch all transactions involving the PumpSwap AMM program.
+      "account_include": ["pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"],
+
+      // Exclude transactions that involve any of these accounts.
+      "account_exclude": [],
+
+      // Only include transactions if all these accounts are present.
+      "account_required": [],
+
+      // Filter only vote transactions.
+      "vote": false,
+
+      // Filter only failed transactions.
+      "failed": false
+    }
+  },
+  "accounts": {},
+  "slots": {},
+  "blocks": {},
+  "blocks_meta": {},
+  "entry": {}
+}
