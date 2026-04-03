@@ -45,6 +45,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 ultima-swap-pumpfun = { git = "https://github.com/ValidatorsDAO/ultima" }
 url = "2.5.4"
 uuid = { version = "1", features = ["v4"] }
+redis = { version = "0.27", features = ["tokio-comp", "aio"] }
 reqwest = { version = "0.12", features = ["json"] }
 scalar_api_reference = { version = "0.2", features = ["axum"] }
 utoipa = { version = "5", features = ["axum_extras"] }
