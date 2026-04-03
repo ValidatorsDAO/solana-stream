@@ -7,7 +7,7 @@ PumpSwap auto-trading bot that detects new pools via Geyser gRPC and executes th
 Each trade follows a complete lifecycle — **one atomic task from detection to cleanup**:
 
 ```
-Pool Detected → Buy → Confirm → Monitor → Sell → Confirm → (repeat if partial) → Burn Dust → Close ATA → Profit Notification
+Pool Detected → Buy → Confirm → Monitor → Sell → Confirm → (repeat if partial) → Burn Dust / Retreat Burn → Close ATA → Profit Notification
 ```
 
 1. **Detect** — Geyser gRPC streams `create_pool` events from PumpSwap AMM
@@ -76,6 +76,8 @@ On first run, `wallet.json` is created in the working directory. Fund the displa
 | `slippage_bps`          | `500`      | Slippage tolerance in basis points (5%)              |
 | `max_positions`         | `1`        | Max concurrent open positions                        |
 | `min_pool_sol_lamports` | `100000`   | Minimum pool SOL to trigger a buy (lamports)         |
+| `sell_timeout_secs`     | `300`      | Force exit after this many seconds, even if target not hit |
+| `exit_pool_sol_lamports`| `1000000`  | If pool WSOL drops below this, retreat immediately   |
 
 ## HTTP API
 
@@ -145,6 +147,7 @@ When `DISCORD_WEBHOOK_URL` is set, the bot sends:
 
 - **✅ Buy Confirmed** — pool, mint, SOL spent, tokens received, tx sig
 - **🟢/🔴 Trade Complete** — final profit/loss with buy→sell totals, ATA close status
+- **⚠️ Retreat Burn** — timeout or liquidity collapse triggered burn+close with recorded realized P&L
 - **❌ Sell Failed** — on-chain failure with auto-retry notice
 - **⚠️ Sell TX Unknown** — confirmation timeout
 

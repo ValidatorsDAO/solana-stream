@@ -16,8 +16,12 @@ pub struct TradeConfig {
     pub slippage_bps: u64,
     pub max_positions: usize,
     /// Minimum pool SOL liquidity (in lamports) to trigger a buy.
-    /// Pools with less quote reserves are skipped.
+    /// Pools with less WSOL reserves are skipped.
     pub min_pool_sol_lamports: u64,
+    /// Force exit after this many seconds from buy, even if profit target is not hit.
+    pub sell_timeout_secs: u64,
+    /// If pool WSOL reserves fall to or below this threshold, retreat immediately.
+    pub exit_pool_sol_lamports: u64,
 }
 
 impl Default for TradeConfig {
@@ -28,6 +32,8 @@ impl Default for TradeConfig {
             slippage_bps: 500, // 5% — reasonable for small positions
             max_positions: 1,
             min_pool_sol_lamports: 100_000, // 0.0001 SOL
+            sell_timeout_secs: 300,         // 5 min timeout before retreat
+            exit_pool_sol_lamports: 1_000_000, // 0.001 SOL => treat as liquidity collapse
         }
     }
 }

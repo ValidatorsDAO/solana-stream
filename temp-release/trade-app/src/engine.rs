@@ -597,10 +597,16 @@ pub async fn check_and_sell_positions(
     current_quote_reserves: u64,
     current_base_reserves: u64,
 ) {
-    let (sell_multiplier, slippage_bps, wallet_bytes) = {
+    let (sell_multiplier, slippage_bps, sell_timeout_secs, exit_pool_sol_lamports, wallet_bytes) = {
         let s = state.read().await;
         let wb = s.wallet.as_ref().map(|kp| kp.to_bytes().to_vec());
-        (s.config.sell_multiplier, s.config.slippage_bps, wb)
+        (
+            s.config.sell_multiplier,
+            s.config.slippage_bps,
+            s.config.sell_timeout_secs,
+            s.config.exit_pool_sol_lamports,
+            wb,
+        )
     };
 
     let wallet_bytes = match wallet_bytes {
@@ -617,6 +623,23 @@ pub async fn check_and_sell_positions(
                 if p.pool != pool_address || p.status != PositionStatus::Active {
                     return false;
                 }
+                let elapsed_secs = (Utc::now() - p.bought_at).num_seconds().max(0) as u64;
+                let timed_out = sell_timeout_secs > 0 && elapsed_secs >= sell_timeout_secs;
+                let low_liquidity = exit_pool_sol_lamports > 0 && current_base_reserves <= exit_pool_sol_lamports;
+
+                // If already partially sold, always sell remaining (drain mode)
+                if p.total_sell_lamports > 0 {
+                    info!("Drain mode: position {} total_sell={}", p.id, p.total_sell_lamports);
+                    return true;
+                }
+                // Forced retreat modes
+                if timed_out || low_liquidity {
+                    info!(
+                        "Forced exit: pos={} timed_out={} elapsed={}s low_liquidity={} base_r={} threshold={} amount={}",
+                        p.id, timed_out, elapsed_secs, low_liquidity, current_base_reserves, exit_pool_sol_lamports, p.base_amount
+                    );
+                    return true;
+                }
                 // PumpSwap: base=WSOL, quote=graduated. We sell graduated (quote_in) for WSOL (base_out).
                 let current_value = pumpswap::base_out_for_exact_quote_in(
                     current_base_reserves,   // WSOL reserves
@@ -625,7 +648,13 @@ pub async fn check_and_sell_positions(
                     pumpswap::DEFAULT_FEE_BPS,
                 )
                 .unwrap_or(0);
-                current_value >= (p.buy_price_lamports as f64 * sell_multiplier) as u64
+                let target = (p.buy_price_lamports as f64 * sell_multiplier) as u64;
+                let should_sell = current_value >= target;
+                if !should_sell {
+                    info!("Sell check: pos={} val={} target={} base_r={} quote_r={} amount={}",
+                        p.id, current_value, target, current_base_reserves, current_quote_reserves, p.base_amount);
+                }
+                should_sell
             })
             .map(|p| p.id.clone())
             .collect()
@@ -672,6 +701,19 @@ pub async fn check_and_sell_positions(
             }
         };
 
+        let elapsed_secs = (Utc::now() - position.bought_at).num_seconds().max(0) as u64;
+        let timed_out = sell_timeout_secs > 0 && elapsed_secs >= sell_timeout_secs;
+        let low_liquidity = exit_pool_sol_lamports > 0 && current_base_reserves <= exit_pool_sol_lamports;
+        let forced_reason = if timed_out && low_liquidity {
+            Some(format!("timeout {}s + low liquidity {:.6} SOL", elapsed_secs, current_base_reserves as f64 / 1e9))
+        } else if timed_out {
+            Some(format!("timeout {}s", elapsed_secs))
+        } else if low_liquidity {
+            Some(format!("low liquidity {:.6} SOL", current_base_reserves as f64 / 1e9))
+        } else {
+            None
+        };
+
         // base_out_for_exact_quote_in: how much WSOL we get for our graduated tokens
         let min_quote_out = match pumpswap::base_out_for_exact_quote_in(
             current_base_reserves,   // WSOL reserves
@@ -683,46 +725,63 @@ pub async fn check_and_sell_positions(
             Err(_) => continue,
         };
 
-        // Skip dust: if expected output is 0 lamports, burn + close ATA
+        // Skip dust / no-liquidity: if expected output is 0 lamports, burn + close ATA
         if min_quote_out == 0 {
-            info!("Position {} has dust amount ({} tokens), output is 0 lamports — closing ATA", id, position.base_amount);
+            let retreat_reason = forced_reason.clone().unwrap_or_else(|| "dust / zero output".to_string());
+            info!("Position {} retreat burn: {} — closing ATA", id, retreat_reason);
             let close_ok = burn_and_close_ata(
                 &rpc_client, &send_rpc_client, &keypair,
                 &position.base_mint, &position.quote_token_program,
             ).await;
 
-            let (total_sell, webhook_url_close) = {
+            let buy_sol = position.buy_price_lamports as f64 / 1e9;
+            let (total_sell, webhook_url_close, redis_client_opt) = {
                 let mut s = state.write().await;
                 let ts = s.positions.get(&id).map(|p| p.total_sell_lamports).unwrap_or(0);
                 if let Some(p) = s.positions.get_mut(&id) {
                     p.status = if close_ok { PositionStatus::Closed } else { PositionStatus::Sold };
                 }
-                (ts, s.webhook_url.clone())
-            };
-
-            // Send final profit notification if there were any sells
-            if total_sell > 0 {
-                let buy_sol = position.buy_price_lamports as f64 / 1e9;
-                let sell_sol = total_sell as f64 / 1e9;
-                let profit_sol = sell_sol - buy_sol;
-                let profit_pct = if buy_sol > 0.0 { (profit_sol / buy_sol) * 100.0 } else { 0.0 };
-                let profit_sign = if profit_sol >= 0.0 { "+" } else { "" };
-                let emoji = if profit_sol >= 0.0 { "🟢" } else { "🔴" };
-                if let Some(url) = webhook_url_close {
-                    let discord_msg = format!(
-                        "{} **Trade Complete**\n\
-                         Pool: `{}`\n\
-                         Base Mint: `{}`\n\
-                         💰 **{}{:.6} SOL ({}{:.1}%)**\n\
-                         Buy: `{:.6} SOL` → Sell: `{:.6} SOL`\n\
-                         ATA: {}",
-                        emoji, position.pool, position.base_mint,
-                        profit_sign, profit_sol, profit_sign, profit_pct,
-                        buy_sol, sell_sol,
-                        if close_ok { "Closed ✅" } else { "Close failed ⚠️" },
-                    );
-                    tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
+                let note = TradeLog {
+                    id: Uuid::new_v4().to_string(),
+                    timestamp: Utc::now(),
+                    action: TradeAction::Notification,
+                    pool: position.pool,
+                    base_mint: position.base_mint,
+                    amount_sol: 0.0,
+                    amount_tokens: position.base_amount,
+                    tx_signature: None,
+                    error: None,
+                    message: Some(format!("Retreat burn: {} | ATA {}", retreat_reason, if close_ok { "closed" } else { "close failed" })),
+                };
+                s.push_log(note.clone());
+                if let Some(ref client) = s.redis_client {
+                    persist_trade_log_to_redis(client, &note);
                 }
+                (ts, s.webhook_url.clone(), s.redis_client.clone())
+            };
+            let _ = redis_client_opt; // keep shape explicit
+
+            let sell_sol = total_sell as f64 / 1e9;
+            let profit_sol = sell_sol - buy_sol;
+            let profit_pct = if buy_sol > 0.0 { (profit_sol / buy_sol) * 100.0 } else { 0.0 };
+            let profit_sign = if profit_sol >= 0.0 { "+" } else { "" };
+            let emoji = if profit_sol >= 0.0 { "🟢" } else { "🔴" };
+            if let Some(url) = webhook_url_close {
+                let discord_msg = format!(
+                    "⚠️ **Retreat Burn**\n\
+                     Pool: `{}`\n\
+                     Base Mint: `{}`\n\
+                     Reason: `{}`\n\
+                     {} **{}{:.6} SOL ({}{:.1}%)**\n\
+                     Buy: `{:.6} SOL` → Realized: `{:.6} SOL`\n\
+                     ATA: {}",
+                    position.pool, position.base_mint,
+                    retreat_reason,
+                    emoji, profit_sign, profit_sol, profit_sign, profit_pct,
+                    buy_sol, sell_sol,
+                    if close_ok { "Closed ✅" } else { "Close failed ⚠️" },
+                );
+                tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
             }
             continue;
         }
@@ -1490,8 +1549,13 @@ async fn restore_single_position(
     let send_rpc_sell = send_rpc_client.clone();
     tokio::spawn(async move {
         info!("Sell monitor started for restored position pool {} (target {}x)", pool_address, sell_multiplier);
+        let mut poll_count: u64 = 0;
         loop {
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            poll_count += 1;
+            if poll_count <= 3 || poll_count % 60 == 0 {
+                info!("Sell monitor poll #{} for pool {}", poll_count, pool_address);
+            }
 
             let still_active = {
                 let s = state_sell.read().await;
@@ -1513,26 +1577,26 @@ async fn restore_single_position(
             {
                 Ok(resp) => match resp.value {
                     Some(a) => a,
-                    None => continue,
+                    None => { warn!("Sell monitor: pool account not found for {}", pool_address); continue; },
                 },
-                Err(_) => continue,
+                Err(e) => { warn!("Sell monitor: RPC error fetching pool {}: {:?}", pool_address, e); continue; },
             };
             let pool_data = match deserialize_pool_lenient(&pool_account.data) {
                 Ok(p) => p,
-                Err(_) => continue,
+                Err(e) => { warn!("Sell monitor: pool deserialize failed for {}: {:?}", pool_address, e); continue; },
             };
 
             let quote_reserves = match fetch_token_balance_with_retry(
                 &rpc_sell, &pool_data.pool_quote_token_account,
             ).await {
                 Ok(b) => b,
-                Err(_) => continue,
+                Err(e) => { warn!("Sell monitor: quote reserves fetch failed: {:?}", e); continue; },
             };
             let base_reserves = match fetch_token_balance_with_retry(
                 &rpc_sell, &pool_data.pool_base_token_account,
             ).await {
                 Ok(b) => b,
-                Err(_) => continue,
+                Err(e) => { warn!("Sell monitor: base reserves fetch failed: {:?}", e); continue; },
             };
 
             check_and_sell_positions(

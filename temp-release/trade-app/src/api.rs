@@ -154,6 +154,8 @@ pub struct PartialTradeConfig {
     pub slippage_bps: Option<u64>,
     pub max_positions: Option<usize>,
     pub min_pool_sol_lamports: Option<u64>,
+    pub sell_timeout_secs: Option<u64>,
+    pub exit_pool_sol_lamports: Option<u64>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -258,6 +260,12 @@ async fn put_config(
     }
     if let Some(v) = body.min_pool_sol_lamports {
         s.config.min_pool_sol_lamports = v;
+    }
+    if let Some(v) = body.sell_timeout_secs {
+        s.config.sell_timeout_secs = v;
+    }
+    if let Some(v) = body.exit_pool_sol_lamports {
+        s.config.exit_pool_sol_lamports = v;
     }
     Json(s.config.clone())
 }
