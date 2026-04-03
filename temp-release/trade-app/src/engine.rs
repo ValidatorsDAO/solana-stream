@@ -316,12 +316,14 @@ pub async fn handle_new_pool(
         data: vec![17], // SyncNative instruction discriminator
     });
 
-    let buy_ix = match pumpswap::build_buy(pumpswap::BuyParams {
+    // PumpSwap naming: "sell" = spend base(WSOL), receive quote(graduated)
+    // This is what we want when "buying" the graduated token.
+    let sell_ix = match pumpswap::build_sell(pumpswap::SellParams {
         pool: pool_address,
         pool_data,
         user: keypair.pubkey(),
-        base_amount_out,
-        max_quote_amount_in: max_quote_in,
+        base_amount_in: buy_amount_lamports,
+        min_quote_amount_out: base_amount_out, // min graduated tokens to receive
         fee_recipient_index: fee_idx,
         quote_token_program,
     }) {
@@ -332,13 +334,13 @@ pub async fn handle_new_pool(
                 pool_address,
                 base_mint,
                 buy_amount_lamports,
-                format!("Build buy ix failed: {:?}", e),
+                format!("Build sell(buy graduated) ix failed: {:?}", e),
             )
             .await;
             return;
         }
     };
-    instructions.push(buy_ix);
+    instructions.push(sell_ix);
 
     // Close WSOL ATA after buy to reclaim rent + leftover SOL
     instructions.push(Instruction {
@@ -535,12 +537,14 @@ pub async fn check_and_sell_positions(
             Err(_) => continue,
         };
 
-        let sell_ix = match pumpswap::build_sell(pumpswap::SellParams {
+        // PumpSwap naming: "buy" = spend quote(graduated), receive base(WSOL)
+        // This is what we want when selling our graduated tokens for SOL.
+        let sell_ix = match pumpswap::build_buy(pumpswap::BuyParams {
             pool: pool_address,
             pool_data,
             user: keypair.pubkey(),
-            base_amount_in: position.base_amount,
-            min_quote_amount_out: min_quote_out,
+            base_amount_out: min_quote_out,  // min WSOL to receive
+            max_quote_amount_in: position.base_amount, // graduated tokens to spend
             fee_recipient_index: fee_idx,
             quote_token_program: position.quote_token_program,
         }) {
