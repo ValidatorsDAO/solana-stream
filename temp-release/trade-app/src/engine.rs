@@ -871,3 +871,307 @@ async fn mark_position_status(state: &Arc<RwLock<AppState>>, id: &str, status: P
         p.status = status;
     }
 }
+
+/// WSOL mint address.
+const WSOL_MINT: &str = "So11111111111111111111111111111111111111112";
+
+/// Restore positions from wallet token holdings on startup.
+///
+/// Scans both Token and Token-2022 accounts for non-zero balances,
+/// finds the corresponding PumpSwap pool via `getProgramAccounts`,
+/// and creates Active positions with sell monitors.
+pub async fn restore_positions_from_wallet(
+    state: Arc<RwLock<AppState>>,
+    rpc_client: Arc<RpcClient>,
+    send_rpc_client: Arc<RpcClient>,
+) {
+    let wallet_pubkey = {
+        let s = state.read().await;
+        match &s.wallet {
+            Some(kp) => kp.pubkey(),
+            None => {
+                warn!("No wallet loaded, skipping position restore");
+                return;
+            }
+        }
+    };
+
+    info!("Restoring positions from wallet {} ...", wallet_pubkey);
+
+    let token_programs = [
+        Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+        Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
+    ];
+
+    let mut restored = 0u32;
+
+    for token_program in &token_programs {
+        let accounts = match rpc_client
+            .get_token_accounts_by_owner(
+                &wallet_pubkey,
+                solana_rpc_client_api::request::TokenAccountsFilter::ProgramId(*token_program),
+            )
+            .await
+        {
+            Ok(a) => a,
+            Err(e) => {
+                warn!("Failed to fetch token accounts for {:?}: {:?}", token_program, e);
+                continue;
+            }
+        };
+
+        for keyed in &accounts {
+            // Parse the account data to get mint + amount
+            let data = match &keyed.account.data {
+                solana_account_decoder::UiAccountData::Json(parsed) => parsed,
+                _ => continue,
+            };
+            let info = match data.parsed.get("info") {
+                Some(v) => v,
+                None => continue,
+            };
+            let mint_str = match info.get("mint").and_then(|v| v.as_str()) {
+                Some(m) => m,
+                None => continue,
+            };
+            // Skip WSOL
+            if mint_str == WSOL_MINT {
+                continue;
+            }
+            let amount_str = match info
+                .get("tokenAmount")
+                .and_then(|v| v.get("amount"))
+                .and_then(|v| v.as_str())
+            {
+                Some(a) => a,
+                None => continue,
+            };
+            let amount: u64 = match amount_str.parse() {
+                Ok(a) if a > 0 => a,
+                _ => continue,
+            };
+
+            let token_mint = match Pubkey::try_from(mint_str) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+
+            info!("Found token {} amount={} — searching for PumpSwap pool...", mint_str, amount);
+
+            // Find PumpSwap pool for this token.
+            // PumpSwap pools have base_mint (offset 11) or quote_mint (offset 43).
+            // On-chain: base_mint = WSOL, quote_mint = graduated token.
+            // quote_mint is at discriminator(8) + pool_bump(1) + index(2) + creator(32) + base_mint(32) = offset 75
+            let wsol_mint = Pubkey::from_str_const(WSOL_MINT);
+            let pump_amm = Pubkey::from_str_const("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
+
+            // Filter: quote_mint = token_mint (at offset 75)
+            use solana_rpc_client_api::filter::{Memcmp, RpcFilterType};
+            use solana_rpc_client_api::config::RpcProgramAccountsConfig;
+            use solana_account_decoder::UiAccountEncoding;
+
+            let filters = vec![
+                RpcFilterType::Memcmp(Memcmp::new_raw_bytes(0, POOL_DISCRIMINATOR.to_vec())),
+                RpcFilterType::Memcmp(Memcmp::new_raw_bytes(75, token_mint.to_bytes().to_vec())),
+            ];
+
+            let config = RpcProgramAccountsConfig {
+                filters: Some(filters),
+                account_config: solana_rpc_client_api::config::RpcAccountInfoConfig {
+                    encoding: Some(UiAccountEncoding::Base64),
+                    commitment: Some(CommitmentConfig::confirmed()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+
+            let pool_accounts = match rpc_client
+                .get_program_accounts_with_config(&pump_amm, config)
+                .await
+            {
+                Ok(a) => a,
+                Err(e) => {
+                    warn!("getProgramAccounts failed for mint {}: {:?}", mint_str, e);
+                    continue;
+                }
+            };
+
+            if pool_accounts.is_empty() {
+                // Try base_mint = token_mint (offset 43)
+                let filters2 = vec![
+                    RpcFilterType::Memcmp(Memcmp::new_raw_bytes(0, POOL_DISCRIMINATOR.to_vec())),
+                    RpcFilterType::Memcmp(Memcmp::new_raw_bytes(43, token_mint.to_bytes().to_vec())),
+                ];
+                let config2 = RpcProgramAccountsConfig {
+                    filters: Some(filters2),
+                    account_config: solana_rpc_client_api::config::RpcAccountInfoConfig {
+                        encoding: Some(UiAccountEncoding::Base64),
+                        commitment: Some(CommitmentConfig::confirmed()),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let pool_accounts2 = match rpc_client
+                    .get_program_accounts_with_config(&pump_amm, config2)
+                    .await
+                {
+                    Ok(a) => a,
+                    Err(e) => {
+                        warn!("getProgramAccounts (base_mint) failed for mint {}: {:?}", mint_str, e);
+                        continue;
+                    }
+                };
+                if pool_accounts2.is_empty() {
+                    warn!("No PumpSwap pool found for mint {}", mint_str);
+                    continue;
+                }
+                // Use the first pool found
+                let (pool_address, pool_account) = &pool_accounts2[0];
+                if let Err(e) = restore_single_position(
+                    &state, &rpc_client, &send_rpc_client,
+                    *pool_address, &pool_account.data, token_mint, amount, *token_program,
+                ).await {
+                    warn!("Failed to restore position for mint {} (base): {:?}", mint_str, e);
+                } else {
+                    restored += 1;
+                }
+            } else {
+                let (pool_address, pool_account) = &pool_accounts[0];
+                if let Err(e) = restore_single_position(
+                    &state, &rpc_client, &send_rpc_client,
+                    *pool_address, &pool_account.data, token_mint, amount, *token_program,
+                ).await {
+                    warn!("Failed to restore position for mint {} (quote): {:?}", mint_str, e);
+                } else {
+                    restored += 1;
+                }
+            }
+        }
+    }
+
+    info!("Position restore complete: {} positions restored", restored);
+}
+
+async fn restore_single_position(
+    state: &Arc<RwLock<AppState>>,
+    rpc_client: &Arc<RpcClient>,
+    send_rpc_client: &Arc<RpcClient>,
+    pool_address: Pubkey,
+    pool_data_raw: &[u8],
+    token_mint: Pubkey,
+    token_amount: u64,
+    quote_token_program: Pubkey,
+) -> Result<(), String> {
+    let pool_data = deserialize_pool_lenient(pool_data_raw)
+        .map_err(|e| format!("Pool deserialize: {:?}", e))?;
+
+    // Fetch current reserves to estimate current value as buy_price
+    let quote_reserves = fetch_token_balance_with_retry(rpc_client, &pool_data.pool_quote_token_account)
+        .await
+        .map_err(|e| format!("Fetch quote reserves: {:?}", e))?;
+    let base_reserves = fetch_token_balance_with_retry(rpc_client, &pool_data.pool_base_token_account)
+        .await
+        .map_err(|e| format!("Fetch base reserves: {:?}", e))?;
+
+    // Estimate the current SOL value of our token holdings.
+    // Use this as buy_price so sell_multiplier applies from current price.
+    let current_value = pumpswap::quote_out_for_exact_base_in(
+        base_reserves,
+        quote_reserves,
+        token_amount,
+        pumpswap::DEFAULT_FEE_BPS,
+    )
+    .unwrap_or(0);
+
+    let position_id = Uuid::new_v4().to_string();
+    let position = Position {
+        id: position_id.clone(),
+        pool: pool_address,
+        base_mint: token_mint,
+        buy_price_lamports: current_value, // current value as baseline
+        base_amount: token_amount,
+        bought_at: Utc::now(),
+        status: PositionStatus::Active,
+        quote_token_program,
+    };
+
+    info!(
+        "Restored position: pool={} mint={} amount={} est_value={} lamports",
+        pool_address, token_mint, token_amount, current_value
+    );
+
+    let sell_multiplier = {
+        let mut s = state.write().await;
+        s.positions.insert(position_id.clone(), position);
+        s.push_notification(
+            pool_address,
+            token_mint,
+            format!("Position restored from wallet: {} tokens, est. value {} lamports", token_amount, current_value),
+        );
+        s.config.sell_multiplier
+    };
+
+    // Spawn sell monitor loop (same as post-buy)
+    let state_sell = state.clone();
+    let rpc_sell = rpc_client.clone();
+    let send_rpc_sell = send_rpc_client.clone();
+    tokio::spawn(async move {
+        info!("Sell monitor started for restored position pool {} (target {}x)", pool_address, sell_multiplier);
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+            let still_active = {
+                let s = state_sell.read().await;
+                s.positions.values().any(|p| {
+                    p.pool == pool_address && p.status == PositionStatus::Active
+                })
+            };
+            if !still_active {
+                info!("Sell monitor exiting for restored pool {} (position no longer active)", pool_address);
+                break;
+            }
+
+            let pool_account = match rpc_sell
+                .get_account_with_commitment(
+                    &pool_address,
+                    CommitmentConfig::confirmed(),
+                )
+                .await
+            {
+                Ok(resp) => match resp.value {
+                    Some(a) => a,
+                    None => continue,
+                },
+                Err(_) => continue,
+            };
+            let pool_data = match deserialize_pool_lenient(&pool_account.data) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+
+            let quote_reserves = match fetch_token_balance_with_retry(
+                &rpc_sell, &pool_data.pool_quote_token_account,
+            ).await {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+            let base_reserves = match fetch_token_balance_with_retry(
+                &rpc_sell, &pool_data.pool_base_token_account,
+            ).await {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+
+            check_and_sell_positions(
+                state_sell.clone(),
+                rpc_sell.clone(),
+                send_rpc_sell.clone(),
+                pool_address,
+                quote_reserves,
+                base_reserves,
+            ).await;
+        }
+    });
+
+    Ok(())
+}

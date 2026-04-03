@@ -70,6 +70,14 @@ async fn main() -> Result<(), anyhow::Error> {
     let tracked_slot = Arc::new(AtomicU64::new(0));
     let (updates_tx, updates_rx) = mpsc::channel::<GeyserSubscribeUpdate>(UPDATE_CHANNEL_CAPACITY);
 
+    // Restore positions from wallet holdings on startup
+    {
+        let state = app_state.clone();
+        let rpc = rpc_client.clone();
+        let send_rpc = send_rpc_client.clone();
+        engine::restore_positions_from_wallet(state, rpc, send_rpc).await;
+    }
+
     // Latency monitor disabled to avoid RPC rate-limit exhaustion (getBlockTime
     // fires per-slot, consuming the entire API quota and starving sell checks).
     // Re-enable once a dedicated RPC endpoint or rate-limited wrapper is added.
