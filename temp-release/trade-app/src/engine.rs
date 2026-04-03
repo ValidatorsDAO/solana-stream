@@ -4,19 +4,24 @@ use crate::webhook::notify_discord;
 use chrono::Utc;
 use log::{error, info, warn};
 use rand::Rng;
+use solana_commitment_config::CommitmentConfig;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
+use solana_rpc_client_api::config::RpcSendTransactionConfig;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::RwLock, time::sleep};
 use ultima_swap_pumpfun::{self as pumpswap, Pool};
+
+/// Anchor discriminator for Pool: sha256("account:Pool")[..8]
+const POOL_DISCRIMINATOR: [u8; 8] = [241, 154, 109, 4, 17, 177, 109, 188];
 use uuid::Uuid;
 
 const FEE_RECIPIENT_COUNT: usize = 8;
 const TX_FEE_RESERVE: u64 = 10_000_000; // 0.01 SOL
-const POOL_FETCH_RETRIES: usize = 6;
-const POOL_FETCH_RETRY_DELAY_MS: u64 = 500;
+const POOL_FETCH_RETRIES: usize = 10;
+const POOL_FETCH_RETRY_DELAY_MS: u64 = 80;
 
 /// Process a detected create_pool event. Performs a buy if conditions are met.
 pub async fn handle_new_pool(
@@ -103,8 +108,8 @@ pub async fn handle_new_pool(
         return;
     }
 
-    // Fetch pool account data with retries because Geyser often sees create_pool
-    // before the RPC node can serve the newly created pool account.
+    // Fetch pool account data with retries at confirmed commitment.
+    // Geyser delivers create_pool before finalized confirmation, so we use confirmed.
     let pool_account = match fetch_pool_account_with_retry(&rpc_client, pool_address).await {
         Ok(a) => a,
         Err(e) => {
@@ -123,11 +128,12 @@ pub async fn handle_new_pool(
         }
     };
 
-    let pool_data = match Pool::try_from_slice(&pool_account.data) {
+    let pool_data = match deserialize_pool_lenient(&pool_account.data) {
         Ok(p) => p,
         Err(e) => {
-            push_error_log(
+            push_error_log_with_webhook(
                 &state,
+                &webhook_url,
                 pool_address,
                 base_mint,
                 buy_amount_lamports,
@@ -138,20 +144,15 @@ pub async fn handle_new_pool(
         }
     };
 
-    let quote_vault_balance = match rpc_client
-        .get_token_account_balance(&pool_data.pool_quote_token_account)
-        .await
-    {
-        Ok(b) => b.amount.parse::<u64>().unwrap_or(0),
+    let quote_vault_balance = match fetch_token_balance_with_retry(
+        &rpc_client, &pool_data.pool_quote_token_account,
+    ).await {
+        Ok(b) => b,
         Err(e) => {
-            push_error_log(
-                &state,
-                pool_address,
-                base_mint,
-                buy_amount_lamports,
-                format!("Fetch quote vault failed: {:?}", e),
-            )
-            .await;
+            push_error_log_with_webhook(
+                &state, &webhook_url, pool_address, base_mint, buy_amount_lamports,
+                format!("Fetch quote vault failed after retries: {:?}", e),
+            ).await;
             return;
         }
     };
@@ -195,20 +196,15 @@ pub async fn handle_new_pool(
         }
     }
 
-    let base_vault_balance = match rpc_client
-        .get_token_account_balance(&pool_data.pool_base_token_account)
-        .await
-    {
-        Ok(b) => b.amount.parse::<u64>().unwrap_or(0),
+    let base_vault_balance = match fetch_token_balance_with_retry(
+        &rpc_client, &pool_data.pool_base_token_account,
+    ).await {
+        Ok(b) => b,
         Err(e) => {
-            push_error_log(
-                &state,
-                pool_address,
-                base_mint,
-                buy_amount_lamports,
-                format!("Fetch base vault failed: {:?}", e),
-            )
-            .await;
+            push_error_log_with_webhook(
+                &state, &webhook_url, pool_address, base_mint, buy_amount_lamports,
+                format!("Fetch base vault failed after retries: {:?}", e),
+            ).await;
             return;
         }
     };
@@ -305,8 +301,13 @@ pub async fn handle_new_pool(
         recent_blockhash,
     );
 
-    // Use send_transaction (non-blocking, N2 fix) instead of send_and_confirm.
-    match rpc_client.send_transaction(&tx).await {
+    // Skip preflight simulation — the pool exists at confirmed level but
+    // preflight runs at finalized, causing AccountNotInitialized (0xbc4).
+    let send_cfg = RpcSendTransactionConfig {
+        skip_preflight: true,
+        ..Default::default()
+    };
+    match rpc_client.send_transaction_with_config(&tx, send_cfg).await {
         Ok(sig) => {
             let sig_str = sig.to_string();
             info!("Buy tx sent: sig={} tokens={}", sig_str, base_amount_out);
@@ -329,17 +330,35 @@ pub async fn handle_new_pool(
                 base_mint,
                 amount_sol: buy_amount_lamports as f64 / 1e9,
                 amount_tokens: base_amount_out,
-                tx_signature: Some(sig_str),
+                tx_signature: Some(sig_str.clone()),
                 error: None,
                 message: None,
             };
             let mut s = state.write().await;
             s.positions.insert(position_id, position);
             s.push_log(log);
+
+            // Discord notification for buy
+            if let Some(url) = &webhook_url {
+                let discord_msg = format!(
+                    "💰 **Buy Executed**\n\
+                     Pool: `{}`\n\
+                     Base Mint: `{}`\n\
+                     Amount: `{:.4} SOL`\n\
+                     Tokens: `{}`\n\
+                     Tx: `{}`",
+                    pool_address, base_mint,
+                    buy_amount_lamports as f64 / 1e9,
+                    base_amount_out, sig_str,
+                );
+                let url = url.clone();
+                tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
+            }
         }
         Err(e) => {
-            push_error_log(
+            push_error_log_with_webhook(
                 &state,
+                &webhook_url,
                 pool_address,
                 base_mint,
                 buy_amount_lamports,
@@ -474,7 +493,11 @@ pub async fn check_and_sell_positions(
             bh,
         );
 
-        match rpc_client.send_transaction(&tx).await {
+        let sell_cfg = RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..Default::default()
+        };
+        match rpc_client.send_transaction_with_config(&tx, sell_cfg).await {
             Ok(sig) => {
                 let sig_str = sig.to_string();
                 info!("Sell tx sent for position {}: sig={}", id, sig_str);
@@ -486,7 +509,7 @@ pub async fn check_and_sell_positions(
                     base_mint: position.base_mint,
                     amount_sol: min_quote_out as f64 / 1e9,
                     amount_tokens: position.base_amount,
-                    tx_signature: Some(sig_str),
+                    tx_signature: Some(sig_str.clone()),
                     error: None,
                     message: None,
                 };
@@ -495,9 +518,27 @@ pub async fn check_and_sell_positions(
                     p.status = PositionStatus::Sold;
                 }
                 s.push_log(log);
+
+                // Discord notification for sell
+                if let Some(url) = &s.webhook_url {
+                    let discord_msg = format!(
+                        "🔔 **Sell Executed**\n\
+                         Pool: `{}`\n\
+                         Base Mint: `{}`\n\
+                         SOL out: `{:.4}`\n\
+                         Tokens sold: `{}`\n\
+                         Tx: `{}`",
+                        position.pool, position.base_mint,
+                        min_quote_out as f64 / 1e9,
+                        position.base_amount, sig_str,
+                    );
+                    let url = url.clone();
+                    tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
+                }
             }
             Err(e) => {
-                error!("Sell tx failed for position {}: {:?}", id, e);
+                let err_msg = format!("Sell tx failed for position {}: {:?}", id, e);
+                error!("{}", err_msg);
                 let log = TradeLog {
                     id: Uuid::new_v4().to_string(),
                     timestamp: Utc::now(),
@@ -507,7 +548,7 @@ pub async fn check_and_sell_positions(
                     amount_sol: 0.0,
                     amount_tokens: position.base_amount,
                     tx_signature: None,
-                    error: Some(format!("{:?}", e)),
+                    error: Some(err_msg.clone()),
                     message: None,
                 };
                 let mut s = state.write().await;
@@ -515,6 +556,13 @@ pub async fn check_and_sell_positions(
                     p.status = PositionStatus::Failed;
                 }
                 s.push_log(log);
+
+                // Discord notification for sell error
+                if let Some(url) = &s.webhook_url {
+                    let discord_msg = format!("❌ **Sell Failed**\nPool: `{}`\n{}", position.pool, err_msg);
+                    let url = url.clone();
+                    tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
+                }
             }
         }
     }
@@ -525,26 +573,38 @@ async fn fetch_pool_account_with_retry(
     pool_address: Pubkey,
 ) -> anyhow::Result<solana_sdk::account::Account> {
     let mut last_error = None;
+    let commitment = CommitmentConfig::confirmed();
 
     for attempt in 0..POOL_FETCH_RETRIES {
-        match rpc_client.get_account(&pool_address).await {
-            Ok(account) => {
-                if attempt > 0 {
-                    info!(
-                        "Pool account {} became available after {} retries",
-                        pool_address, attempt
-                    );
+        match rpc_client
+            .get_account_with_commitment(&pool_address, commitment)
+            .await
+        {
+            Ok(response) => {
+                if let Some(account) = response.value {
+                    if attempt > 0 {
+                        info!(
+                            "Pool account {} available after {} retries (~{} ms)",
+                            pool_address,
+                            attempt,
+                            attempt as u64 * POOL_FETCH_RETRY_DELAY_MS,
+                        );
+                    }
+                    return Ok(account);
                 }
-                return Ok(account);
+                // RPC returned null value — not yet visible at confirmed.
+                last_error = Some(anyhow::anyhow!("AccountNotFound at confirmed: {}", pool_address));
             }
             Err(error) => {
-                let should_retry = format!("{error:?}").contains("AccountNotFound");
+                let is_not_found = format!("{error:?}").contains("AccountNotFound");
                 last_error = Some(anyhow::anyhow!(error));
-                if !should_retry || attempt + 1 == POOL_FETCH_RETRIES {
-                    break;
+                if !is_not_found {
+                    break; // Non-retryable error
                 }
-                sleep(Duration::from_millis(POOL_FETCH_RETRY_DELAY_MS)).await;
             }
+        }
+        if attempt + 1 < POOL_FETCH_RETRIES {
+            sleep(Duration::from_millis(POOL_FETCH_RETRY_DELAY_MS)).await;
         }
     }
 
@@ -553,6 +613,17 @@ async fn fetch_pool_account_with_retry(
 
 async fn push_error_log(
     state: &Arc<RwLock<AppState>>,
+    pool: Pubkey,
+    base_mint: Pubkey,
+    amount_lamports: u64,
+    error_msg: String,
+) {
+    push_error_log_with_webhook(state, &None, pool, base_mint, amount_lamports, error_msg).await;
+}
+
+async fn push_error_log_with_webhook(
+    state: &Arc<RwLock<AppState>>,
+    webhook_url: &Option<String>,
     pool: Pubkey,
     base_mint: Pubkey,
     amount_lamports: u64,
@@ -568,11 +639,71 @@ async fn push_error_log(
         amount_sol: amount_lamports as f64 / 1e9,
         amount_tokens: 0,
         tx_signature: None,
-        error: Some(error_msg),
+        error: Some(error_msg.clone()),
         message: None,
     };
     let mut s = state.write().await;
     s.push_log(log);
+
+    // Determine webhook: prefer explicit param, fall back to state.
+    let url = webhook_url.as_ref().or(s.webhook_url.as_ref());
+    if let Some(url) = url {
+        let discord_msg = format!(
+            "❌ **Error**\nPool: `{}`\nBase Mint: `{}`\n```{}```",
+            pool, base_mint, error_msg
+        );
+        let url = url.clone();
+        tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
+    }
+}
+
+/// Fetch token account balance with retries at confirmed commitment.
+async fn fetch_token_balance_with_retry(
+    rpc_client: &RpcClient,
+    token_account: &Pubkey,
+) -> anyhow::Result<u64> {
+    let mut last_error = None;
+    let commitment = CommitmentConfig::confirmed();
+    for attempt in 0..POOL_FETCH_RETRIES {
+        match rpc_client
+            .get_token_account_balance_with_commitment(token_account, commitment)
+            .await
+        {
+            Ok(response) => return Ok(response.value.amount.parse::<u64>().unwrap_or(0)),
+            Err(e) => {
+                let msg = format!("{e:?}");
+                let is_not_found = msg.contains("could not find account") || msg.contains("AccountNotFound");
+                last_error = Some(anyhow::anyhow!(e));
+                if !is_not_found {
+                    break;
+                }
+            }
+        }
+        if attempt + 1 < POOL_FETCH_RETRIES {
+            sleep(Duration::from_millis(POOL_FETCH_RETRY_DELAY_MS)).await;
+        }
+    }
+    Err(last_error.expect("retry loop must record last error"))
+}
+
+/// Lenient Pool deserialization that tolerates trailing bytes.
+/// PumpSwap may add new fields; we only need the known prefix.
+fn deserialize_pool_lenient(data: &[u8]) -> Result<Pool, std::io::Error> {
+    if data.len() < 8 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Account data too short",
+        ));
+    }
+    if data[..8] != POOL_DISCRIMINATOR {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Invalid Pool discriminator",
+        ));
+    }
+    solana_sdk::borsh1::try_from_slice_unchecked::<Pool>(&data[8..]).map_err(|e| {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
+    })
 }
 
 async fn mark_position_status(state: &Arc<RwLock<AppState>>, id: &str, status: PositionStatus) {
