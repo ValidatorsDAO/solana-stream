@@ -247,14 +247,32 @@ pub async fn handle_new_pool(
 
     let fee_idx = rand::thread_rng().gen_range(0..FEE_RECIPIENT_COUNT);
 
+    // Determine graduated token's token program (SPL Token or Token-2022).
+    // PumpSwap calls graduated token "quote_mint"; we call it "base_mint" in engine.
+    let quote_token_program = match rpc_client.get_account(&base_mint).await {
+        Ok(acct) => acct.owner,
+        Err(e) => {
+            push_error_log(
+                &state, pool_address, base_mint, buy_amount_lamports,
+                format!("Failed to fetch mint account for token program detection: {:?}", e),
+            ).await;
+            return;
+        }
+    };
+    info!(
+        "Graduated token {} uses token program {}",
+        base_mint, quote_token_program
+    );
+
     info!(
         "Buying {} base atoms for max {} lamports on pool {}",
         base_amount_out, max_quote_in, pool_address
     );
 
-    let mut instructions = vec![pumpswap::create_base_ata_if_needed(
+    let mut instructions = vec![pumpswap::create_ata_if_needed(
         &keypair.pubkey(),
         &base_mint,
+        &quote_token_program,
     )];
 
     let buy_ix = match pumpswap::build_buy(pumpswap::BuyParams {
@@ -264,6 +282,7 @@ pub async fn handle_new_pool(
         base_amount_out,
         max_quote_amount_in: max_quote_in,
         fee_recipient_index: fee_idx,
+        quote_token_program,
     }) {
         Ok(ix) => ix,
         Err(e) => {
@@ -322,6 +341,7 @@ pub async fn handle_new_pool(
                 base_amount: base_amount_out,
                 bought_at: Utc::now(),
                 status: PositionStatus::Active,
+                quote_token_program,
             };
             let log = TradeLog {
                 id: Uuid::new_v4().to_string(),
@@ -470,6 +490,7 @@ pub async fn check_and_sell_positions(
             base_amount_in: position.base_amount,
             min_quote_amount_out: min_quote_out,
             fee_recipient_index: fee_idx,
+            quote_token_program: position.quote_token_program,
         }) {
             Ok(ix) => ix,
             Err(e) => {
