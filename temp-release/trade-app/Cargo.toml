@@ -1,0 +1,51 @@
+[package]
+name = "trade-app"
+version = "1.0.0"
+description = "PumpSwap auto-trading bot via Geyser gRPC"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[[bin]]
+name = "trade-app"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.62"
+axum = "0.8"
+backoff = { version = "0.4.0", features = ["tokio"] }
+bs58 = "0.5.1"
+chrono = { version = "0.4.38", features = ["serde"] }
+dashmap = "5"
+dotenv = "0.15"
+env_logger = "0.11.6"
+futures = "0.3.31"
+hex = "0.4.3"
+home = "=0.5.11"
+# json5 removed — using serde_jsonc instead
+log = "0.4"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_jsonc = "1"
+solana-rpc-client = "3.0"
+solana-stream-sdk = "1.2.0"
+solana-sdk = "3.0"
+solana-transaction-status = "3.0"
+solana-pubkey = "3.0"
+solana-signature = "3.0"
+solana-hash = "3.0"
+thiserror = "1"
+tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros"] }
+tonic = { version = "0.14.2" }
+tower-http = { version = "0.6", features = ["cors"] }
+ultima-swap-pumpfun = { git = "https://github.com/ValidatorsDAO/ultima" }
+url = "2.5.4"
+uuid = { version = "1", features = ["v4"] }
+reqwest = { version = "0.12", features = ["json"] }
+# Pin transitive deps to versions compatible with rust-toolchain 1.86 in this repo.
+time = "=0.3.44"
+serde_with = "=3.16.1"
+darling = "=0.21.3"
+
+[workspace]
