@@ -38,6 +38,7 @@ pub async fn handle_new_pool(
         max_positions,
         buy_amount_lamports,
         slippage_bps,
+        sell_multiplier,
         min_pool_sol,
         webhook_url,
         wallet_bytes,
@@ -49,6 +50,7 @@ pub async fn handle_new_pool(
             s.config.max_positions,
             s.config.buy_amount_lamports,
             s.config.slippage_bps,
+            s.config.sell_multiplier,
             s.config.min_pool_sol_lamports,
             s.webhook_url.clone(),
             wallet_bytes,
@@ -434,6 +436,74 @@ pub async fn handle_new_pool(
                 let url = url.clone();
                 tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
             }
+
+            // Immediately spawn sell monitoring loop for this position.
+            // Polls pool reserves every 500ms and sells as soon as target is hit.
+            drop(s); // release write lock before spawning
+            let state_sell = state.clone();
+            let rpc_sell = rpc_client.clone();
+            let send_rpc_sell = send_rpc_client.clone();
+            tokio::spawn(async move {
+                info!("Sell monitor started for pool {} (target {}x)", pool_address, sell_multiplier);
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+                    // Check if position is still active
+                    let still_active = {
+                        let s = state_sell.read().await;
+                        s.positions.values().any(|p| {
+                            p.pool == pool_address && p.status == PositionStatus::Active
+                        })
+                    };
+                    if !still_active {
+                        info!("Sell monitor exiting for pool {} (position no longer active)", pool_address);
+                        break;
+                    }
+
+                    // Fetch current pool reserves
+                    let pool_account = match rpc_sell
+                        .get_account_with_commitment(
+                            &pool_address,
+                            solana_commitment_config::CommitmentConfig::confirmed(),
+                        )
+                        .await
+                    {
+                        Ok(resp) => match resp.value {
+                            Some(a) => a,
+                            None => continue,
+                        },
+                        Err(_) => continue,
+                    };
+                    let pool_data = match deserialize_pool_lenient(&pool_account.data) {
+                        Ok(p) => p,
+                        Err(_) => continue,
+                    };
+
+                    // Fetch reserves from vault accounts
+                    let quote_reserves = match fetch_token_balance_with_retry(
+                        &rpc_sell, &pool_data.pool_quote_token_account,
+                    ).await {
+                        Ok(b) => b,
+                        Err(_) => continue,
+                    };
+                    let base_reserves = match fetch_token_balance_with_retry(
+                        &rpc_sell, &pool_data.pool_base_token_account,
+                    ).await {
+                        Ok(b) => b,
+                        Err(_) => continue,
+                    };
+
+                    // Run sell check with current reserves
+                    check_and_sell_positions(
+                        state_sell.clone(),
+                        rpc_sell.clone(),
+                        send_rpc_sell.clone(),
+                        pool_address,
+                        quote_reserves,
+                        base_reserves,
+                    ).await;
+                }
+            });
         }
         Err(e) => {
             push_error_log_with_webhook(
