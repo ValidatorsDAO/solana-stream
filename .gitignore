@@ -56,3 +56,5 @@ Cargo.lock
 *.node
 temp-release/trade-app/.env
 temp-release/trade-app/wallet.json
+temp-release/trade-app/.env.erpc
+temp-release/trade-app/.env.erpc

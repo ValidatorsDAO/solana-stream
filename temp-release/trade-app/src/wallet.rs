@@ -46,8 +46,7 @@ pub fn load_or_create_wallet() -> Result<Keypair> {
         let keypair = Keypair::new();
         let bytes: Vec<u8> = keypair.to_bytes().to_vec();
         let json = serde_json::to_string(&bytes).context("Failed to serialize keypair")?;
-        std::fs::write(path, json)
-            .with_context(|| format!("Failed to write {}", WALLET_FILE))?;
+        std::fs::write(path, json).with_context(|| format!("Failed to write {}", WALLET_FILE))?;
         warn!(
             "Generated new wallet and saved to {}: {}",
             WALLET_FILE,
