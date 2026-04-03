@@ -50,6 +50,10 @@ pub struct Position {
     pub base_amount: u64,
     pub bought_at: DateTime<Utc>,
     pub status: PositionStatus,
+    /// Token program that owns the graduated (quote) mint.
+    /// TOKEN_PROGRAM for legacy SPL tokens, TOKEN_2022 for Token Extensions.
+    #[serde(serialize_with = "pubkey_str")]
+    pub quote_token_program: Pubkey,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
