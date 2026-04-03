@@ -25,7 +25,7 @@ impl Default for TradeConfig {
         Self {
             buy_amount_lamports: 100_000, // 0.0001 SOL
             sell_multiplier: 1.1,
-            slippage_bps: 300,
+            slippage_bps: 500, // 5% — reasonable for small positions
             max_positions: 1,
             min_pool_sol_lamports: 100_000, // 0.0001 SOL
         }
@@ -37,6 +37,8 @@ pub enum PositionStatus {
     Active,
     Selling,
     Sold,
+    /// ATA burned + closed, rent recovered. Terminal state.
+    Closed,
     Failed,
 }
 
@@ -51,6 +53,8 @@ pub struct Position {
     pub base_amount: u64,
     pub bought_at: DateTime<Utc>,
     pub status: PositionStatus,
+    /// Cumulative SOL received across all partial sells (lamports).
+    pub total_sell_lamports: u64,
     /// Token program that owns the graduated (quote) mint.
     /// TOKEN_PROGRAM for legacy SPL tokens, TOKEN_2022 for Token Extensions.
     #[serde(serialize_with = "pubkey_str")]

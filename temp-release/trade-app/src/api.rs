@@ -47,6 +47,7 @@ pub struct ApiContext {
         get_logs,
         get_trade_history,
         get_trade_by_id,
+        get_profit,
         put_watch_address,
         get_wallet,
         post_grpc_start,
@@ -60,6 +61,8 @@ pub struct ApiContext {
         WalletResponse,
         TradeHistoryQuery,
         TradeHistoryResponse,
+        ProfitPair,
+        ProfitResponse,
     ))
 )]
 struct ApiDoc;
@@ -98,6 +101,7 @@ pub fn build_router(
         .route("/api/trade/status", get(get_trade_status))
         .route("/api/logs", get(get_logs))
         .route("/api/trades/history", get(get_trade_history))
+        .route("/api/trades/profit", get(get_profit))
         .route("/api/trades/{id}", get(get_trade_by_id))
         .route("/api/watch-address", put(put_watch_address))
         .route("/api/wallet", get(get_wallet))
@@ -200,6 +204,28 @@ pub struct TradeHistoryQuery {
 pub struct TradeHistoryResponse {
     pub trades: Vec<serde_json::Value>,
     pub total: usize,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ProfitPair {
+    pub pool: String,
+    pub base_mint: String,
+    pub buy_sol: f64,
+    pub sell_sol: f64,
+    pub profit_sol: f64,
+    pub profit_pct: f64,
+    pub buy_tx: Option<String>,
+    pub sell_tx: Option<String>,
+    pub buy_time: String,
+    pub sell_time: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ProfitResponse {
+    pub pairs: Vec<ProfitPair>,
+    pub total_profit_sol: f64,
+    pub total_buys: usize,
+    pub total_sells: usize,
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -560,6 +586,75 @@ async fn get_trade_by_id(
     }
 
     (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Trade not found" })))
+}
+
+/// Get P&L for each completed buy→sell pair, matched by base_mint.
+#[utoipa::path(get, path = "/api/trades/profit", responses((status = 200, body = ProfitResponse)), tag = "Trades")]
+async fn get_profit(State(ctx): State<ApiContext>) -> impl IntoResponse {
+    let s = ctx.state.read().await;
+
+    let mut buys_by_mint: std::collections::HashMap<String, Vec<&TradeLog>> =
+        std::collections::HashMap::new();
+    let mut sells_by_mint: std::collections::HashMap<String, Vec<&TradeLog>> =
+        std::collections::HashMap::new();
+
+    for log in &s.trade_logs {
+        match log.action {
+            TradeAction::Buy => buys_by_mint
+                .entry(log.base_mint.to_string())
+                .or_default()
+                .push(log),
+            TradeAction::Sell => sells_by_mint
+                .entry(log.base_mint.to_string())
+                .or_default()
+                .push(log),
+            _ => {}
+        }
+    }
+
+    let total_buys: usize = buys_by_mint.values().map(|v| v.len()).sum();
+    let total_sells: usize = sells_by_mint.values().map(|v| v.len()).sum();
+    let mut pairs: Vec<ProfitPair> = Vec::new();
+    let mut total_profit_sol = 0.0f64;
+
+    for (mint, buys) in &buys_by_mint {
+        if let Some(sells) = sells_by_mint.get(mint) {
+            let count = buys.len().min(sells.len());
+            for i in 0..count {
+                let buy = buys[i];
+                let sell = sells[i];
+                let profit_sol = sell.amount_sol - buy.amount_sol;
+                let profit_pct = if buy.amount_sol > 0.0 {
+                    (profit_sol / buy.amount_sol) * 100.0
+                } else {
+                    0.0
+                };
+                total_profit_sol += profit_sol;
+                pairs.push(ProfitPair {
+                    pool: buy.pool.to_string(),
+                    base_mint: mint.clone(),
+                    buy_sol: buy.amount_sol,
+                    sell_sol: sell.amount_sol,
+                    profit_sol,
+                    profit_pct,
+                    buy_tx: buy.tx_signature.clone(),
+                    sell_tx: sell.tx_signature.clone(),
+                    buy_time: buy.timestamp.to_rfc3339(),
+                    sell_time: sell.timestamp.to_rfc3339(),
+                });
+            }
+        }
+    }
+
+    // Sort newest buy first
+    pairs.sort_by(|a, b| b.buy_time.cmp(&a.buy_time));
+
+    Json(ProfitResponse {
+        pairs,
+        total_profit_sol,
+        total_buys,
+        total_sells,
+    })
 }
 
 async fn fetch_trade_history_from_redis(
