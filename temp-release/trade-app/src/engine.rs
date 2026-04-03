@@ -197,6 +197,29 @@ pub async fn handle_new_pool(
         }
     };
 
+    // Fetch WSOL (base) vault first — needed for min_pool_sol check
+    let base_vault_balance = match fetch_token_balance_with_retry(
+        &rpc_client, &pool_data.pool_base_token_account,
+    ).await {
+        Ok(b) => b,
+        Err(e) => {
+            push_error_log_with_webhook(
+                &state, &webhook_url, pool_address, base_mint, buy_amount_lamports,
+                format!("Fetch base vault (WSOL) failed after retries: {:?}", e),
+            ).await;
+            return;
+        }
+    };
+
+    // Check minimum pool SOL liquidity (base vault = WSOL)
+    if base_vault_balance < min_pool_sol {
+        info!(
+            "Pool {} skipped: WSOL reserves {} < min_pool_sol {}",
+            pool_address, base_vault_balance, min_pool_sol
+        );
+        return;
+    }
+
     let quote_vault_balance = match fetch_token_balance_with_retry(
         &rpc_client, &pool_data.pool_quote_token_account,
     ).await {
@@ -204,29 +227,20 @@ pub async fn handle_new_pool(
         Err(e) => {
             push_error_log_with_webhook(
                 &state, &webhook_url, pool_address, base_mint, buy_amount_lamports,
-                format!("Fetch quote vault failed after retries: {:?}", e),
+                format!("Fetch quote vault (graduated) failed after retries: {:?}", e),
             ).await;
             return;
         }
     };
 
-    // Check minimum pool SOL liquidity.
-    if quote_vault_balance < min_pool_sol {
-        info!(
-            "Pool {} skipped: quote reserves {} < min_pool_sol {}",
-            pool_address, quote_vault_balance, min_pool_sol
-        );
-        return;
-    }
-
-    // Notify via webhook + record in logs (only after min_pool_sol filter passes).
+    // Notify via webhook + record in logs
     {
         let mut s = state.write().await;
         let msg = format!(
             "🆕 Pool qualified — Pool: {} | Base Mint: {} | SOL reserves: {:.4} | Time: {}",
             pool_address,
             base_mint,
-            quote_vault_balance as f64 / 1e9,
+            base_vault_balance as f64 / 1e9,
             Utc::now().to_rfc3339()
         );
         s.push_notification(pool_address, base_mint, msg.clone());
@@ -239,7 +253,7 @@ pub async fn handle_new_pool(
                  Timestamp: {}",
                 pool_address,
                 base_mint,
-                quote_vault_balance as f64 / 1e9,
+                base_vault_balance as f64 / 1e9,
                 Utc::now().to_rfc3339()
             );
             let url = url.clone();
@@ -249,23 +263,11 @@ pub async fn handle_new_pool(
         }
     }
 
-    let base_vault_balance = match fetch_token_balance_with_retry(
-        &rpc_client, &pool_data.pool_base_token_account,
-    ).await {
-        Ok(b) => b,
-        Err(e) => {
-            push_error_log_with_webhook(
-                &state, &webhook_url, pool_address, base_mint, buy_amount_lamports,
-                format!("Fetch base vault failed after retries: {:?}", e),
-            ).await;
-            return;
-        }
-    };
-
-    let base_amount_out = match pumpswap::base_out_for_exact_quote_in(
-        base_vault_balance,
-        quote_vault_balance,
-        buy_amount_lamports,
+    // PumpSwap: base=WSOL, quote=graduated. We spend WSOL (base_in) to get graduated (quote_out).
+    let base_amount_out = match pumpswap::quote_out_for_exact_base_in(
+        base_vault_balance,    // WSOL reserves (base)
+        quote_vault_balance,   // graduated reserves (quote)
+        buy_amount_lamports,   // WSOL to spend (base_in)
         pumpswap::DEFAULT_FEE_BPS,
     ) {
         Ok(a) => a,
@@ -374,7 +376,7 @@ pub async fn handle_new_pool(
         pool_data,
         user: keypair.pubkey(),
         base_amount_in: buy_amount_lamports,
-        min_quote_amount_out: base_amount_out, // min graduated tokens to receive
+        min_quote_amount_out: pumpswap::with_slippage_min(base_amount_out, slippage_bps).unwrap_or(0), // min graduated tokens (with slippage)
         fee_recipient_index: fee_idx,
         quote_token_program,
     }) {
@@ -440,13 +442,23 @@ pub async fn handle_new_pool(
             match confirm_transaction(&rpc_client, &sig, 30).await {
                 Ok(true) => {
                     info!("Buy tx confirmed: sig={}", sig_str);
+
+                    // Fetch actual token balance from wallet (AMM may give more than min estimate)
+                    let actual_tokens = check_remaining_token_balance(
+                        &rpc_client, &keypair.pubkey(), &base_mint, &quote_token_program,
+                    ).await;
+                    let final_amount = if actual_tokens > 0 { actual_tokens } else { base_amount_out };
+                    if actual_tokens != base_amount_out {
+                        info!("Buy actual tokens: {} (estimated: {})", actual_tokens, base_amount_out);
+                    }
+
                     let position_id = Uuid::new_v4().to_string();
                     let position = Position {
                         id: position_id.clone(),
                         pool: pool_address,
                         base_mint,
                         buy_price_lamports: buy_amount_lamports,
-                        base_amount: base_amount_out,
+                        base_amount: final_amount,
                         bought_at: Utc::now(),
                         status: PositionStatus::Active,
                         total_sell_lamports: 0,
@@ -459,7 +471,7 @@ pub async fn handle_new_pool(
                         pool: pool_address,
                         base_mint,
                         amount_sol: buy_amount_lamports as f64 / 1e9,
-                        amount_tokens: base_amount_out,
+                        amount_tokens: final_amount,
                         tx_signature: Some(sig_str.clone()),
                         error: None,
                         message: None,
@@ -481,7 +493,7 @@ pub async fn handle_new_pool(
                              Tx: `{}`",
                             pool_address, base_mint,
                             buy_amount_lamports as f64 / 1e9,
-                            base_amount_out, sig_str,
+                            final_amount, sig_str,
                         );
                         let url = url.clone();
                         tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
@@ -546,8 +558,10 @@ pub async fn handle_new_pool(
                     });
                 }
                 Ok(false) => {
-                    push_error_log_with_webhook(
-                        &state, &webhook_url, pool_address, base_mint, buy_amount_lamports,
+                    // Buy failed on-chain (slippage, etc). Only tx fee lost (~0.000005 SOL).
+                    // Log internally but don't spam Discord.
+                    push_error_log(
+                        &state, pool_address, base_mint, buy_amount_lamports,
                         format!("Buy tx confirmed but failed on-chain: {}", sig_str),
                     ).await;
                 }
