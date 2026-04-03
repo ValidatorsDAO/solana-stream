@@ -29,6 +29,7 @@ pub async fn handle_new_pool(
     base_mint: Pubkey,
     state: Arc<RwLock<AppState>>,
     rpc_client: Arc<RpcClient>,
+    send_rpc_client: Arc<RpcClient>,
 ) {
     // Read config first (needed for min_pool_sol check before notification).
     let (
@@ -307,7 +308,7 @@ pub async fn handle_new_pool(
         skip_preflight: true,
         ..Default::default()
     };
-    match rpc_client.send_transaction_with_config(&tx, send_cfg).await {
+    match send_rpc_client.send_transaction_with_config(&tx, send_cfg).await {
         Ok(sig) => {
             let sig_str = sig.to_string();
             info!("Buy tx sent: sig={} tokens={}", sig_str, base_amount_out);
@@ -373,6 +374,7 @@ pub async fn handle_new_pool(
 pub async fn check_and_sell_positions(
     state: Arc<RwLock<AppState>>,
     rpc_client: Arc<RpcClient>,
+    send_rpc_client: Arc<RpcClient>,
     pool_address: Pubkey,
     current_quote_reserves: u64,
     current_base_reserves: u64,
@@ -497,7 +499,7 @@ pub async fn check_and_sell_positions(
             skip_preflight: true,
             ..Default::default()
         };
-        match rpc_client.send_transaction_with_config(&tx, sell_cfg).await {
+        match send_rpc_client.send_transaction_with_config(&tx, sell_cfg).await {
             Ok(sig) => {
                 let sig_str = sig.to_string();
                 info!("Sell tx sent for position {}: sig={}", id, sig_str);
@@ -688,7 +690,7 @@ async fn fetch_token_balance_with_retry(
 
 /// Lenient Pool deserialization that tolerates trailing bytes.
 /// PumpSwap may add new fields; we only need the known prefix.
-fn deserialize_pool_lenient(data: &[u8]) -> Result<Pool, std::io::Error> {
+pub fn deserialize_pool_lenient(data: &[u8]) -> Result<Pool, std::io::Error> {
     if data.len() < 8 {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,

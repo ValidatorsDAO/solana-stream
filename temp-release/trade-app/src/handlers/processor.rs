@@ -2,25 +2,35 @@ use crate::engine::{check_and_sell_positions, handle_new_pool};
 use crate::state::AppState;
 use crate::utils::blocktime::{prepare_log_message, TransactionsBySlot};
 use log::info;
+use solana_commitment_config::CommitmentConfig;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_stream_sdk::{GeyserSubscribeUpdate, GeyserUpdateOneof};
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use ultima_swap_pumpfun as pumpswap;
+
+/// Minimum interval between sell checks for the same pool (debounce).
+const SELL_CHECK_DEBOUNCE_MS: u64 = 2000;
 
 pub async fn process_updates(
     mut updates_rx: tokio::sync::mpsc::Receiver<GeyserSubscribeUpdate>,
     transactions_by_slot: TransactionsBySlot,
     state: Arc<RwLock<AppState>>,
     rpc_client: Arc<RpcClient>,
+    send_rpc_client: Arc<RpcClient>,
 ) {
+    let mut sell_check_last: HashMap<Pubkey, Instant> = HashMap::new();
     while let Some(update) = updates_rx.recv().await {
         handle_update(
             &update,
             &transactions_by_slot,
             state.clone(),
             rpc_client.clone(),
+            send_rpc_client.clone(),
+            &mut sell_check_last,
         )
         .await;
     }
@@ -31,6 +41,8 @@ async fn handle_update(
     transactions_by_slot: &TransactionsBySlot,
     state: Arc<RwLock<AppState>>,
     rpc_client: Arc<RpcClient>,
+    send_rpc_client: Arc<RpcClient>,
+    sell_check_last: &mut HashMap<Pubkey, Instant>,
 ) {
     prepare_log_message(update, transactions_by_slot);
 
@@ -91,10 +103,11 @@ async fn handle_update(
                             );
                             let state_clone = state.clone();
                             let rpc_clone = rpc_client.clone();
+                            let send_rpc_clone = send_rpc_client.clone();
                             let pool = detected.pool;
                             let base_mint = detected.base_mint;
                             tokio::spawn(async move {
-                                handle_new_pool(pool, base_mint, state_clone, rpc_clone).await;
+                                handle_new_pool(pool, base_mint, state_clone, rpc_clone, send_rpc_clone).await;
                             });
                         }
 
@@ -109,6 +122,17 @@ async fn handle_update(
                                 })
                             };
                             if has_position {
+                                // Debounce: skip if we checked this pool recently.
+                                let now = Instant::now();
+                                let should_check = {
+                                    let last = sell_check_last.get(&swap.pool);
+                                    last.map_or(true, |t| now.duration_since(*t).as_millis() >= SELL_CHECK_DEBOUNCE_MS as u128)
+                                };
+                                if !should_check {
+                                    continue;
+                                }
+                                sell_check_last.insert(swap.pool, now);
+
                                 info!(
                                     "Detected swap on held pool {}: {:?} base={} quote={}",
                                     swap.pool, swap.direction, swap.base_amount, swap.quote_amount
@@ -116,12 +140,27 @@ async fn handle_update(
                                 // Fetch current pool reserves and run sell check.
                                 let state_clone = state.clone();
                                 let rpc_clone = rpc_client.clone();
+                                let send_rpc_clone = send_rpc_client.clone();
                                 let pool_addr = swap.pool;
                                 tokio::spawn(async move {
                                     // Get current reserves from on-chain pool account.
-                                    let pool_account = match rpc_clone.get_account(&pool_addr).await
+                                    let pool_account = match rpc_clone
+                                        .get_account_with_commitment(
+                                            &pool_addr,
+                                            CommitmentConfig::confirmed(),
+                                        )
+                                        .await
                                     {
-                                        Ok(a) => a,
+                                        Ok(resp) => match resp.value {
+                                            Some(a) => a,
+                                            None => {
+                                                log::error!(
+                                                    "Pool account not found for sell check: {}",
+                                                    pool_addr
+                                                );
+                                                return;
+                                            }
+                                        },
                                         Err(e) => {
                                             log::error!(
                                                 "Failed to fetch pool for sell check: {:?}",
@@ -130,7 +169,7 @@ async fn handle_update(
                                             return;
                                         }
                                     };
-                                    let pool_data = match pumpswap::Pool::try_from_slice(
+                                    let pool_data = match crate::engine::deserialize_pool_lenient(
                                         &pool_account.data,
                                     ) {
                                         Ok(p) => p,
@@ -164,6 +203,7 @@ async fn handle_update(
                                     check_and_sell_positions(
                                         state_clone,
                                         rpc_clone,
+                                        send_rpc_clone,
                                         pool_addr,
                                         quote_reserves,
                                         base_reserves,
