@@ -24,7 +24,7 @@ impl Default for TradeConfig {
     fn default() -> Self {
         Self {
             buy_amount_lamports: 100_000, // 0.0001 SOL
-            sell_multiplier: 1.2,
+            sell_multiplier: 1.1,
             slippage_bps: 300,
             max_positions: 1,
             min_pool_sol_lamports: 100_000, // 0.0001 SOL

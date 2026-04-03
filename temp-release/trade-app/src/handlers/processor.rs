@@ -6,14 +6,12 @@ use solana_commitment_config::CommitmentConfig;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_stream_sdk::{GeyserSubscribeUpdate, GeyserUpdateOneof};
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::RwLock;
 use ultima_swap_pumpfun as pumpswap;
 
-/// Minimum interval between sell checks for the same pool (debounce).
-const SELL_CHECK_DEBOUNCE_MS: u64 = 2000;
+// Debounce removed: every swap event triggers immediate sell check
+// for minimal latency on price spikes.
 
 pub async fn process_updates(
     mut updates_rx: tokio::sync::mpsc::Receiver<GeyserSubscribeUpdate>,
@@ -22,7 +20,6 @@ pub async fn process_updates(
     rpc_client: Arc<RpcClient>,
     send_rpc_client: Arc<RpcClient>,
 ) {
-    let mut sell_check_last: HashMap<Pubkey, Instant> = HashMap::new();
     while let Some(update) = updates_rx.recv().await {
         handle_update(
             &update,
@@ -30,7 +27,6 @@ pub async fn process_updates(
             state.clone(),
             rpc_client.clone(),
             send_rpc_client.clone(),
-            &mut sell_check_last,
         )
         .await;
     }
@@ -42,7 +38,6 @@ async fn handle_update(
     state: Arc<RwLock<AppState>>,
     rpc_client: Arc<RpcClient>,
     send_rpc_client: Arc<RpcClient>,
-    sell_check_last: &mut HashMap<Pubkey, Instant>,
 ) {
     prepare_log_message(update, transactions_by_slot);
 
@@ -122,94 +117,108 @@ async fn handle_update(
                                 })
                             };
                             if has_position {
-                                // Debounce: skip if we checked this pool recently.
-                                let now = Instant::now();
-                                let should_check = {
-                                    let last = sell_check_last.get(&swap.pool);
-                                    last.map_or(true, |t| now.duration_since(*t).as_millis() >= SELL_CHECK_DEBOUNCE_MS as u128)
-                                };
-                                if !should_check {
-                                    continue;
-                                }
-                                sell_check_last.insert(swap.pool, now);
-
                                 info!(
                                     "Detected swap on held pool {}: {:?} base={} quote={}",
                                     swap.pool, swap.direction, swap.base_amount, swap.quote_amount
                                 );
-                                // Fetch current pool reserves and run sell check.
+
+                                // Fast path: extract post-swap reserves from geyser tx metadata
+                                // (zero RPC latency — reserves come from the same geyser update)
+                                let mut reserves_from_meta: Option<(u64, u64)> = None;
+                                if let Some(meta) = &tx_info.meta {
+                                    // Swap accounts layout:
+                                    // [0]=pool [1]=user [2]=global_config [3]=base_mint [4]=quote_mint
+                                    // [5]=user_base_ata [6]=user_quote_ata
+                                    // [7]=pool_base_vault [8]=pool_quote_vault ...
+                                    if ix_account_keys.len() >= 9 {
+                                        let pool_base_vault = ix_account_keys[7];
+                                        let pool_quote_vault = ix_account_keys[8];
+
+                                        let mut base_r: Option<u64> = None;
+                                        let mut quote_r: Option<u64> = None;
+
+                                        for tb in &meta.post_token_balances {
+                                            let acct_idx = tb.account_index as usize;
+                                            if acct_idx < account_keys.len() {
+                                                let acct = account_keys[acct_idx];
+                                                if let Some(ref ui_amt) = tb.ui_token_amount {
+                                                    if let Ok(amt) = ui_amt.amount.parse::<u64>() {
+                                                        if acct == pool_base_vault {
+                                                            base_r = Some(amt);
+                                                        } else if acct == pool_quote_vault {
+                                                            quote_r = Some(amt);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if let (Some(br), Some(qr)) = (base_r, quote_r) {
+                                            reserves_from_meta = Some((qr, br));
+                                        }
+                                    }
+                                }
+
                                 let state_clone = state.clone();
                                 let rpc_clone = rpc_client.clone();
                                 let send_rpc_clone = send_rpc_client.clone();
                                 let pool_addr = swap.pool;
-                                tokio::spawn(async move {
-                                    // Get current reserves from on-chain pool account.
-                                    let pool_account = match rpc_clone
-                                        .get_account_with_commitment(
-                                            &pool_addr,
-                                            CommitmentConfig::confirmed(),
+
+                                if let Some((quote_reserves, base_reserves)) = reserves_from_meta {
+                                    // Zero-latency path: reserves from geyser metadata
+                                    tokio::spawn(async move {
+                                        check_and_sell_positions(
+                                            state_clone,
+                                            rpc_clone,
+                                            send_rpc_clone,
+                                            pool_addr,
+                                            quote_reserves,
+                                            base_reserves,
                                         )
-                                        .await
-                                    {
-                                        Ok(resp) => match resp.value {
-                                            Some(a) => a,
-                                            None => {
-                                                log::error!(
-                                                    "Pool account not found for sell check: {}",
-                                                    pool_addr
-                                                );
-                                                return;
-                                            }
-                                        },
-                                        Err(e) => {
-                                            log::error!(
-                                                "Failed to fetch pool for sell check: {:?}",
-                                                e
-                                            );
-                                            return;
-                                        }
-                                    };
-                                    let pool_data = match crate::engine::deserialize_pool_lenient(
-                                        &pool_account.data,
-                                    ) {
-                                        Ok(p) => p,
-                                        Err(e) => {
-                                            log::error!(
-                                                "Failed to deserialize pool for sell check: {:?}",
-                                                e
-                                            );
-                                            return;
-                                        }
-                                    };
-                                    // Get token vault balances for AMM math.
-                                    let quote_reserves = match rpc_clone
-                                        .get_token_account_balance(
-                                            &pool_data.pool_quote_token_account,
-                                        )
-                                        .await
-                                    {
-                                        Ok(b) => b.amount.parse::<u64>().unwrap_or(0),
-                                        Err(_) => return,
-                                    };
-                                    let base_reserves = match rpc_clone
-                                        .get_token_account_balance(
-                                            &pool_data.pool_base_token_account,
-                                        )
-                                        .await
-                                    {
-                                        Ok(b) => b.amount.parse::<u64>().unwrap_or(0),
-                                        Err(_) => return,
-                                    };
-                                    check_and_sell_positions(
-                                        state_clone,
-                                        rpc_clone,
-                                        send_rpc_clone,
-                                        pool_addr,
-                                        quote_reserves,
-                                        base_reserves,
-                                    )
-                                    .await;
-                                });
+                                        .await;
+                                    });
+                                } else {
+                                    // Fallback: fetch from RPC (processed commitment)
+                                    tokio::spawn(async move {
+                                        let pool_account = match rpc_clone
+                                            .get_account_with_commitment(
+                                                &pool_addr,
+                                                CommitmentConfig::processed(),
+                                            )
+                                            .await
+                                        {
+                                            Ok(resp) => match resp.value {
+                                                Some(a) => a,
+                                                None => return,
+                                            },
+                                            Err(_) => return,
+                                        };
+                                        let pool_data = match crate::engine::deserialize_pool_lenient(
+                                            &pool_account.data,
+                                        ) {
+                                            Ok(p) => p,
+                                            Err(_) => return,
+                                        };
+                                        let quote_reserves = match rpc_clone
+                                            .get_token_account_balance(&pool_data.pool_quote_token_account)
+                                            .await
+                                        {
+                                            Ok(b) => b.amount.parse::<u64>().unwrap_or(0),
+                                            Err(_) => return,
+                                        };
+                                        let base_reserves = match rpc_clone
+                                            .get_token_account_balance(&pool_data.pool_base_token_account)
+                                            .await
+                                        {
+                                            Ok(b) => b.amount.parse::<u64>().unwrap_or(0),
+                                            Err(_) => return,
+                                        };
+                                        check_and_sell_positions(
+                                            state_clone, rpc_clone, send_rpc_clone,
+                                            pool_addr, quote_reserves, base_reserves,
+                                        ).await;
+                                    });
+                                }
                             }
                         }
                     }
