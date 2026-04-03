@@ -7,6 +7,7 @@ use rand::Rng;
 use solana_commitment_config::CommitmentConfig;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_rpc_client_api::config::RpcSendTransactionConfig;
+use solana_instruction::{AccountMeta, Instruction};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
@@ -269,11 +270,51 @@ pub async fn handle_new_pool(
         base_amount_out, max_quote_in, pool_address
     );
 
+    // 1) Create graduated token ATA (PumpSwap's quote_mint)
     let mut instructions = vec![pumpswap::create_ata_if_needed(
         &keypair.pubkey(),
         &base_mint,
         &quote_token_program,
     )];
+
+    // 2) Create WSOL ATA + wrap SOL for the buy
+    let wsol_mint = pumpswap::WSOL_MINT;
+    let wsol_ata = Pubkey::find_program_address(
+        &[
+            keypair.pubkey().as_ref(),
+            pumpswap::TOKEN_PROGRAM.as_ref(),
+            wsol_mint.as_ref(),
+        ],
+        &pumpswap::ASSOCIATED_TOKEN_PROGRAM,
+    ).0;
+    // CreateIdempotent for WSOL ATA
+    instructions.push(pumpswap::create_ata_if_needed(
+        &keypair.pubkey(),
+        &wsol_mint,
+        &pumpswap::TOKEN_PROGRAM,
+    ));
+    // Transfer SOL to WSOL ATA (SystemProgram.Transfer = instruction index 2, 12-byte data)
+    {
+        let transfer_data = {
+            let mut d = vec![2, 0, 0, 0]; // instruction index 2 = Transfer (little-endian u32)
+            d.extend_from_slice(&max_quote_in.to_le_bytes());
+            d
+        };
+        instructions.push(Instruction {
+            program_id: pumpswap::SYSTEM_PROGRAM,
+            accounts: vec![
+                AccountMeta::new(keypair.pubkey(), true),  // from
+                AccountMeta::new(wsol_ata, false),         // to
+            ],
+            data: transfer_data,
+        });
+    }
+    // SyncNative to update WSOL balance
+    instructions.push(Instruction {
+        program_id: pumpswap::TOKEN_PROGRAM,
+        accounts: vec![AccountMeta::new(wsol_ata, false)],
+        data: vec![17], // SyncNative instruction discriminator
+    });
 
     let buy_ix = match pumpswap::build_buy(pumpswap::BuyParams {
         pool: pool_address,
@@ -298,6 +339,17 @@ pub async fn handle_new_pool(
         }
     };
     instructions.push(buy_ix);
+
+    // Close WSOL ATA after buy to reclaim rent + leftover SOL
+    instructions.push(Instruction {
+        program_id: pumpswap::TOKEN_PROGRAM,
+        accounts: vec![
+            AccountMeta::new(wsol_ata, false),                          // account to close
+            AccountMeta::new(keypair.pubkey(), false),                  // destination
+            AccountMeta::new_readonly(keypair.pubkey(), true),          // authority
+        ],
+        data: vec![9], // CloseAccount instruction discriminator
+    });
 
     let recent_blockhash = match rpc_client.get_latest_blockhash().await {
         Ok(bh) => bh,
