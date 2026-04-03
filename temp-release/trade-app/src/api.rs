@@ -1,13 +1,14 @@
-use crate::state::AppState;
+use crate::state::{AppState, TradeAction, TradeLog};
 use crate::webhook::notify_discord;
 use axum::{
-    extract::{Query, Request, State},
+    extract::{Path, Query, Request, State},
     http::{HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post, put},
     Json, Router,
 };
+use log::warn;
 use scalar_api_reference::axum::router as scalar_router;
 use serde::{Deserialize, Serialize};
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
@@ -44,6 +45,8 @@ pub struct ApiContext {
         post_trade_stop,
         get_trade_status,
         get_logs,
+        get_trade_history,
+        get_trade_by_id,
         put_watch_address,
         get_wallet,
         post_grpc_start,
@@ -55,6 +58,8 @@ pub struct ApiContext {
         StatusResponse,
         WatchAddressBody,
         WalletResponse,
+        TradeHistoryQuery,
+        TradeHistoryResponse,
     ))
 )]
 struct ApiDoc;
@@ -92,6 +97,8 @@ pub fn build_router(
         .route("/api/trade/stop", post(post_trade_stop))
         .route("/api/trade/status", get(get_trade_status))
         .route("/api/logs", get(get_logs))
+        .route("/api/trades/history", get(get_trade_history))
+        .route("/api/trades/{id}", get(get_trade_by_id))
         .route("/api/watch-address", put(put_watch_address))
         .route("/api/wallet", get(get_wallet))
         .route("/api/grpc/start", post(post_grpc_start))
@@ -179,6 +186,20 @@ pub struct WalletResponse {
 pub struct LogsQuery {
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct TradeHistoryQuery {
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+    /// Filter by action: "Buy" or "Sell"
+    pub action: Option<String>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct TradeHistoryResponse {
+    pub trades: Vec<serde_json::Value>,
+    pub total: usize,
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -452,6 +473,182 @@ async fn post_grpc_stop(State(ctx): State<ApiContext>) -> impl IntoResponse {
     let msg = "⏸️ gRPC streaming stopped — pool detection paused".to_string();
     fire_notification(&mut s, &msg);
     Json(serde_json::json!({ "grpc_streaming": false }))
+}
+
+/// Get trade history (Buy/Sell only, newest first). Uses Redis if available, otherwise in-memory.
+#[utoipa::path(get, path = "/api/trades/history", params(
+    ("limit" = Option<usize>, Query, description = "Max trades (default 50)"),
+    ("offset" = Option<usize>, Query, description = "Skip"),
+    ("action" = Option<String>, Query, description = "Filter: Buy or Sell"),
+), responses((status = 200, body = TradeHistoryResponse)), tag = "Trades")]
+async fn get_trade_history(
+    State(ctx): State<ApiContext>,
+    Query(query): Query<TradeHistoryQuery>,
+) -> impl IntoResponse {
+    let limit = query.limit.unwrap_or(50).min(1000);
+    let offset = query.offset.unwrap_or(0);
+    let action_filter: Option<TradeAction> = query.action.as_deref().and_then(|a| match a {
+        "Buy" => Some(TradeAction::Buy),
+        "Sell" => Some(TradeAction::Sell),
+        _ => None,
+    });
+
+    let s = ctx.state.read().await;
+
+    // Try Redis first
+    if let Some(ref client) = s.redis_client {
+        if let Ok(result) = fetch_trade_history_from_redis(client, limit, offset, &action_filter).await {
+            return Json(result);
+        }
+        // Redis failed, fall through to in-memory
+    }
+
+    // In-memory fallback
+    let filtered: Vec<&TradeLog> = s
+        .trade_logs
+        .iter()
+        .rev()
+        .filter(|log| {
+            if log.action != TradeAction::Buy && log.action != TradeAction::Sell {
+                return false;
+            }
+            if let Some(ref af) = action_filter {
+                return &log.action == af;
+            }
+            true
+        })
+        .collect();
+    let total = filtered.len();
+    let trades: Vec<serde_json::Value> = filtered
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(|log| serde_json::to_value(log).unwrap_or_default())
+        .collect();
+    Json(TradeHistoryResponse { trades, total })
+}
+
+/// Get a specific trade log by id. Uses Redis if available, otherwise in-memory.
+#[utoipa::path(get, path = "/api/trades/{id}", params(
+    ("id" = String, Path, description = "Trade log ID"),
+), responses((status = 200, description = "Trade log detail"), (status = 404, description = "Not found")), tag = "Trades")]
+async fn get_trade_by_id(
+    State(ctx): State<ApiContext>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let s = ctx.state.read().await;
+
+    // Try Redis first
+    if let Some(ref client) = s.redis_client {
+        if let Ok(Some(json_val)) = fetch_trade_by_id_from_redis(client, &id).await {
+            return (StatusCode::OK, Json(json_val));
+        }
+    }
+
+    // In-memory fallback
+    if let Some(log) = s.trade_logs.iter().find(|l| l.id == id) {
+        let val = serde_json::to_value(log).unwrap_or_default();
+        return (StatusCode::OK, Json(val));
+    }
+
+    (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Trade not found" })))
+}
+
+async fn fetch_trade_history_from_redis(
+    client: &redis::Client,
+    limit: usize,
+    offset: usize,
+    action_filter: &Option<TradeAction>,
+) -> Result<TradeHistoryResponse, redis::RedisError> {
+    let mut con = client.get_multiplexed_async_connection().await?;
+
+    // Get total count
+    let total: usize = redis::cmd("ZCARD")
+        .arg("trade:logs:timeline")
+        .query_async(&mut con)
+        .await?;
+
+    // Fetch ids from sorted set (newest first = ZREVRANGE)
+    // Over-fetch if we need to filter by action
+    let fetch_count = if action_filter.is_some() {
+        (limit + offset) * 3 // fetch extra to account for filtering
+    } else {
+        limit + offset
+    };
+    let ids: Vec<String> = redis::cmd("ZREVRANGE")
+        .arg("trade:logs:timeline")
+        .arg(0i64)
+        .arg((fetch_count - 1) as i64)
+        .query_async(&mut con)
+        .await?;
+
+    if ids.is_empty() {
+        return Ok(TradeHistoryResponse {
+            trades: vec![],
+            total: 0,
+        });
+    }
+
+    // MGET all trade log JSONs
+    let keys: Vec<String> = ids.iter().map(|id| format!("trade:logs:{}", id)).collect();
+    let jsons: Vec<Option<String>> = redis::cmd("MGET")
+        .arg(&keys)
+        .query_async(&mut con)
+        .await?;
+
+    let mut trades: Vec<serde_json::Value> = Vec::new();
+    let mut filtered_total = 0usize;
+    for json_opt in jsons {
+        if let Some(json_str) = json_opt {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                // Filter: only Buy/Sell
+                let action_str = val.get("action").and_then(|a| a.as_str()).unwrap_or("");
+                if action_str != "Buy" && action_str != "Sell" {
+                    continue;
+                }
+                if let Some(ref af) = action_filter {
+                    let expected = match af {
+                        TradeAction::Buy => "Buy",
+                        TradeAction::Sell => "Sell",
+                        _ => "",
+                    };
+                    if action_str != expected {
+                        continue;
+                    }
+                }
+                filtered_total += 1;
+                if filtered_total > offset && trades.len() < limit {
+                    trades.push(val);
+                }
+            }
+        }
+    }
+
+    Ok(TradeHistoryResponse {
+        trades,
+        total: filtered_total,
+    })
+}
+
+async fn fetch_trade_by_id_from_redis(
+    client: &redis::Client,
+    id: &str,
+) -> Result<Option<serde_json::Value>, redis::RedisError> {
+    let mut con = client.get_multiplexed_async_connection().await?;
+    let result: Option<String> = redis::cmd("GET")
+        .arg(format!("trade:logs:{}", id))
+        .query_async(&mut con)
+        .await?;
+    match result {
+        Some(json_str) => match serde_json::from_str::<serde_json::Value>(&json_str) {
+            Ok(val) => Ok(Some(val)),
+            Err(e) => {
+                warn!("Failed to parse trade log JSON from Redis: {:?}", e);
+                Ok(None)
+            }
+        },
+        None => Ok(None),
+    }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

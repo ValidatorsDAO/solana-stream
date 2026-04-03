@@ -1,4 +1,4 @@
-use crate::state::{AppState, Position, PositionStatus, TradeAction, TradeLog};
+use crate::state::{persist_trade_log_to_redis, AppState, Position, PositionStatus, TradeAction, TradeLog};
 use crate::wallet::keypair_from_bytes;
 use crate::webhook::notify_discord;
 use chrono::Utc;
@@ -411,7 +411,12 @@ pub async fn handle_new_pool(
             };
             let mut s = state.write().await;
             s.positions.insert(position_id, position);
-            s.push_log(log);
+            s.push_log(log.clone());
+
+            // Persist buy log to Redis
+            if let Some(ref client) = s.redis_client {
+                persist_trade_log_to_redis(client, &log);
+            }
 
             // Discord notification for buy
             if let Some(url) = &webhook_url {
@@ -596,7 +601,12 @@ pub async fn check_and_sell_positions(
                 if let Some(p) = s.positions.get_mut(&id) {
                     p.status = PositionStatus::Sold;
                 }
-                s.push_log(log);
+                s.push_log(log.clone());
+
+                // Persist sell log to Redis
+                if let Some(ref client) = s.redis_client {
+                    persist_trade_log_to_redis(client, &log);
+                }
 
                 // Discord notification for sell
                 if let Some(url) = &s.webhook_url {

@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::keypair::Keypair;
@@ -64,14 +65,14 @@ pub enum TradeAction {
     Notification,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TradeLog {
     pub id: String,
     pub timestamp: DateTime<Utc>,
     pub action: TradeAction,
-    #[serde(serialize_with = "pubkey_str")]
+    #[serde(serialize_with = "pubkey_str", deserialize_with = "pubkey_from_str")]
     pub pool: Pubkey,
-    #[serde(serialize_with = "pubkey_str")]
+    #[serde(serialize_with = "pubkey_str", deserialize_with = "pubkey_from_str")]
     pub base_mint: Pubkey,
     pub amount_sol: f64,
     pub amount_tokens: u64,
@@ -94,6 +95,8 @@ pub struct AppState {
     pub watch_address: Pubkey,
     /// Discord webhook URL for notifications (from env).
     pub webhook_url: Option<String>,
+    /// Optional Redis client for persistent trade log storage.
+    pub redis_client: Option<redis::Client>,
 }
 
 impl AppState {
@@ -107,6 +110,7 @@ impl AppState {
             trade_logs: VecDeque::new(),
             watch_address: Pubkey::from_str(PUMPSWAP_AMM).expect("valid pubkey"),
             webhook_url,
+            redis_client: None,
         }
     }
 
@@ -144,4 +148,54 @@ impl AppState {
 
 fn pubkey_str<S: serde::Serializer>(pubkey: &Pubkey, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_str(&pubkey.to_string())
+}
+
+fn pubkey_from_str<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Pubkey, D::Error> {
+    let s = String::deserialize(deserializer)?;
+    Pubkey::from_str(&s).map_err(serde::de::Error::custom)
+}
+
+/// Persist a trade log entry to Redis (fire-and-forget).
+/// Stores the JSON under `trade:logs:{id}`, and adds the id to sorted sets
+/// `trade:logs:timeline` and `trade:logs:pool:{pool}` scored by unix-millis.
+pub fn persist_trade_log_to_redis(client: &redis::Client, log: &TradeLog) {
+    let client = client.clone();
+    let log_id = log.id.clone();
+    let pool_key = format!("trade:logs:pool:{}", log.pool);
+    let score = log.timestamp.timestamp_millis() as f64;
+    let json = match serde_json::to_string(log) {
+        Ok(j) => j,
+        Err(e) => {
+            warn!("Failed to serialize TradeLog for Redis: {:?}", e);
+            return;
+        }
+    };
+    tokio::spawn(async move {
+        let result: Result<(), redis::RedisError> = async {
+            let mut con = client.get_multiplexed_async_connection().await?;
+            redis::pipe()
+                .atomic()
+                .cmd("SET")
+                .arg(format!("trade:logs:{}", &log_id))
+                .arg(&json)
+                .ignore()
+                .cmd("ZADD")
+                .arg("trade:logs:timeline")
+                .arg(score)
+                .arg(&log_id)
+                .ignore()
+                .cmd("ZADD")
+                .arg(&pool_key)
+                .arg(score)
+                .arg(&log_id)
+                .ignore()
+                .query_async::<()>(&mut con)
+                .await?;
+            Ok(())
+        }
+        .await;
+        if let Err(e) = result {
+            warn!("Redis write failed for trade log {}: {:?}", log_id, e);
+        }
+    });
 }

@@ -42,10 +42,25 @@ async fn main() -> Result<(), anyhow::Error> {
     log::info!("RPC read: {}", settings.rpc_endpoint);
     log::info!("RPC send: {}", settings.send_rpc_endpoint);
 
+    // Optional Redis client
+    let redis_client = std::env::var("REDIS_URL").ok().and_then(|url| {
+        match redis::Client::open(url.as_str()) {
+            Ok(client) => {
+                log::info!("Redis client initialized: {}", url);
+                Some(client)
+            }
+            Err(e) => {
+                log::warn!("Failed to create Redis client ({}): {:?} — continuing without Redis", url, e);
+                None
+            }
+        }
+    });
+
     // Shared state
     let app_state = Arc::new(RwLock::new({
         let mut s = AppState::new(settings.webhook_url.clone());
         s.wallet = Some(keypair);
+        s.redis_client = redis_client;
         s
     }));
 
