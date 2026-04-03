@@ -14,15 +14,19 @@ pub struct TradeConfig {
     pub sell_multiplier: f64,
     pub slippage_bps: u64,
     pub max_positions: usize,
+    /// Minimum pool SOL liquidity (in lamports) to trigger a buy.
+    /// Pools with less quote reserves are skipped.
+    pub min_pool_sol_lamports: u64,
 }
 
 impl Default for TradeConfig {
     fn default() -> Self {
         Self {
-            buy_amount_lamports: 100_000_000,
-            sell_multiplier: 1.5,
+            buy_amount_lamports: 100_000, // 0.0001 SOL
+            sell_multiplier: 1.2,
             slippage_bps: 300,
-            max_positions: 5,
+            max_positions: 1,
+            min_pool_sol_lamports: 100_000, // 0.0001 SOL
         }
     }
 }
@@ -53,6 +57,7 @@ pub enum TradeAction {
     Buy,
     Sell,
     Error,
+    Notification,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -68,11 +73,16 @@ pub struct TradeLog {
     pub amount_tokens: u64,
     pub tx_signature: Option<String>,
     pub error: Option<String>,
+    /// Human-readable message for notification events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 pub struct AppState {
     pub config: TradeConfig,
     pub running: bool,
+    /// Whether gRPC streaming is active.
+    pub grpc_streaming: bool,
     pub wallet: Option<Keypair>,
     /// Positions keyed by UUID string for safe concurrent access.
     pub positions: HashMap<String, Position>,
@@ -87,6 +97,7 @@ impl AppState {
         Self {
             config: TradeConfig::default(),
             running: false,
+            grpc_streaming: true,
             wallet: None,
             positions: HashMap::new(),
             trade_logs: VecDeque::new(),
@@ -100,6 +111,23 @@ impl AppState {
             self.trade_logs.pop_front();
         }
         self.trade_logs.push_back(log);
+    }
+
+    /// Push a notification event into the trade log.
+    pub fn push_notification(&mut self, pool: Pubkey, base_mint: Pubkey, message: String) {
+        let log = TradeLog {
+            id: uuid::Uuid::new_v4().to_string(),
+            timestamp: Utc::now(),
+            action: TradeAction::Notification,
+            pool,
+            base_mint,
+            amount_sol: 0.0,
+            amount_tokens: 0,
+            tx_signature: None,
+            error: None,
+            message: Some(message),
+        };
+        self.push_log(log);
     }
 
     pub fn active_position_count(&self) -> usize {

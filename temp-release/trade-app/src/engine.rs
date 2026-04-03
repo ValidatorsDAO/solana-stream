@@ -8,13 +8,15 @@ use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::{sync::Arc, time::Duration};
+use tokio::{sync::RwLock, time::sleep};
 use ultima_swap_pumpfun::{self as pumpswap, Pool};
 use uuid::Uuid;
 
 const FEE_RECIPIENT_COUNT: usize = 8;
 const TX_FEE_RESERVE: u64 = 10_000_000; // 0.01 SOL
+const POOL_FETCH_RETRIES: usize = 6;
+const POOL_FETCH_RETRY_DELAY_MS: u64 = 500;
 
 /// Process a detected create_pool event. Performs a buy if conditions are met.
 pub async fn handle_new_pool(
@@ -23,27 +25,16 @@ pub async fn handle_new_pool(
     state: Arc<RwLock<AppState>>,
     rpc_client: Arc<RpcClient>,
 ) {
-    // Notify via webhook regardless of trade state.
-    {
-        let s = state.read().await;
-        if let Some(url) = &s.webhook_url {
-            let msg = format!(
-                "🆕 **New PumpSwap Pool Detected**\n\
-                 Pool: `{}`\n\
-                 Base Mint: `{}`\n\
-                 Timestamp: {}",
-                pool_address,
-                base_mint,
-                Utc::now().to_rfc3339()
-            );
-            let url = url.clone();
-            tokio::spawn(async move {
-                notify_discord(&url, &msg).await;
-            });
-        }
-    }
-
-    let (running, max_positions, buy_amount_lamports, slippage_bps, wallet_bytes) = {
+    // Read config first (needed for min_pool_sol check before notification).
+    let (
+        running,
+        max_positions,
+        buy_amount_lamports,
+        slippage_bps,
+        min_pool_sol,
+        webhook_url,
+        wallet_bytes,
+    ) = {
         let s = state.read().await;
         let wallet_bytes = s.wallet.as_ref().map(|kp| kp.to_bytes().to_vec());
         (
@@ -51,6 +42,8 @@ pub async fn handle_new_pool(
             s.config.max_positions,
             s.config.buy_amount_lamports,
             s.config.slippage_bps,
+            s.config.min_pool_sol_lamports,
+            s.webhook_url.clone(),
             wallet_bytes,
         )
     };
@@ -62,7 +55,10 @@ pub async fn handle_new_pool(
     {
         let s = state.read().await;
         if s.active_position_count() >= max_positions {
-            warn!("Max positions ({}) reached, skipping pool {}", max_positions, pool_address);
+            warn!(
+                "Max positions ({}) reached, skipping pool {}",
+                max_positions, pool_address
+            );
             return;
         }
     }
@@ -93,17 +89,36 @@ pub async fn handle_new_pool(
 
     if balance < buy_amount_lamports + TX_FEE_RESERVE {
         push_error_log(
-            &state, pool_address, base_mint, buy_amount_lamports,
-            format!("Insufficient balance: {} lamports (need {})", balance, buy_amount_lamports + TX_FEE_RESERVE),
-        ).await;
+            &state,
+            pool_address,
+            base_mint,
+            buy_amount_lamports,
+            format!(
+                "Insufficient balance: {} lamports (need {})",
+                balance,
+                buy_amount_lamports + TX_FEE_RESERVE
+            ),
+        )
+        .await;
         return;
     }
 
-    // Fetch pool account data.
-    let pool_account = match rpc_client.get_account(&pool_address).await {
+    // Fetch pool account data with retries because Geyser often sees create_pool
+    // before the RPC node can serve the newly created pool account.
+    let pool_account = match fetch_pool_account_with_retry(&rpc_client, pool_address).await {
         Ok(a) => a,
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("Fetch pool failed: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!(
+                    "Fetch pool failed after {} retries ({} ms delay): {:?}",
+                    POOL_FETCH_RETRIES, POOL_FETCH_RETRY_DELAY_MS, e,
+                ),
+            )
+            .await;
             return;
         }
     };
@@ -111,33 +126,109 @@ pub async fn handle_new_pool(
     let pool_data = match Pool::try_from_slice(&pool_account.data) {
         Ok(p) => p,
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("Deserialize pool failed: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!("Deserialize pool failed: {:?}", e),
+            )
+            .await;
             return;
         }
     };
 
-    let quote_vault_balance = match rpc_client.get_token_account_balance(&pool_data.pool_quote_token_account).await {
+    let quote_vault_balance = match rpc_client
+        .get_token_account_balance(&pool_data.pool_quote_token_account)
+        .await
+    {
         Ok(b) => b.amount.parse::<u64>().unwrap_or(0),
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("Fetch quote vault failed: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!("Fetch quote vault failed: {:?}", e),
+            )
+            .await;
             return;
         }
     };
 
-    let base_vault_balance = match rpc_client.get_token_account_balance(&pool_data.pool_base_token_account).await {
+    // Check minimum pool SOL liquidity.
+    if quote_vault_balance < min_pool_sol {
+        info!(
+            "Pool {} skipped: quote reserves {} < min_pool_sol {}",
+            pool_address, quote_vault_balance, min_pool_sol
+        );
+        return;
+    }
+
+    // Notify via webhook + record in logs (only after min_pool_sol filter passes).
+    {
+        let mut s = state.write().await;
+        let msg = format!(
+            "🆕 Pool qualified — Pool: {} | Base Mint: {} | SOL reserves: {:.4} | Time: {}",
+            pool_address,
+            base_mint,
+            quote_vault_balance as f64 / 1e9,
+            Utc::now().to_rfc3339()
+        );
+        s.push_notification(pool_address, base_mint, msg.clone());
+        if let Some(url) = &webhook_url {
+            let discord_msg = format!(
+                "🆕 **Pool Qualified for Trade**\n\
+                 Pool: `{}`\n\
+                 Base Mint: `{}`\n\
+                 SOL Reserves: `{:.4} SOL`\n\
+                 Timestamp: {}",
+                pool_address,
+                base_mint,
+                quote_vault_balance as f64 / 1e9,
+                Utc::now().to_rfc3339()
+            );
+            let url = url.clone();
+            tokio::spawn(async move {
+                notify_discord(&url, &discord_msg).await;
+            });
+        }
+    }
+
+    let base_vault_balance = match rpc_client
+        .get_token_account_balance(&pool_data.pool_base_token_account)
+        .await
+    {
         Ok(b) => b.amount.parse::<u64>().unwrap_or(0),
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("Fetch base vault failed: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!("Fetch base vault failed: {:?}", e),
+            )
+            .await;
             return;
         }
     };
 
     let base_amount_out = match pumpswap::base_out_for_exact_quote_in(
-        base_vault_balance, quote_vault_balance, buy_amount_lamports, pumpswap::DEFAULT_FEE_BPS,
+        base_vault_balance,
+        quote_vault_balance,
+        buy_amount_lamports,
+        pumpswap::DEFAULT_FEE_BPS,
     ) {
         Ok(a) => a,
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("AMM math error: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!("AMM math error: {:?}", e),
+            )
+            .await;
             return;
         }
     };
@@ -145,18 +236,29 @@ pub async fn handle_new_pool(
     let max_quote_in = match pumpswap::with_slippage_max(buy_amount_lamports, slippage_bps) {
         Ok(v) => v,
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("Slippage error: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!("Slippage error: {:?}", e),
+            )
+            .await;
             return;
         }
     };
 
     let fee_idx = rand::thread_rng().gen_range(0..FEE_RECIPIENT_COUNT);
 
-    info!("Buying {} base atoms for max {} lamports on pool {}", base_amount_out, max_quote_in, pool_address);
+    info!(
+        "Buying {} base atoms for max {} lamports on pool {}",
+        base_amount_out, max_quote_in, pool_address
+    );
 
-    let mut instructions = vec![
-        pumpswap::create_base_ata_if_needed(&keypair.pubkey(), &base_mint),
-    ];
+    let mut instructions = vec![pumpswap::create_base_ata_if_needed(
+        &keypair.pubkey(),
+        &base_mint,
+    )];
 
     let buy_ix = match pumpswap::build_buy(pumpswap::BuyParams {
         pool: pool_address,
@@ -168,7 +270,14 @@ pub async fn handle_new_pool(
     }) {
         Ok(ix) => ix,
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("Build buy ix failed: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!("Build buy ix failed: {:?}", e),
+            )
+            .await;
             return;
         }
     };
@@ -177,13 +286,23 @@ pub async fn handle_new_pool(
     let recent_blockhash = match rpc_client.get_latest_blockhash().await {
         Ok(bh) => bh,
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("Blockhash failed: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!("Blockhash failed: {:?}", e),
+            )
+            .await;
             return;
         }
     };
 
     let tx = Transaction::new_signed_with_payer(
-        &instructions, Some(&keypair.pubkey()), &[&keypair], recent_blockhash,
+        &instructions,
+        Some(&keypair.pubkey()),
+        &[&keypair],
+        recent_blockhash,
     );
 
     // Use send_transaction (non-blocking, N2 fix) instead of send_and_confirm.
@@ -212,13 +331,21 @@ pub async fn handle_new_pool(
                 amount_tokens: base_amount_out,
                 tx_signature: Some(sig_str),
                 error: None,
+                message: None,
             };
             let mut s = state.write().await;
             s.positions.insert(position_id, position);
             s.push_log(log);
         }
         Err(e) => {
-            push_error_log(&state, pool_address, base_mint, buy_amount_lamports, format!("Buy tx failed: {:?}", e)).await;
+            push_error_log(
+                &state,
+                pool_address,
+                base_mint,
+                buy_amount_lamports,
+                format!("Buy tx failed: {:?}", e),
+            )
+            .await;
         }
     }
 }
@@ -252,9 +379,12 @@ pub async fn check_and_sell_positions(
                     return false;
                 }
                 let current_value = pumpswap::quote_out_for_exact_base_in(
-                    current_base_reserves, current_quote_reserves,
-                    p.base_amount, pumpswap::DEFAULT_FEE_BPS,
-                ).unwrap_or(0);
+                    current_base_reserves,
+                    current_quote_reserves,
+                    p.base_amount,
+                    pumpswap::DEFAULT_FEE_BPS,
+                )
+                .unwrap_or(0);
                 current_value >= (p.buy_price_lamports as f64 * sell_multiplier) as u64
             })
             .map(|p| p.id.clone())
@@ -303,8 +433,10 @@ pub async fn check_and_sell_positions(
         };
 
         let min_quote_out = match pumpswap::quote_out_for_exact_base_in(
-            current_base_reserves, current_quote_reserves,
-            position.base_amount, pumpswap::DEFAULT_FEE_BPS,
+            current_base_reserves,
+            current_quote_reserves,
+            position.base_amount,
+            pumpswap::DEFAULT_FEE_BPS,
         ) {
             Ok(v) => pumpswap::with_slippage_min(v, slippage_bps).unwrap_or(0),
             Err(_) => continue,
@@ -336,7 +468,10 @@ pub async fn check_and_sell_positions(
         };
 
         let tx = Transaction::new_signed_with_payer(
-            &[sell_ix], Some(&keypair.pubkey()), &[&keypair], bh,
+            &[sell_ix],
+            Some(&keypair.pubkey()),
+            &[&keypair],
+            bh,
         );
 
         match rpc_client.send_transaction(&tx).await {
@@ -353,6 +488,7 @@ pub async fn check_and_sell_positions(
                     amount_tokens: position.base_amount,
                     tx_signature: Some(sig_str),
                     error: None,
+                    message: None,
                 };
                 let mut s = state.write().await;
                 if let Some(p) = s.positions.get_mut(&id) {
@@ -372,6 +508,7 @@ pub async fn check_and_sell_positions(
                     amount_tokens: position.base_amount,
                     tx_signature: None,
                     error: Some(format!("{:?}", e)),
+                    message: None,
                 };
                 let mut s = state.write().await;
                 if let Some(p) = s.positions.get_mut(&id) {
@@ -383,7 +520,44 @@ pub async fn check_and_sell_positions(
     }
 }
 
-async fn push_error_log(state: &Arc<RwLock<AppState>>, pool: Pubkey, base_mint: Pubkey, amount_lamports: u64, error_msg: String) {
+async fn fetch_pool_account_with_retry(
+    rpc_client: &RpcClient,
+    pool_address: Pubkey,
+) -> anyhow::Result<solana_sdk::account::Account> {
+    let mut last_error = None;
+
+    for attempt in 0..POOL_FETCH_RETRIES {
+        match rpc_client.get_account(&pool_address).await {
+            Ok(account) => {
+                if attempt > 0 {
+                    info!(
+                        "Pool account {} became available after {} retries",
+                        pool_address, attempt
+                    );
+                }
+                return Ok(account);
+            }
+            Err(error) => {
+                let should_retry = format!("{error:?}").contains("AccountNotFound");
+                last_error = Some(anyhow::anyhow!(error));
+                if !should_retry || attempt + 1 == POOL_FETCH_RETRIES {
+                    break;
+                }
+                sleep(Duration::from_millis(POOL_FETCH_RETRY_DELAY_MS)).await;
+            }
+        }
+    }
+
+    Err(last_error.expect("retry loop must record last error"))
+}
+
+async fn push_error_log(
+    state: &Arc<RwLock<AppState>>,
+    pool: Pubkey,
+    base_mint: Pubkey,
+    amount_lamports: u64,
+    error_msg: String,
+) {
     error!("{}", error_msg);
     let log = TradeLog {
         id: Uuid::new_v4().to_string(),
@@ -395,6 +569,7 @@ async fn push_error_log(state: &Arc<RwLock<AppState>>, pool: Pubkey, base_mint: 
         amount_tokens: 0,
         tx_signature: None,
         error: Some(error_msg),
+        message: None,
     };
     let mut s = state.write().await;
     s.push_log(log);

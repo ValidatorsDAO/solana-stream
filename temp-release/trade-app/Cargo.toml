@@ -43,6 +43,8 @@ ultima-swap-pumpfun = { git = "https://github.com/ValidatorsDAO/ultima" }
 url = "2.5.4"
 uuid = { version = "1", features = ["v4"] }
 reqwest = { version = "0.12", features = ["json"] }
+scalar_api_reference = { version = "0.2", features = ["axum"] }
+utoipa = { version = "5", features = ["axum_extras"] }
 # Pin transitive deps to versions compatible with rust-toolchain 1.86 in this repo.
 time = "=0.3.44"
 serde_with = "=3.16.1"
