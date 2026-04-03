@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::keypair::Keypair;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::str::FromStr;
 
 pub const PUMPSWAP_AMM: &str = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA";
@@ -74,30 +74,39 @@ pub struct AppState {
     pub config: TradeConfig,
     pub running: bool,
     pub wallet: Option<Keypair>,
-    pub positions: Vec<Position>,
+    /// Positions keyed by UUID string for safe concurrent access.
+    pub positions: HashMap<String, Position>,
     pub trade_logs: VecDeque<TradeLog>,
     pub watch_address: Pubkey,
+    /// Discord webhook URL for notifications (from env).
+    pub webhook_url: Option<String>,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
+impl AppState {
+    pub fn new(webhook_url: Option<String>) -> Self {
         Self {
             config: TradeConfig::default(),
             running: false,
             wallet: None,
-            positions: Vec::new(),
+            positions: HashMap::new(),
             trade_logs: VecDeque::new(),
             watch_address: Pubkey::from_str(PUMPSWAP_AMM).expect("valid pubkey"),
+            webhook_url,
         }
     }
-}
 
-impl AppState {
     pub fn push_log(&mut self, log: TradeLog) {
         if self.trade_logs.len() >= TRADE_LOG_CAP {
             self.trade_logs.pop_front();
         }
         self.trade_logs.push_back(log);
+    }
+
+    pub fn active_position_count(&self) -> usize {
+        self.positions
+            .values()
+            .filter(|p| p.status == PositionStatus::Active || p.status == PositionStatus::Selling)
+            .count()
     }
 }
 

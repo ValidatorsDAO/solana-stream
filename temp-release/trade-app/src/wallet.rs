@@ -1,12 +1,35 @@
 use anyhow::{Context, Result};
 use log::{info, warn};
-use solana_rpc_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::keypair::Keypair;
 use solana_sdk::signer::Signer;
 use std::path::Path;
 
 const WALLET_FILE: &str = "wallet.json";
+
+/// Reconstruct a Keypair from 64-byte (secret+pubkey) array, verifying that
+/// the derived public key matches the stored one (B1 fix).
+pub fn keypair_from_bytes(bytes: &[u8]) -> Result<Keypair> {
+    if bytes.len() != 64 {
+        return Err(anyhow::anyhow!(
+            "wallet.json must contain exactly 64 bytes, got {}",
+            bytes.len()
+        ));
+    }
+    let secret: [u8; 32] = bytes[..32].try_into().unwrap();
+    let keypair = Keypair::new_from_array(secret);
+    // Verify pubkey matches stored bytes (B1: detect corrupted wallet.json).
+    let derived_pubkey = keypair.pubkey();
+    let stored_pubkey_bytes: [u8; 32] = bytes[32..64].try_into().unwrap();
+    let stored_pubkey = solana_sdk::pubkey::Pubkey::new_from_array(stored_pubkey_bytes);
+    if derived_pubkey != stored_pubkey {
+        return Err(anyhow::anyhow!(
+            "wallet.json corrupted: derived pubkey {} != stored pubkey {}",
+            derived_pubkey,
+            stored_pubkey
+        ));
+    }
+    Ok(keypair)
+}
 
 /// Load keypair from wallet.json if it exists, otherwise generate a new one and save it.
 pub fn load_or_create_wallet() -> Result<Keypair> {
@@ -16,11 +39,7 @@ pub fn load_or_create_wallet() -> Result<Keypair> {
             .with_context(|| format!("Failed to read {}", WALLET_FILE))?;
         let bytes: Vec<u8> = serde_json::from_str(&bytes_str)
             .with_context(|| format!("Failed to parse {} as JSON array", WALLET_FILE))?;
-        if bytes.len() != 64 {
-            return Err(anyhow::anyhow!("wallet.json must contain exactly 64 bytes, got {}", bytes.len()));
-        }
-        let secret: [u8; 32] = bytes[..32].try_into().unwrap();
-        let keypair = Keypair::new_from_array(secret);
+        let keypair = keypair_from_bytes(&bytes)?;
         info!("Loaded wallet: {}", keypair.pubkey());
         Ok(keypair)
     } else {
@@ -36,12 +55,4 @@ pub fn load_or_create_wallet() -> Result<Keypair> {
         );
         Ok(keypair)
     }
-}
-
-/// Fetch the SOL balance (in lamports) for a given pubkey.
-pub async fn get_balance(rpc_client: &RpcClient, pubkey: &Pubkey) -> Result<u64> {
-    rpc_client
-        .get_balance(pubkey)
-        .await
-        .context("Failed to fetch wallet balance")
 }

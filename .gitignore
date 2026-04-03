@@ -54,3 +54,5 @@ Cargo.lock
 
 # NAPI
 *.node
+temp-release/trade-app/.env
+temp-release/trade-app/wallet.json

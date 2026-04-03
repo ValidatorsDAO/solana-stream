@@ -21,6 +21,7 @@ mod runtime;
 mod state;
 mod utils;
 mod wallet;
+mod webhook;
 
 const UPDATE_CHANNEL_CAPACITY: usize = 10_000;
 
@@ -40,7 +41,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Shared state
     let app_state = Arc::new(RwLock::new({
-        let mut s = AppState::default();
+        let mut s = AppState::new(settings.webhook_url.clone());
         s.wallet = Some(keypair);
         s
     }));
@@ -85,8 +86,9 @@ async fn main() -> Result<(), anyhow::Error> {
         let state = app_state.clone();
         let rpc = rpc_client.clone();
         let port = settings.api_port;
+        let api_token = settings.api_token.clone();
         tokio::spawn(async move {
-            let router = build_router(state, rpc);
+            let router = build_router(state, rpc, api_token);
             let addr = SocketAddr::from(([0, 0, 0, 0], port));
             log::info!("API server listening on http://{}", addr);
             let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

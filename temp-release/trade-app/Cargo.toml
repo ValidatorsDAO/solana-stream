@@ -22,7 +22,7 @@ env_logger = "0.11.6"
 futures = "0.3.31"
 hex = "0.4.3"
 home = "=0.5.11"
-json5 = "0.4.1"
+# json5 removed — using serde_jsonc instead
 log = "0.4"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
@@ -42,6 +42,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 ultima-swap-pumpfun = { git = "https://github.com/ValidatorsDAO/ultima" }
 url = "2.5.4"
 uuid = { version = "1", features = ["v4"] }
+reqwest = { version = "0.12", features = ["json"] }
 # Pin transitive deps to versions compatible with rust-toolchain 1.86 in this repo.
 time = "=0.3.44"
 serde_with = "=3.16.1"
