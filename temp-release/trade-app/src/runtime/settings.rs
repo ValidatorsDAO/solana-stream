@@ -12,6 +12,9 @@ pub struct Settings {
     pub grpc_endpoint: String,
     pub x_token: Option<String>,
     pub rpc_endpoint: String,
+    /// Separate RPC endpoint for sending transactions (optional).
+    /// Falls back to `rpc_endpoint` when not set.
+    pub send_rpc_endpoint: String,
     pub api_port: u16,
     /// Optional Discord webhook URL for notifications.
     pub webhook_url: Option<String>,
@@ -45,6 +48,15 @@ impl Settings {
             .ok()
             .and_then(|v| v.parse::<u16>().ok())
             .unwrap_or(DEFAULT_API_PORT);
+        // Separate endpoint for sending transactions (optional).
+        let send_rpc_endpoint = if let Ok(explicit) = env::var("SOLANA_SEND_RPC_ENDPOINT") {
+            explicit
+        } else if let Ok(api_key) = env::var("ERPC_SEND_API_KEY") {
+            format!("{}?api-key={}", DEFAULT_ERPC_BASE, api_key)
+        } else {
+            rpc_endpoint.clone()
+        };
+
         let webhook_url = env::var("WEBHOOK_URL").ok();
         let api_token = env::var("API_TOKEN").ok();
 
@@ -53,6 +65,7 @@ impl Settings {
             grpc_endpoint,
             x_token,
             rpc_endpoint,
+            send_rpc_endpoint,
             api_port,
             webhook_url,
             api_token,

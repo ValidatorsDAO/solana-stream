@@ -38,6 +38,9 @@ async fn main() -> Result<(), anyhow::Error> {
     // Wallet
     let keypair = load_or_create_wallet()?;
     let rpc_client = Arc::new(RpcClient::new(settings.rpc_endpoint.clone()));
+    let send_rpc_client = Arc::new(RpcClient::new(settings.send_rpc_endpoint.clone()));
+    log::info!("RPC read: {}", settings.rpc_endpoint);
+    log::info!("RPC send: {}", settings.send_rpc_endpoint);
 
     // Shared state
     let app_state = Arc::new(RwLock::new({
@@ -52,11 +55,15 @@ async fn main() -> Result<(), anyhow::Error> {
     let tracked_slot = Arc::new(AtomicU64::new(0));
     let (updates_tx, updates_rx) = mpsc::channel::<GeyserSubscribeUpdate>(UPDATE_CHANNEL_CAPACITY);
 
+    // Latency monitor disabled to avoid RPC rate-limit exhaustion (getBlockTime
+    // fires per-slot, consuming the entire API quota and starving sell checks).
+    // Re-enable once a dedicated RPC endpoint or rate-limited wrapper is added.
     let latency_handle = {
-        let block_time_cache = block_time_cache.clone();
-        let transactions_by_slot = transactions_by_slot.clone();
+        let _block_time_cache = block_time_cache.clone();
+        let _transactions_by_slot = transactions_by_slot.clone();
         tokio::spawn(async move {
-            latency_monitor_task(block_time_cache, transactions_by_slot).await;
+            // latency_monitor_task(_block_time_cache, _transactions_by_slot).await;
+            futures::future::pending::<()>().await;
         })
     };
 
@@ -64,8 +71,9 @@ async fn main() -> Result<(), anyhow::Error> {
         let transactions_by_slot = transactions_by_slot.clone();
         let state = app_state.clone();
         let rpc = rpc_client.clone();
+        let send_rpc = send_rpc_client.clone();
         tokio::spawn(async move {
-            process_updates(updates_rx, transactions_by_slot, state, rpc).await;
+            process_updates(updates_rx, transactions_by_slot, state, rpc, send_rpc).await;
         })
     };
 
