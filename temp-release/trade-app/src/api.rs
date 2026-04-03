@@ -236,9 +236,17 @@ async fn put_config(
     Json(s.config.clone())
 }
 
+#[derive(Debug, Deserialize)]
+struct StartQuery {
+    /// When set to "sell_only", skip balance check and only monitor for sell opportunities.
+    mode: Option<String>,
+}
+
 /// Start auto-trading (requires sufficient wallet balance).
-#[utoipa::path(post, path = "/api/trade/start", responses((status = 200, body = StartResponse)), tag = "Trade")]
-async fn post_trade_start(State(ctx): State<ApiContext>) -> impl IntoResponse {
+/// Pass `?mode=sell_only` to skip balance check and only sell existing positions.
+#[utoipa::path(post, path = "/api/trade/start", params(("mode" = Option<String>, Query, description = "sell_only to skip balance check")), responses((status = 200, body = StartResponse)), tag = "Trade")]
+async fn post_trade_start(State(ctx): State<ApiContext>, Query(query): Query<StartQuery>) -> impl IntoResponse {
+    let sell_only = query.mode.as_deref() == Some("sell_only");
     let (has_wallet, pubkey, buy_amount_lamports) = {
         let s = ctx.state.read().await;
         let pk = s.wallet.as_ref().map(|kp| kp.pubkey());
@@ -270,7 +278,7 @@ async fn post_trade_start(State(ctx): State<ApiContext>) -> impl IntoResponse {
     };
     let balance_sol = balance as f64 / 1e9;
 
-    if balance < buy_amount_lamports + 10_000_000 {
+    if !sell_only && balance < buy_amount_lamports + 10_000_000 {
         return (
             StatusCode::BAD_REQUEST,
             Json(StartResponse {
