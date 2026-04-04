@@ -127,9 +127,11 @@ async fn handle_update(
                                 let mut reserves_from_meta: Option<(u64, u64)> = None;
                                 if let Some(meta) = &tx_info.meta {
                                     // Swap accounts layout:
+                                    // PumpSwap swap instruction account layout (hardcoded):
                                     // [0]=pool [1]=user [2]=global_config [3]=base_mint [4]=quote_mint
                                     // [5]=user_base_ata [6]=user_quote_ata
                                     // [7]=pool_base_vault [8]=pool_quote_vault ...
+                                    // If PumpSwap changes this layout, fallback to RPC fetch.
                                     if ix_account_keys.len() >= 9 {
                                         let pool_base_vault = ix_account_keys[7];
                                         let pool_quote_vault = ix_account_keys[8];

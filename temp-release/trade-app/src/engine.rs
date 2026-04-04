@@ -62,6 +62,9 @@ async fn fetch_actual_sol_change(rpc_client: &RpcClient, sig: &Signature) -> Opt
     ).await {
         Ok(tx) => {
             let meta = tx.transaction.meta?;
+            // Account index 0 = fee payer (our wallet). This holds for
+            // self-signed transactions; multi-signer TXs would need
+            // explicit index lookup.
             let pre = *meta.pre_balances.first()?;
             let post = *meta.post_balances.first()?;
             Some(post as i64 - pre as i64)
@@ -1509,9 +1512,9 @@ async fn restore_single_position(
         .map_err(|e| format!("Fetch base reserves: {:?}", e))?;
 
     // For restored positions we don't know the original buy price.
-    // Set buy_price = 1 so sell triggers immediately when sell_multiplier
-    // condition is checked (any positive current_value >= 1 * 1.1 = 1).
-    // This means restored positions will sell at the next sell check.
+    // Set buy_price = 1 so sell triggers quickly on the next sell check.
+    // Note: extremely high sell_multiplier values can still delay exit after
+    // restore, because current_value must satisfy buy_price * multiplier.
     let current_value: u64 = 1;
 
     let position_id = Uuid::new_v4().to_string();
