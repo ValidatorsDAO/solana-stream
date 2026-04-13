@@ -149,18 +149,44 @@ pub async fn handle_new_pool(
     };
 
     if balance < buy_amount_lamports + TX_FEE_RESERVE {
-        push_error_log(
-            &state,
-            pool_address,
-            base_mint,
-            buy_amount_lamports,
-            format!(
-                "Insufficient balance: {} lamports (need {})",
-                balance,
-                buy_amount_lamports + TX_FEE_RESERVE
-            ),
-        )
-        .await;
+        let needed = buy_amount_lamports + TX_FEE_RESERVE;
+        let wallet_pubkey = keypair.pubkey();
+        let error_msg = format!(
+            "Insufficient balance: {} lamports (need {})",
+            balance, needed
+        );
+        error!("{}", error_msg);
+        {
+            let mut s = state.write().await;
+            s.push_log(TradeLog {
+                id: Uuid::new_v4().to_string(),
+                timestamp: Utc::now(),
+                action: TradeAction::Error,
+                pool: pool_address,
+                base_mint,
+                amount_sol: buy_amount_lamports as f64 / 1e9,
+                amount_tokens: 0,
+                tx_signature: None,
+                error: Some(error_msg.clone()),
+                message: None,
+            });
+        }
+        if let Some(url) = webhook_url.clone() {
+            let discord_msg = format!(
+                "💸 **Insufficient Balance**\n\
+                 Pool: `{}`\n\
+                 Base Mint: `{}`\n\
+                 Wallet: `{}`\n\
+                 Balance: `{:.6} SOL` (need `{:.6} SOL`)\n\
+                 👉 Send SOL to the address below to resume trading:\n\
+                 `{}`\n\
+                 <https://solscan.io/account/{}>",
+                pool_address, base_mint, wallet_pubkey,
+                balance as f64 / 1e9, needed as f64 / 1e9,
+                wallet_pubkey, wallet_pubkey,
+            );
+            tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
+        }
         return;
     }
 
@@ -493,7 +519,7 @@ pub async fn handle_new_pool(
                              Base Mint: `{}`\n\
                              Amount: `{:.4} SOL`\n\
                              Tokens: `{}`\n\
-                             Tx: `{}`",
+                             Tx: <https://solscan.io/tx/{}>",
                             pool_address, base_mint,
                             buy_amount_lamports as f64 / 1e9,
                             final_amount, sig_str,
@@ -732,7 +758,7 @@ pub async fn check_and_sell_positions(
         if min_quote_out == 0 {
             let retreat_reason = forced_reason.clone().unwrap_or_else(|| "dust / zero output".to_string());
             info!("Position {} retreat burn: {} — closing ATA", id, retreat_reason);
-            let close_ok = burn_and_close_ata(
+            let (close_ok, burn_sig) = burn_and_close_ata(
                 &rpc_client, &send_rpc_client, &keypair,
                 &position.base_mint, &position.quote_token_program,
             ).await;
@@ -777,12 +803,15 @@ pub async fn check_and_sell_positions(
                      Reason: `{}`\n\
                      {} **{}{:.6} SOL ({}{:.1}%)**\n\
                      Buy: `{:.6} SOL` → Realized: `{:.6} SOL`\n\
-                     ATA: {}",
+                     ATA: {}{}",
                     position.pool, position.base_mint,
                     retreat_reason,
                     emoji, profit_sign, profit_sol, profit_sign, profit_pct,
                     buy_sol, sell_sol,
                     if close_ok { "Closed ✅" } else { "Close failed ⚠️" },
+                    burn_sig.as_ref()
+                        .map(|s| format!("\nBurn Tx: <https://solscan.io/tx/{}>", s))
+                        .unwrap_or_default(),
                 );
                 tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
             }
@@ -915,7 +944,7 @@ pub async fn check_and_sell_positions(
                         } else {
                             // All sold (or dust). Burn dust + close ATA + recover rent.
                             info!("Position {} sell complete, closing ATA (remaining dust: {})", id, remaining);
-                            let close_ok = burn_and_close_ata(
+                            let (close_ok, _burn_sig) = burn_and_close_ata(
                                 &rpc_client, &send_rpc_client, &keypair,
                                 &position.base_mint, &position.quote_token_program,
                             ).await;
@@ -949,11 +978,13 @@ pub async fn check_and_sell_positions(
                                      Base Mint: `{}`\n\
                                      💰 **{}{:.6} SOL ({}{:.1}%)**\n\
                                      Buy: `{:.6} SOL` → Sell: `{:.6} SOL`\n\
+                                     Sell Tx: <https://solscan.io/tx/{}>\n\
                                      ATA: {}",
                                     emoji,
                                     position.pool, position.base_mint,
                                     profit_sign, profit_sol, profit_sign, profit_pct,
                                     buy_sol, sell_sol,
+                                    sig_str,
                                     if close_ok { "Closed ✅" } else { "Close failed ⚠️" },
                                 );
                                 tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
@@ -985,7 +1016,7 @@ pub async fn check_and_sell_positions(
                         };
                         if let Some(url) = webhook_url_sell {
                             let discord_msg = format!(
-                                "❌ **Sell Failed (on-chain)**\nPool: `{}`\nTx: `{}`\nPosition reset to Active for retry.",
+                                "❌ **Sell Failed (on-chain)**\nPool: `{}`\nTx: <https://solscan.io/tx/{}>\nPosition reset to Active for retry.",
                                 position.pool, sig_str
                             );
                             tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
@@ -1003,7 +1034,7 @@ pub async fn check_and_sell_positions(
                         };
                         if let Some(url) = webhook_url_sell {
                             let discord_msg = format!(
-                                "⚠️ **Sell TX Unknown (timeout)**\nPool: `{}`\nTx: `{}`\nPosition reset to Active.",
+                                "⚠️ **Sell TX Unknown (timeout)**\nPool: `{}`\nTx: <https://solscan.io/tx/{}>\nPosition reset to Active.",
                                 position.pool, sig_str
                             );
                             tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
@@ -1163,14 +1194,14 @@ async fn fetch_token_balance_with_retry(
 }
 
 /// Burn any remaining dust tokens and close the ATA to recover rent.
-/// Returns true if successful, false on error.
+/// Returns (success, Option<tx_signature>).
 async fn burn_and_close_ata(
     rpc_client: &RpcClient,
     send_rpc_client: &RpcClient,
     keypair: &solana_sdk::signer::keypair::Keypair,
     mint: &Pubkey,
     token_program: &Pubkey,
-) -> bool {
+) -> (bool, Option<String>) {
     let ata_program = Pubkey::from_str_const("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
     let (ata, _) = Pubkey::find_program_address(
         &[keypair.pubkey().as_ref(), token_program.as_ref(), mint.as_ref()],
@@ -1186,7 +1217,7 @@ async fn burn_and_close_ata(
         Err(e) => {
             // ATA might not exist (already closed)
             info!("ATA {} not found or error, may already be closed: {:?}", ata, e);
-            return true;
+            return (true, None);
         }
     };
 
@@ -1223,7 +1254,7 @@ async fn burn_and_close_ata(
         Ok(bh) => bh,
         Err(e) => {
             error!("Blockhash failed for ATA close: {:?}", e);
-            return false;
+            return (false, None);
         }
     };
 
@@ -1237,25 +1268,26 @@ async fn burn_and_close_ata(
     let cfg = RpcSendTransactionConfig { skip_preflight: true, ..Default::default() };
     match send_rpc_client.send_transaction_with_config(&tx, cfg).await {
         Ok(sig) => {
-            info!("Burn+Close ATA tx sent for {}: sig={}", ata, sig);
+            let sig_str = sig.to_string();
+            info!("Burn+Close ATA tx sent for {}: sig={}", ata, sig_str);
             match confirm_transaction(rpc_client, &sig, 30).await {
                 Ok(true) => {
                     info!("ATA {} closed successfully, rent recovered", ata);
-                    true
+                    (true, Some(sig_str))
                 }
                 Ok(false) => {
-                    warn!("Burn+Close ATA tx failed on-chain: {}", sig);
-                    false
+                    warn!("Burn+Close ATA tx failed on-chain: {}", sig_str);
+                    (false, Some(sig_str))
                 }
                 Err(e) => {
                     warn!("Burn+Close ATA tx confirmation timeout: {}", e);
-                    false
+                    (false, Some(sig_str))
                 }
             }
         }
         Err(e) => {
             error!("Failed to send burn+close ATA tx for {}: {:?}", ata, e);
-            false
+            (false, None)
         }
     }
 }
