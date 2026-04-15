@@ -130,7 +130,7 @@ pub fn buy_confirmed(
              Base Mint: `{}`\n\
              Amount: `{:.4} SOL`\n\
              Tokens: `{}`\n\
-             Tx: `{}`",
+             Tx: <https://solscan.io/tx/{}>",
             pool, base_mint, amount_sol, tokens, tx
         ),
         Lang::Ja => format!(
@@ -139,7 +139,7 @@ pub fn buy_confirmed(
              ベースMint: `{}`\n\
              金額: `{:.4} SOL`\n\
              トークン数: `{}`\n\
-             Tx: `{}`",
+             Tx: <https://solscan.io/tx/{}>",
             pool, base_mint, amount_sol, tokens, tx
         ),
         Lang::Zh => format!(
@@ -148,7 +148,7 @@ pub fn buy_confirmed(
              基础Mint: `{}`\n\
              金额: `{:.4} SOL`\n\
              代币数: `{}`\n\
-             交易: `{}`",
+             交易: <https://solscan.io/tx/{}>",
             pool, base_mint, amount_sol, tokens, tx
         ),
         Lang::Ru => format!(
@@ -157,7 +157,7 @@ pub fn buy_confirmed(
              Base Mint: `{}`\n\
              Сумма: `{:.4} SOL`\n\
              Токены: `{}`\n\
-             Tx: `{}`",
+             Tx: <https://solscan.io/tx/{}>",
             pool, base_mint, amount_sol, tokens, tx
         ),
         Lang::Vi => format!(
@@ -166,7 +166,7 @@ pub fn buy_confirmed(
              Base Mint: `{}`\n\
              Số lượng: `{:.4} SOL`\n\
              Token: `{}`\n\
-             Tx: `{}`",
+             Tx: <https://solscan.io/tx/{}>",
             pool, base_mint, amount_sol, tokens, tx
         ),
     }
@@ -184,6 +184,7 @@ pub fn retreat_burn(
     buy_sol: f64,
     sell_sol: f64,
     close_ok: bool,
+    burn_sig: Option<&str>,
 ) -> String {
     let (closed_en, closed_ja, closed_zh, closed_ru, closed_vi) = if close_ok {
         ("Closed ✅", "クローズ済 ✅", "已关闭 ✅", "Закрыто ✅", "Đã đóng ✅")
@@ -196,6 +197,11 @@ pub fn retreat_burn(
             "Đóng thất bại ⚠️",
         )
     };
+    let burn_tx_line = |label: &str| {
+        burn_sig
+            .map(|s| format!("\n{}: <https://solscan.io/tx/{}>", label, s))
+            .unwrap_or_default()
+    };
     match lang() {
         Lang::En => format!(
             "⚠️ **Retreat Burn**\n\
@@ -204,10 +210,10 @@ pub fn retreat_burn(
              Reason: `{}`\n\
              {} **{}{:.6} SOL ({}{:.1}%)**\n\
              Buy: `{:.6} SOL` → Realized: `{:.6} SOL`\n\
-             ATA: {}",
+             ATA: {}{}",
             pool, base_mint, reason,
             emoji, profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_en
+            buy_sol, sell_sol, closed_en, burn_tx_line("Burn Tx")
         ),
         Lang::Ja => format!(
             "⚠️ **強制撤退（バーン）**\n\
@@ -216,10 +222,10 @@ pub fn retreat_burn(
              理由: `{}`\n\
              {} **{}{:.6} SOL ({}{:.1}%)**\n\
              購入: `{:.6} SOL` → 実現: `{:.6} SOL`\n\
-             ATA: {}",
+             ATA: {}{}",
             pool, base_mint, reason,
             emoji, profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_ja
+            buy_sol, sell_sol, closed_ja, burn_tx_line("バーンTx")
         ),
         Lang::Zh => format!(
             "⚠️ **撤退销毁**\n\
@@ -228,10 +234,10 @@ pub fn retreat_burn(
              原因: `{}`\n\
              {} **{}{:.6} SOL ({}{:.1}%)**\n\
              买入: `{:.6} SOL` → 实现: `{:.6} SOL`\n\
-             ATA: {}",
+             ATA: {}{}",
             pool, base_mint, reason,
             emoji, profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_zh
+            buy_sol, sell_sol, closed_zh, burn_tx_line("销毁交易")
         ),
         Lang::Ru => format!(
             "⚠️ **Экстренный выход (burn)**\n\
@@ -240,10 +246,10 @@ pub fn retreat_burn(
              Причина: `{}`\n\
              {} **{}{:.6} SOL ({}{:.1}%)**\n\
              Покупка: `{:.6} SOL` → Реализовано: `{:.6} SOL`\n\
-             ATA: {}",
+             ATA: {}{}",
             pool, base_mint, reason,
             emoji, profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_ru
+            buy_sol, sell_sol, closed_ru, burn_tx_line("Burn Tx")
         ),
         Lang::Vi => format!(
             "⚠️ **Thoát khẩn cấp (burn)**\n\
@@ -252,10 +258,10 @@ pub fn retreat_burn(
              Lý do: `{}`\n\
              {} **{}{:.6} SOL ({}{:.1}%)**\n\
              Mua: `{:.6} SOL` → Đã nhận: `{:.6} SOL`\n\
-             ATA: {}",
+             ATA: {}{}",
             pool, base_mint, reason,
             emoji, profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_vi
+            buy_sol, sell_sol, closed_vi, burn_tx_line("Burn Tx")
         ),
     }
 }
@@ -270,6 +276,7 @@ pub fn trade_complete(
     profit_pct: f64,
     buy_sol: f64,
     sell_sol: f64,
+    sell_sig: &str,
     close_ok: bool,
 ) -> String {
     let (closed_en, closed_ja, closed_zh, closed_ru, closed_vi) = if close_ok {
@@ -290,10 +297,11 @@ pub fn trade_complete(
              Base Mint: `{}`\n\
              💰 **{}{:.6} SOL ({}{:.1}%)**\n\
              Buy: `{:.6} SOL` → Sell: `{:.6} SOL`\n\
+             Sell Tx: <https://solscan.io/tx/{}>\n\
              ATA: {}",
             emoji, pool, base_mint,
             profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_en
+            buy_sol, sell_sol, sell_sig, closed_en
         ),
         Lang::Ja => format!(
             "{} **取引完了**\n\
@@ -301,10 +309,11 @@ pub fn trade_complete(
              ベースMint: `{}`\n\
              💰 **{}{:.6} SOL ({}{:.1}%)**\n\
              購入: `{:.6} SOL` → 売却: `{:.6} SOL`\n\
+             売却Tx: <https://solscan.io/tx/{}>\n\
              ATA: {}",
             emoji, pool, base_mint,
             profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_ja
+            buy_sol, sell_sol, sell_sig, closed_ja
         ),
         Lang::Zh => format!(
             "{} **交易完成**\n\
@@ -312,10 +321,11 @@ pub fn trade_complete(
              基础Mint: `{}`\n\
              💰 **{}{:.6} SOL ({}{:.1}%)**\n\
              买入: `{:.6} SOL` → 卖出: `{:.6} SOL`\n\
+             卖出交易: <https://solscan.io/tx/{}>\n\
              ATA: {}",
             emoji, pool, base_mint,
             profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_zh
+            buy_sol, sell_sol, sell_sig, closed_zh
         ),
         Lang::Ru => format!(
             "{} **Сделка завершена**\n\
@@ -323,10 +333,11 @@ pub fn trade_complete(
              Base Mint: `{}`\n\
              💰 **{}{:.6} SOL ({}{:.1}%)**\n\
              Покупка: `{:.6} SOL` → Продажа: `{:.6} SOL`\n\
+             Tx продажи: <https://solscan.io/tx/{}>\n\
              ATA: {}",
             emoji, pool, base_mint,
             profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_ru
+            buy_sol, sell_sol, sell_sig, closed_ru
         ),
         Lang::Vi => format!(
             "{} **Giao dịch hoàn tất**\n\
@@ -334,10 +345,11 @@ pub fn trade_complete(
              Base Mint: `{}`\n\
              💰 **{}{:.6} SOL ({}{:.1}%)**\n\
              Mua: `{:.6} SOL` → Bán: `{:.6} SOL`\n\
+             Tx bán: <https://solscan.io/tx/{}>\n\
              ATA: {}",
             emoji, pool, base_mint,
             profit_sign, profit_sol, profit_sign, profit_pct,
-            buy_sol, sell_sol, closed_vi
+            buy_sol, sell_sol, sell_sig, closed_vi
         ),
     }
 }
@@ -345,23 +357,23 @@ pub fn trade_complete(
 pub fn sell_failed_onchain(pool: &str, sig: &str) -> String {
     match lang() {
         Lang::En => format!(
-            "❌ **Sell Failed (on-chain)**\nPool: `{}`\nTx: `{}`\nPosition reset to Active for retry.",
+            "❌ **Sell Failed (on-chain)**\nPool: `{}`\nTx: <https://solscan.io/tx/{}>\nPosition reset to Active for retry.",
             pool, sig
         ),
         Lang::Ja => format!(
-            "❌ **売却失敗（オンチェーン）**\nプール: `{}`\nTx: `{}`\nリトライのためポジションをActiveに戻しました。",
+            "❌ **売却失敗（オンチェーン）**\nプール: `{}`\nTx: <https://solscan.io/tx/{}>\nリトライのためポジションをActiveに戻しました。",
             pool, sig
         ),
         Lang::Zh => format!(
-            "❌ **卖出失败（链上）**\n资金池: `{}`\n交易: `{}`\n持仓已重置为Active以便重试。",
+            "❌ **卖出失败（链上）**\n资金池: `{}`\n交易: <https://solscan.io/tx/{}>\n持仓已重置为Active以便重试。",
             pool, sig
         ),
         Lang::Ru => format!(
-            "❌ **Ошибка продажи (on-chain)**\nПул: `{}`\nTx: `{}`\nПозиция сброшена в Active для повтора.",
+            "❌ **Ошибка продажи (on-chain)**\nПул: `{}`\nTx: <https://solscan.io/tx/{}>\nПозиция сброшена в Active для повтора.",
             pool, sig
         ),
         Lang::Vi => format!(
-            "❌ **Bán thất bại (on-chain)**\nPool: `{}`\nTx: `{}`\nVị thế được đặt lại Active để thử lại.",
+            "❌ **Bán thất bại (on-chain)**\nPool: `{}`\nTx: <https://solscan.io/tx/{}>\nVị thế được đặt lại Active để thử lại.",
             pool, sig
         ),
     }
@@ -370,23 +382,23 @@ pub fn sell_failed_onchain(pool: &str, sig: &str) -> String {
 pub fn sell_tx_unknown(pool: &str, sig: &str) -> String {
     match lang() {
         Lang::En => format!(
-            "⚠️ **Sell TX Unknown (timeout)**\nPool: `{}`\nTx: `{}`\nPosition reset to Active.",
+            "⚠️ **Sell TX Unknown (timeout)**\nPool: `{}`\nTx: <https://solscan.io/tx/{}>\nPosition reset to Active.",
             pool, sig
         ),
         Lang::Ja => format!(
-            "⚠️ **売却TX状態不明（タイムアウト）**\nプール: `{}`\nTx: `{}`\nポジションをActiveに戻しました。",
+            "⚠️ **売却TX状態不明（タイムアウト）**\nプール: `{}`\nTx: <https://solscan.io/tx/{}>\nポジションをActiveに戻しました。",
             pool, sig
         ),
         Lang::Zh => format!(
-            "⚠️ **卖出交易状态未知（超时）**\n资金池: `{}`\n交易: `{}`\n持仓已重置为Active。",
+            "⚠️ **卖出交易状态未知（超时）**\n资金池: `{}`\n交易: <https://solscan.io/tx/{}>\n持仓已重置为Active。",
             pool, sig
         ),
         Lang::Ru => format!(
-            "⚠️ **Статус TX продажи неизвестен (таймаут)**\nПул: `{}`\nTx: `{}`\nПозиция сброшена в Active.",
+            "⚠️ **Статус TX продажи неизвестен (таймаут)**\nПул: `{}`\nTx: <https://solscan.io/tx/{}>\nПозиция сброшена в Active.",
             pool, sig
         ),
         Lang::Vi => format!(
-            "⚠️ **TX bán không rõ (timeout)**\nPool: `{}`\nTx: `{}`\nVị thế được đặt lại Active.",
+            "⚠️ **TX bán không rõ (timeout)**\nPool: `{}`\nTx: <https://solscan.io/tx/{}>\nVị thế được đặt lại Active.",
             pool, sig
         ),
     }
@@ -514,5 +526,71 @@ pub fn trading_already_running() -> String {
         Lang::Zh => "交易已在运行。".to_string(),
         Lang::Ru => "Торговля уже запущена.".to_string(),
         Lang::Vi => "Giao dịch đã đang chạy.".to_string(),
+    }
+}
+
+pub fn insufficient_balance(
+    pool: &str,
+    base_mint: &str,
+    wallet: &str,
+    balance_sol: f64,
+    needed_sol: f64,
+) -> String {
+    match lang() {
+        Lang::En => format!(
+            "💸 **Insufficient Balance**\n\
+             Pool: `{}`\n\
+             Base Mint: `{}`\n\
+             Wallet: `{}`\n\
+             Balance: `{:.6} SOL` (need `{:.6} SOL`)\n\
+             👉 Send SOL to the address below to resume trading:\n\
+             `{}`\n\
+             <https://solscan.io/account/{}>",
+            pool, base_mint, wallet, balance_sol, needed_sol, wallet, wallet
+        ),
+        Lang::Ja => format!(
+            "💸 **残高不足**\n\
+             プール: `{}`\n\
+             ベースMint: `{}`\n\
+             ウォレット: `{}`\n\
+             残高: `{:.6} SOL`（必要: `{:.6} SOL`）\n\
+             👉 取引を再開するには以下のアドレスにSOLを送金してください:\n\
+             `{}`\n\
+             <https://solscan.io/account/{}>",
+            pool, base_mint, wallet, balance_sol, needed_sol, wallet, wallet
+        ),
+        Lang::Zh => format!(
+            "💸 **余额不足**\n\
+             资金池: `{}`\n\
+             基础Mint: `{}`\n\
+             钱包: `{}`\n\
+             余额: `{:.6} SOL`（需要: `{:.6} SOL`）\n\
+             👉 请向以下地址转入SOL以恢复交易:\n\
+             `{}`\n\
+             <https://solscan.io/account/{}>",
+            pool, base_mint, wallet, balance_sol, needed_sol, wallet, wallet
+        ),
+        Lang::Ru => format!(
+            "💸 **Недостаточно средств**\n\
+             Пул: `{}`\n\
+             Base Mint: `{}`\n\
+             Кошелёк: `{}`\n\
+             Баланс: `{:.6} SOL` (нужно `{:.6} SOL`)\n\
+             👉 Отправьте SOL на адрес ниже, чтобы возобновить торговлю:\n\
+             `{}`\n\
+             <https://solscan.io/account/{}>",
+            pool, base_mint, wallet, balance_sol, needed_sol, wallet, wallet
+        ),
+        Lang::Vi => format!(
+            "💸 **Số dư không đủ**\n\
+             Pool: `{}`\n\
+             Base Mint: `{}`\n\
+             Ví: `{}`\n\
+             Số dư: `{:.6} SOL` (cần `{:.6} SOL`)\n\
+             👉 Gửi SOL đến địa chỉ dưới đây để tiếp tục giao dịch:\n\
+             `{}`\n\
+             <https://solscan.io/account/{}>",
+            pool, base_mint, wallet, balance_sol, needed_sol, wallet, wallet
+        ),
     }
 }

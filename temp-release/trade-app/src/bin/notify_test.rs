@@ -33,7 +33,7 @@ async fn send_all(url: &str, label: &str) {
         &i18n::retreat_burn(
             pool, mint, "timeout 300s",
             "🔴", "", -0.003210, -32.1,
-            0.0100, 0.006790, false,
+            0.0100, 0.006790, false, Some(tx),
         ),
     )
     .await;
@@ -42,8 +42,13 @@ async fn send_all(url: &str, label: &str) {
         &i18n::trade_complete(
             "🟢", pool, mint,
             "+", 0.001234, 12.3,
-            0.0100, 0.011234, true,
+            0.0100, 0.011234, tx, true,
         ),
+    )
+    .await;
+    notify_discord(
+        url,
+        &i18n::insufficient_balance(pool, mint, "Hx9abc...XyZ", 0.0001, 0.0110),
     )
     .await;
     notify_discord(url, &i18n::sell_failed_onchain(pool, tx)).await;
