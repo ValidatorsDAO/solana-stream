@@ -1,4 +1,5 @@
 use crate::state::{AppState, TradeAction, TradeLog};
+use crate::i18n;
 use crate::webhook::notify_discord;
 use axum::{
     extract::{Path, Query, Request, State},
@@ -336,7 +337,7 @@ async fn post_trade_start(State(ctx): State<ApiContext>, Query(query): Query<Sta
             Json(StartResponse {
                 started: true,
                 already_running: true,
-                message: "Trading already running.".to_string(),
+                message: i18n::trading_already_running(),
                 wallet_pubkey: Some(pubkey.to_string()),
                 balance_sol: Some(balance_sol),
             }),
@@ -344,12 +345,11 @@ async fn post_trade_start(State(ctx): State<ApiContext>, Query(query): Query<Sta
     }
 
     s.running = true;
-    let msg = format!(
-        "▶️ Trading started — wallet: {} | balance: {:.4} SOL | buy: {:.4} SOL | sell: {}x",
-        pubkey,
+    let msg = i18n::trading_started(
+        &pubkey.to_string(),
         balance_sol,
         buy_amount_lamports as f64 / 1e9,
-        s.config.sell_multiplier
+        s.config.sell_multiplier,
     );
     fire_notification(&mut s, &msg);
     (
@@ -370,7 +370,7 @@ async fn post_trade_stop(State(ctx): State<ApiContext>) -> impl IntoResponse {
     let mut s = ctx.state.write().await;
     s.running = false;
     let positions = s.active_position_count();
-    let msg = format!("⏹️ Trading stopped — active positions: {}", positions);
+    let msg = i18n::trading_stopped(positions);
     fire_notification(&mut s, &msg);
     Json(serde_json::json!({ "stopped": true }))
 }
@@ -502,7 +502,7 @@ async fn get_wallet(State(ctx): State<ApiContext>) -> impl IntoResponse {
 async fn post_grpc_start(State(ctx): State<ApiContext>) -> impl IntoResponse {
     let mut s = ctx.state.write().await;
     s.grpc_streaming = true;
-    let msg = "📡 gRPC streaming started — pool detection & notifications active".to_string();
+    let msg = i18n::grpc_started();
     fire_notification(&mut s, &msg);
     Json(serde_json::json!({ "grpc_streaming": true }))
 }
@@ -512,7 +512,7 @@ async fn post_grpc_start(State(ctx): State<ApiContext>) -> impl IntoResponse {
 async fn post_grpc_stop(State(ctx): State<ApiContext>) -> impl IntoResponse {
     let mut s = ctx.state.write().await;
     s.grpc_streaming = false;
-    let msg = "⏸️ gRPC streaming stopped — pool detection paused".to_string();
+    let msg = i18n::grpc_stopped();
     fire_notification(&mut s, &msg);
     Json(serde_json::json!({ "grpc_streaming": false }))
 }
