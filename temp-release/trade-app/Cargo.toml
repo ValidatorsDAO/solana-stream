@@ -10,6 +10,10 @@ publish = false
 name = "trade-app"
 path = "src/main.rs"
 
+[[bin]]
+name = "notify-test"
+path = "src/bin/notify_test.rs"
+
 [dependencies]
 anyhow = "1.0.62"
 axum = "0.8"
