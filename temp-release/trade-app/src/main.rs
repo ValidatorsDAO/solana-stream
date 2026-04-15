@@ -17,6 +17,7 @@ use tokio::sync::{mpsc, RwLock};
 mod api;
 mod engine;
 mod handlers;
+mod i18n;
 mod runtime;
 mod state;
 mod utils;
@@ -29,6 +30,7 @@ const UPDATE_CHANNEL_CAPACITY: usize = 10_000;
 async fn main() -> Result<(), anyhow::Error> {
     dotenv::dotenv().ok();
     env_logger::init();
+    i18n::init_from_env();
 
     let settings = Settings::from_env()?;
     let config_content = fs::read_to_string(&settings.config_path)?;

@@ -1,5 +1,6 @@
 use crate::state::{persist_trade_log_to_redis, AppState, Position, PositionStatus, TradeAction, TradeLog};
 use crate::wallet::keypair_from_bytes;
+use crate::i18n;
 use crate::webhook::notify_discord;
 use chrono::Utc;
 use log::{error, info, warn};
@@ -172,18 +173,12 @@ pub async fn handle_new_pool(
             });
         }
         if let Some(url) = webhook_url.clone() {
-            let discord_msg = format!(
-                "💸 **Insufficient Balance**\n\
-                 Pool: `{}`\n\
-                 Base Mint: `{}`\n\
-                 Wallet: `{}`\n\
-                 Balance: `{:.6} SOL` (need `{:.6} SOL`)\n\
-                 👉 Send SOL to the address below to resume trading:\n\
-                 `{}`\n\
-                 <https://solscan.io/account/{}>",
-                pool_address, base_mint, wallet_pubkey,
-                balance as f64 / 1e9, needed as f64 / 1e9,
-                wallet_pubkey, wallet_pubkey,
+            let discord_msg = i18n::insufficient_balance(
+                &pool_address.to_string(),
+                &base_mint.to_string(),
+                &wallet_pubkey.to_string(),
+                balance as f64 / 1e9,
+                needed as f64 / 1e9,
             );
             tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
         }
@@ -265,26 +260,14 @@ pub async fn handle_new_pool(
     // Notify via webhook + record in logs
     {
         let mut s = state.write().await;
-        let msg = format!(
-            "🆕 Pool qualified — Pool: {} | Base Mint: {} | SOL reserves: {:.4} | Time: {}",
-            pool_address,
-            base_mint,
-            base_vault_balance as f64 / 1e9,
-            Utc::now().to_rfc3339()
-        );
-        s.push_notification(pool_address, base_mint, msg.clone());
+        let pool_str = pool_address.to_string();
+        let mint_str = base_mint.to_string();
+        let sol = base_vault_balance as f64 / 1e9;
+        let ts = Utc::now().to_rfc3339();
+        let msg = i18n::pool_qualified_log(&pool_str, &mint_str, sol, &ts);
+        s.push_notification(pool_address, base_mint, msg);
         if let Some(url) = &webhook_url {
-            let discord_msg = format!(
-                "🆕 **Pool Qualified for Trade**\n\
-                 Pool: `{}`\n\
-                 Base Mint: `{}`\n\
-                 SOL Reserves: `{:.4} SOL`\n\
-                 Timestamp: {}",
-                pool_address,
-                base_mint,
-                base_vault_balance as f64 / 1e9,
-                Utc::now().to_rfc3339()
-            );
+            let discord_msg = i18n::pool_qualified_webhook(&pool_str, &mint_str, sol, &ts);
             let url = url.clone();
             tokio::spawn(async move {
                 notify_discord(&url, &discord_msg).await;
@@ -513,16 +496,12 @@ pub async fn handle_new_pool(
                     }
                     // Discord: Buy Confirmed
                     if let Some(url) = &webhook_url {
-                        let discord_msg = format!(
-                            "✅ **Buy Confirmed**\n\
-                             Pool: `{}`\n\
-                             Base Mint: `{}`\n\
-                             Amount: `{:.4} SOL`\n\
-                             Tokens: `{}`\n\
-                             Tx: <https://solscan.io/tx/{}>",
-                            pool_address, base_mint,
+                        let discord_msg = i18n::buy_confirmed(
+                            &pool_address.to_string(),
+                            &base_mint.to_string(),
                             buy_amount_lamports as f64 / 1e9,
-                            final_amount, sig_str,
+                            final_amount,
+                            &sig_str,
                         );
                         let url = url.clone();
                         tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
@@ -796,22 +775,18 @@ pub async fn check_and_sell_positions(
             let profit_sign = if profit_sol >= 0.0 { "+" } else { "" };
             let emoji = if profit_sol >= 0.0 { "🟢" } else { "🔴" };
             if let Some(url) = webhook_url_close {
-                let discord_msg = format!(
-                    "⚠️ **Retreat Burn**\n\
-                     Pool: `{}`\n\
-                     Base Mint: `{}`\n\
-                     Reason: `{}`\n\
-                     {} **{}{:.6} SOL ({}{:.1}%)**\n\
-                     Buy: `{:.6} SOL` → Realized: `{:.6} SOL`\n\
-                     ATA: {}{}",
-                    position.pool, position.base_mint,
-                    retreat_reason,
-                    emoji, profit_sign, profit_sol, profit_sign, profit_pct,
-                    buy_sol, sell_sol,
-                    if close_ok { "Closed ✅" } else { "Close failed ⚠️" },
-                    burn_sig.as_ref()
-                        .map(|s| format!("\nBurn Tx: <https://solscan.io/tx/{}>", s))
-                        .unwrap_or_default(),
+                let discord_msg = i18n::retreat_burn(
+                    &position.pool.to_string(),
+                    &position.base_mint.to_string(),
+                    &retreat_reason,
+                    emoji,
+                    profit_sign,
+                    profit_sol,
+                    profit_pct,
+                    buy_sol,
+                    sell_sol,
+                    close_ok,
+                    burn_sig.as_deref(),
                 );
                 tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
             }
@@ -972,20 +947,17 @@ pub async fn check_and_sell_positions(
                             );
 
                             if let Some(url) = webhook_url_final {
-                                let discord_msg = format!(
-                                    "{} **Trade Complete**\n\
-                                     Pool: `{}`\n\
-                                     Base Mint: `{}`\n\
-                                     💰 **{}{:.6} SOL ({}{:.1}%)**\n\
-                                     Buy: `{:.6} SOL` → Sell: `{:.6} SOL`\n\
-                                     Sell Tx: <https://solscan.io/tx/{}>\n\
-                                     ATA: {}",
+                                let discord_msg = i18n::trade_complete(
                                     emoji,
-                                    position.pool, position.base_mint,
-                                    profit_sign, profit_sol, profit_sign, profit_pct,
-                                    buy_sol, sell_sol,
-                                    sig_str,
-                                    if close_ok { "Closed ✅" } else { "Close failed ⚠️" },
+                                    &position.pool.to_string(),
+                                    &position.base_mint.to_string(),
+                                    profit_sign,
+                                    profit_sol,
+                                    profit_pct,
+                                    buy_sol,
+                                    sell_sol,
+                                    &sig_str,
+                                    close_ok,
                                 );
                                 tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
                             }
@@ -1015,10 +987,7 @@ pub async fn check_and_sell_positions(
                             s.webhook_url.clone()
                         };
                         if let Some(url) = webhook_url_sell {
-                            let discord_msg = format!(
-                                "❌ **Sell Failed (on-chain)**\nPool: `{}`\nTx: <https://solscan.io/tx/{}>\nPosition reset to Active for retry.",
-                                position.pool, sig_str
-                            );
+                            let discord_msg = i18n::sell_failed_onchain(&position.pool.to_string(), &sig_str);
                             tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
                         }
                     }
@@ -1033,10 +1002,7 @@ pub async fn check_and_sell_positions(
                             s.webhook_url.clone()
                         };
                         if let Some(url) = webhook_url_sell {
-                            let discord_msg = format!(
-                                "⚠️ **Sell TX Unknown (timeout)**\nPool: `{}`\nTx: <https://solscan.io/tx/{}>\nPosition reset to Active.",
-                                position.pool, sig_str
-                            );
+                            let discord_msg = i18n::sell_tx_unknown(&position.pool.to_string(), &sig_str);
                             tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
                         }
                     }
@@ -1067,7 +1033,7 @@ pub async fn check_and_sell_positions(
                     s.webhook_url.clone()
                 };
                 if let Some(url) = webhook_url_sell {
-                    let discord_msg = format!("❌ **Sell Send Failed**\nPool: `{}`\n{}", position.pool, err_msg);
+                    let discord_msg = i18n::sell_send_failed(&position.pool.to_string(), &err_msg);
                     tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
                 }
             }
@@ -1155,10 +1121,7 @@ async fn push_error_log_with_webhook(
     // Determine webhook: prefer explicit param, fall back to state.
     let url = webhook_url.as_ref().or(s.webhook_url.as_ref());
     if let Some(url) = url {
-        let discord_msg = format!(
-            "❌ **Error**\nPool: `{}`\nBase Mint: `{}`\n```{}```",
-            pool, base_mint, error_msg
-        );
+        let discord_msg = i18n::error_notify(&pool.to_string(), &base_mint.to_string(), &error_msg);
         let url = url.clone();
         tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
     }
@@ -1573,7 +1536,7 @@ async fn restore_single_position(
         s.push_notification(
             pool_address,
             token_mint,
-            format!("Position restored from wallet: {} tokens, est. value {} lamports", token_amount, current_value),
+            i18n::position_restored(token_amount, current_value),
         );
         s.config.sell_multiplier
     };
