@@ -122,6 +122,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let router = build_router(state, rpc, api_token);
             let addr = SocketAddr::from(([0, 0, 0, 0], port));
             log::info!("API server listening on http://{}", addr);
+            println!("📖 API docs: http://{}/docs", addr);
             let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
             axum::serve(listener, router).await.unwrap();
         })
