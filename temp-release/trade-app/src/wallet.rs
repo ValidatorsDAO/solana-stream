@@ -3,8 +3,13 @@ use log::{info, warn};
 use solana_sdk::signer::keypair::Keypair;
 use solana_sdk::signer::Signer;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{mpsc, Arc};
+use std::thread;
+use std::time::Instant;
 
 const WALLET_FILE: &str = "wallet.json";
+const VANITY_SUFFIX: &str = "SLV";
 
 /// Reconstruct a Keypair from 64-byte (secret+pubkey) array, verifying that
 /// the derived public key matches the stored one (B1 fix).
@@ -43,15 +48,92 @@ pub fn load_or_create_wallet() -> Result<Keypair> {
         info!("Loaded wallet: {}", keypair.pubkey());
         Ok(keypair)
     } else {
-        let keypair = Keypair::new();
+        let keypair = grind_keypair_with_suffix(VANITY_SUFFIX)?;
         let bytes: Vec<u8> = keypair.to_bytes().to_vec();
         let json = serde_json::to_string(&bytes).context("Failed to serialize keypair")?;
         std::fs::write(path, json).with_context(|| format!("Failed to write {}", WALLET_FILE))?;
         warn!(
-            "Generated new wallet and saved to {}: {}",
+            "Generated new vanity wallet (suffix='{}') and saved to {}: {}",
+            VANITY_SUFFIX,
             WALLET_FILE,
             keypair.pubkey()
         );
         Ok(keypair)
+    }
+}
+
+/// Grind a keypair whose base58 pubkey ends with `suffix`.
+/// Parallelized across available CPU cores; first match wins.
+fn grind_keypair_with_suffix(suffix: &str) -> Result<Keypair> {
+    let num_threads = thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    info!(
+        "Grinding vanity wallet with suffix '{}' across {} threads...",
+        suffix, num_threads
+    );
+
+    let found = Arc::new(AtomicBool::new(false));
+    let attempts = Arc::new(AtomicU64::new(0));
+    let (tx, rx) = mpsc::channel::<Keypair>();
+    let start = Instant::now();
+
+    let mut handles = Vec::with_capacity(num_threads);
+    for _ in 0..num_threads {
+        let suffix = suffix.to_string();
+        let found = Arc::clone(&found);
+        let attempts = Arc::clone(&attempts);
+        let tx = tx.clone();
+        handles.push(thread::spawn(move || {
+            let mut local = 0u64;
+            while !found.load(Ordering::Relaxed) {
+                for _ in 0..1024 {
+                    let kp = Keypair::new();
+                    if kp.pubkey().to_string().ends_with(&suffix) {
+                        found.store(true, Ordering::Relaxed);
+                        let _ = tx.send(kp);
+                        attempts.fetch_add(local, Ordering::Relaxed);
+                        return;
+                    }
+                    local += 1;
+                }
+            }
+            attempts.fetch_add(local, Ordering::Relaxed);
+        }));
+    }
+    drop(tx);
+
+    let keypair = rx
+        .recv()
+        .context("vanity grinder produced no keypair (all workers exited)")?;
+    for h in handles {
+        let _ = h.join();
+    }
+    info!(
+        "Vanity grind complete: {} attempts in {:.2}s",
+        attempts.load(Ordering::Relaxed),
+        start.elapsed().as_secs_f64()
+    );
+    Ok(keypair)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn grinder_produces_pubkey_with_requested_suffix() {
+        let kp = grind_keypair_with_suffix("SLV").expect("grinder returned a keypair");
+        let pubkey = kp.pubkey().to_string();
+        assert!(
+            pubkey.ends_with("SLV"),
+            "pubkey {} does not end with SLV",
+            pubkey
+        );
+
+        // Round-trip: persisted 64 bytes must reconstruct the same pubkey.
+        let bytes = kp.to_bytes().to_vec();
+        let restored = keypair_from_bytes(&bytes).expect("round-trip reload");
+        assert_eq!(restored.pubkey(), kp.pubkey());
     }
 }
