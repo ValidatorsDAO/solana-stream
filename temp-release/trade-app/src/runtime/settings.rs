@@ -20,6 +20,9 @@ pub struct Settings {
     pub webhook_url: Option<String>,
     /// Optional Bearer token for API authentication.
     pub api_token: Option<String>,
+    /// When true, keep auto-trading new pools after each buy/sell cycle.
+    /// When false (default), stop after one complete cycle.
+    pub auto_loop: bool,
 }
 
 impl Settings {
@@ -59,6 +62,18 @@ impl Settings {
 
         let webhook_url = env::var("WEBHOOK_URL").ok();
         let api_token = env::var("API_TOKEN").ok();
+        let auto_loop = match parse_bool_env("AUTO_LOOP") {
+            Some(v) => v,
+            None => {
+                if let Ok(raw) = env::var("AUTO_LOOP") {
+                    log::warn!(
+                        "AUTO_LOOP={:?} not recognized as bool — defaulting to false",
+                        raw
+                    );
+                }
+                false
+            }
+        };
 
         Ok(Self {
             config_path,
@@ -69,6 +84,16 @@ impl Settings {
             api_port,
             webhook_url,
             api_token,
+            auto_loop,
         })
+    }
+}
+
+fn parse_bool_env(key: &str) -> Option<bool> {
+    let v = env::var(key).ok()?;
+    match v.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Some(true),
+        "0" | "false" | "no" | "off" | "" => Some(false),
+        _ => None,
     }
 }

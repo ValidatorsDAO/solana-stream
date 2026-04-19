@@ -1,5 +1,17 @@
 # Trade App — PumpSwap Auto-Trading Bot
 
+> ## ⚠️ READ THIS FIRST — Risk & Safety Notice
+>
+> This project is **a reference implementation** demonstrating Solana transaction read/write and Geyser gRPC streaming usage. It is provided **as-is, for educational and experimental purposes**.
+>
+> - **No trading happens until you fund the auto-generated `wallet.json`.** The bot is dormant on a zero-balance wallet — sending SOL to it is the explicit opt-in.
+> - **Once trading starts, you can lose your entire deposit.** PumpSwap pools are highly volatile, liquidity can collapse, RPCs can fail, and on-chain conditions change faster than retries can react. Only fund what you can afford to lose.
+> - **`wallet.json` holds your private key.** **Back it up immediately** after first launch and keep at least one offline copy. Anyone with this file controls the funds. We recommend [**SLV Backup**](https://slv.dev/en/doc/backup/quickstart/) for an encrypted, recoverable backup workflow.
+> - **AI tooling (Claude Code, Cursor, etc.) can unintentionally delete or overwrite files**, including `wallet.json`. Always work in version control, keep external backups, and double-check before running destructive commands. **Do not rely solely on the AI's judgment to preserve your wallet.**
+> - This software is licensed under Apache-2.0 — no warranty, no liability. You are responsible for any funds the bot manages.
+
+---
+
 Auto-trading bot for Solana PumpSwap (Pump.fun AMM). Detects new pool creation via Geyser gRPC in real-time and executes the full trade lifecycle: **buy → sell → ATA close** — fully automated.
 
 ## Features
@@ -80,8 +92,12 @@ curl -X POST http://localhost:3000/api/trade/start
 | `WEBHOOK_URL` | | — | Discord Webhook URL |
 | `REDIS_URL` | | — | Redis URL (e.g. `redis://127.0.0.1:6379`) |
 | `CONFIG_PATH` | | `config.jsonc` | Geyser filter config file |
+| `AUTO_LOOP` | | `false` | Keep buying new pools after each cycle. When `false` (default), the bot **stops automatically after one buy/sell cycle completes** so you can review the result before the next run. Accepts `true/1/yes/on` and `false/0/no/off`. |
+| `TRADE_APP_LANG` | | `en` | Notification & log language. Supported: `en`, `ja`, `zh`, `ru`, `vi` (with common aliases like `jp`, `cn`, `vn`). |
 
 > **⚠️ Never commit `.env` or `wallet.json`.** Both are in `.gitignore`.
+>
+> **Back up `wallet.json` to a safe location (offline / encrypted) before funding it.** Losing this file = losing the funds.
 
 ---
 
@@ -98,6 +114,7 @@ curl -X POST http://localhost:3000/api/trade/start
 | `min_pool_sol_lamports` | `100000` (0.0001 SOL) | Minimum pool liquidity to trigger buy |
 | `sell_timeout_secs` | `300` (5 min) | Force exit after this many seconds |
 | `exit_pool_sol_lamports` | `1000000` (0.001 SOL) | Retreat if pool WSOL drops below this |
+| `auto_loop` | `false` | Same as `AUTO_LOOP` env. Live-tunable via `PUT /api/config`. |
 
 ### Configuration Examples
 
@@ -277,11 +294,13 @@ PumpSwap uses reversed naming compared to typical DeFi:
 
 ## Wallet
 
-On first start, `wallet.json` is auto-generated.
+On first start, `wallet.json` is auto-generated as a vanity keypair whose pubkey ends with `SLV` (~0.5–1 s on a modern multi-core CPU).
 
-- **`wallet.json` contains your private key** — keep it secure
-- Fund the displayed pubkey with SOL before starting
-- Minimum required: **0.013 SOL** (buy + ATA rent + fee reserve)
+- **`wallet.json` contains your private key** — keep it secure.
+- **Back it up immediately** before funding. Losing this file = losing the funds. AI tools that touch the working directory may delete or overwrite it; do not rely on the AI to preserve it for you.
+- **Recommended backup tool:** [SLV Backup](https://slv.dev/en/doc/backup/quickstart/) — encrypted, multi-device recovery designed for Solana key material. Run it once after the first launch, then again any time the wallet changes.
+- Fund the displayed pubkey with SOL before starting.
+- Minimum required: **0.013 SOL** (buy + ATA rent + fee reserve).
 
 ---
 

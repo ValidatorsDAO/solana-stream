@@ -499,6 +499,16 @@ pub fn trading_stopped(positions: usize) -> String {
     }
 }
 
+pub fn auto_loop_disabled_stopped() -> String {
+    match lang() {
+        Lang::En => "🏁 Single-shot cycle complete — trading stopped (set AUTO_LOOP=true to keep running)".to_string(),
+        Lang::Ja => "🏁 1サイクル完了 — 取引を停止しました (連続実行は AUTO_LOOP=true で有効化)".to_string(),
+        Lang::Zh => "🏁 单次循环已完成 — 交易已停止（设置 AUTO_LOOP=true 以持续运行）".to_string(),
+        Lang::Ru => "🏁 Цикл завершён — торговля остановлена (для продолжения задайте AUTO_LOOP=true)".to_string(),
+        Lang::Vi => "🏁 Hoàn tất một chu kỳ — đã dừng giao dịch (đặt AUTO_LOOP=true để chạy liên tục)".to_string(),
+    }
+}
+
 pub fn grpc_started() -> String {
     match lang() {
         Lang::En => "📡 gRPC streaming started — pool detection & notifications active".to_string(),
