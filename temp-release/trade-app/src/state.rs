@@ -22,6 +22,11 @@ pub struct TradeConfig {
     pub sell_timeout_secs: u64,
     /// If pool WSOL reserves fall to or below this threshold, retreat immediately.
     pub exit_pool_sol_lamports: u64,
+    /// When true, keep buying new pools after each buy/sell cycle.
+    /// When false (default), auto-stop after one full cycle completes
+    /// (buy → sell → ATA close, with no remaining active positions).
+    #[serde(default)]
+    pub auto_loop: bool,
 }
 
 impl Default for TradeConfig {
@@ -34,6 +39,7 @@ impl Default for TradeConfig {
             min_pool_sol_lamports: 100_000, // 0.0001 SOL
             sell_timeout_secs: 300,         // 5 min timeout before retreat
             exit_pool_sol_lamports: 1_000_000, // 0.001 SOL => treat as liquidity collapse
+            auto_loop: false,
         }
     }
 }

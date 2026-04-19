@@ -157,6 +157,7 @@ pub struct PartialTradeConfig {
     pub min_pool_sol_lamports: Option<u64>,
     pub sell_timeout_secs: Option<u64>,
     pub exit_pool_sol_lamports: Option<u64>,
+    pub auto_loop: Option<bool>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -267,6 +268,9 @@ async fn put_config(
     }
     if let Some(v) = body.exit_pool_sol_lamports {
         s.config.exit_pool_sol_lamports = v;
+    }
+    if let Some(v) = body.auto_loop {
+        s.config.auto_loop = v;
     }
     Json(s.config.clone())
 }

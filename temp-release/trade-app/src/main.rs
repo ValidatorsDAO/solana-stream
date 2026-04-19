@@ -63,8 +63,10 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut s = AppState::new(settings.webhook_url.clone());
         s.wallet = Some(keypair);
         s.redis_client = redis_client;
+        s.config.auto_loop = settings.auto_loop;
         s
     }));
+    log::info!("AUTO_LOOP = {}", settings.auto_loop);
 
     // Geyser infrastructure
     let transactions_by_slot = create_transactions_by_slot();

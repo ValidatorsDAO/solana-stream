@@ -790,6 +790,7 @@ pub async fn check_and_sell_positions(
                 );
                 tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
             }
+            maybe_auto_stop_after_cycle(&state).await;
             continue;
         }
 
@@ -961,6 +962,7 @@ pub async fn check_and_sell_positions(
                                 );
                                 tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
                             }
+                            maybe_auto_stop_after_cycle(&state).await;
                         }
                     }
                     Ok(false) => {
@@ -1305,6 +1307,34 @@ async fn mark_position_status(state: &Arc<RwLock<AppState>>, id: &str, status: P
     }
 }
 
+/// In single-shot mode (`config.auto_loop == false`), set `running = false`
+/// once a buy/sell cycle has fully wound down (no active or selling positions).
+/// Has no effect when `auto_loop` is true or when the bot was already stopped.
+async fn maybe_auto_stop_after_cycle(state: &Arc<RwLock<AppState>>) {
+    let webhook_url = {
+        let mut s = state.write().await;
+        if !s.running || s.config.auto_loop {
+            return;
+        }
+        if s.active_position_count() != 0 {
+            return;
+        }
+        s.running = false;
+        let msg = i18n::auto_loop_disabled_stopped();
+        s.push_notification(
+            solana_sdk::pubkey::Pubkey::default(),
+            solana_sdk::pubkey::Pubkey::default(),
+            msg.clone(),
+        );
+        info!("AUTO_LOOP=false → trading stopped after one buy/sell cycle");
+        s.webhook_url.clone()
+    };
+    if let Some(url) = webhook_url {
+        let discord_msg = i18n::auto_loop_disabled_stopped();
+        tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
+    }
+}
+
 /// WSOL mint address.
 const WSOL_MINT: &str = "So11111111111111111111111111111111111111112";
 
@@ -1609,4 +1639,74 @@ async fn restore_single_position(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod auto_loop_tests {
+    use super::*;
+    use crate::state::{AppState, Position, PositionStatus};
+    use chrono::Utc;
+    use solana_sdk::pubkey::Pubkey;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+
+    fn make_state(auto_loop: bool, running: bool) -> Arc<RwLock<AppState>> {
+        let mut s = AppState::new(None);
+        s.config.auto_loop = auto_loop;
+        s.running = running;
+        Arc::new(RwLock::new(s))
+    }
+
+    fn insert_active_position(s: &mut AppState) {
+        let id = "test-pos".to_string();
+        s.positions.insert(
+            id.clone(),
+            Position {
+                id,
+                pool: Pubkey::new_unique(),
+                base_mint: Pubkey::new_unique(),
+                buy_price_lamports: 100_000,
+                base_amount: 1,
+                bought_at: Utc::now(),
+                status: PositionStatus::Active,
+                total_sell_lamports: 0,
+                quote_token_program: Pubkey::default(),
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn stops_when_auto_loop_off_and_no_positions() {
+        let state = make_state(false, true);
+        maybe_auto_stop_after_cycle(&state).await;
+        assert!(!state.read().await.running, "should auto-stop");
+    }
+
+    #[tokio::test]
+    async fn keeps_running_when_auto_loop_on() {
+        let state = make_state(true, true);
+        maybe_auto_stop_after_cycle(&state).await;
+        assert!(state.read().await.running, "auto_loop=true must keep running");
+    }
+
+    #[tokio::test]
+    async fn keeps_running_when_active_position_remains() {
+        let state = make_state(false, true);
+        {
+            let mut s = state.write().await;
+            insert_active_position(&mut s);
+        }
+        maybe_auto_stop_after_cycle(&state).await;
+        assert!(
+            state.read().await.running,
+            "must wait for all positions to close"
+        );
+    }
+
+    #[tokio::test]
+    async fn noop_when_already_stopped() {
+        let state = make_state(false, false);
+        maybe_auto_stop_after_cycle(&state).await;
+        assert!(!state.read().await.running);
+    }
 }
