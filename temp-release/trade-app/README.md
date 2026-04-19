@@ -85,8 +85,10 @@ curl -X POST http://localhost:3000/api/trade/start
 |----------|----------|---------|-------------|
 | `GRPC_ENDPOINT` | ✅ | — | Geyser gRPC endpoint |
 | `X_TOKEN` | | — | gRPC auth token |
-| `SOLANA_RPC_ENDPOINT` | | `https://api.mainnet-beta.solana.com` | RPC for reads |
-| `SOLANA_SEND_RPC_ENDPOINT` | | same as read RPC | RPC for sending TXs (separate recommended) |
+| `SOLANA_RPC_ENDPOINT` | | `https://edge.erpc.global?api-key=<api-key>` | RPC for reads. Set explicitly, or provide `ERPC_API_KEY` to build this URL automatically. Final fallback (no env set): `https://api.mainnet-beta.solana.com` (public, rate-limited — not recommended for production). |
+| `SOLANA_SEND_RPC_ENDPOINT` | | `https://edge.erpc.global?api-key=<api-key>` | RPC for sending TXs. Set explicitly, or provide `ERPC_SEND_API_KEY` to build this URL automatically. Falls back to the read RPC when unset. A dedicated send endpoint is recommended. |
+| `ERPC_API_KEY` | | — | API key used to build the read RPC URL when `SOLANA_RPC_ENDPOINT` is unset. Get one at [erpc.global](https://erpc.global). |
+| `ERPC_SEND_API_KEY` | | — | API key used to build the send RPC URL when `SOLANA_SEND_RPC_ENDPOINT` is unset. |
 | `API_PORT` | | `3000` | HTTP API port |
 | `API_TOKEN` | | — | Bearer token for API auth (all endpoints require it when set) |
 | `WEBHOOK_URL` | | — | Discord Webhook URL |
