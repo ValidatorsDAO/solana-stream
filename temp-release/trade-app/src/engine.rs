@@ -1311,6 +1311,7 @@ async fn mark_position_status(state: &Arc<RwLock<AppState>>, id: &str, status: P
 /// once a buy/sell cycle has fully wound down (no active or selling positions).
 /// Has no effect when `auto_loop` is true or when the bot was already stopped.
 async fn maybe_auto_stop_after_cycle(state: &Arc<RwLock<AppState>>) {
+    let msg = i18n::auto_loop_disabled_stopped();
     let webhook_url = {
         let mut s = state.write().await;
         if !s.running || s.config.auto_loop {
@@ -1320,7 +1321,6 @@ async fn maybe_auto_stop_after_cycle(state: &Arc<RwLock<AppState>>) {
             return;
         }
         s.running = false;
-        let msg = i18n::auto_loop_disabled_stopped();
         s.push_notification(
             solana_sdk::pubkey::Pubkey::default(),
             solana_sdk::pubkey::Pubkey::default(),
@@ -1330,8 +1330,7 @@ async fn maybe_auto_stop_after_cycle(state: &Arc<RwLock<AppState>>) {
         s.webhook_url.clone()
     };
     if let Some(url) = webhook_url {
-        let discord_msg = i18n::auto_loop_disabled_stopped();
-        tokio::spawn(async move { notify_discord(&url, &discord_msg).await });
+        tokio::spawn(async move { notify_discord(&url, &msg).await });
     }
 }
 

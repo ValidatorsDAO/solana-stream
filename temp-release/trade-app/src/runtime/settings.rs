@@ -62,7 +62,18 @@ impl Settings {
 
         let webhook_url = env::var("WEBHOOK_URL").ok();
         let api_token = env::var("API_TOKEN").ok();
-        let auto_loop = parse_bool_env("AUTO_LOOP").unwrap_or(false);
+        let auto_loop = match parse_bool_env("AUTO_LOOP") {
+            Some(v) => v,
+            None => {
+                if let Ok(raw) = env::var("AUTO_LOOP") {
+                    log::warn!(
+                        "AUTO_LOOP={:?} not recognized as bool — defaulting to false",
+                        raw
+                    );
+                }
+                false
+            }
+        };
 
         Ok(Self {
             config_path,
