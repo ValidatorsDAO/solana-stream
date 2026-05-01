@@ -185,7 +185,7 @@ You can also use the published crate in your own projects:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "1.2.1"
+solana-stream-sdk = "1.2.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"
 solana-entry = "3.0.12"
@@ -263,7 +263,7 @@ Components from `crate/solana-stream-sdk` (5 layers):
 
 Troubleshooting:
 
-- Use `solana-stream-sdk >= 1.2.1` for Direct Shreds UDP. Agave 3.x serializes deshredded entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper and can reject otherwise valid packets.
+- Use `solana-stream-sdk >= 1.2.2` for Direct Shreds UDP. Agave 3.x serializes deshredded entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper, and SDK 1.2.1 could still decode from the middle of a multi-FEC entry segment.
 - Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `unexpected end of file`, or `alias encoding` usually indicate a codec mismatch rather than firewall loss.
 - UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation.
 

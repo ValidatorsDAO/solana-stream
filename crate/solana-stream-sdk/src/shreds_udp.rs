@@ -155,6 +155,7 @@ pub struct ShredsUdpConfig {
 pub struct ShredsUdpState {
     transactions_by_slot: Option<Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>>,
     shred_buffer: Arc<Mutex<HashMap<FecKey, ShredBatch>>>,
+    slot_data_buffer: Arc<Mutex<HashMap<SlotKey, SlotDataBatch>>>,
     completed: Arc<Mutex<HashMap<FecKey, Instant>>>,
     suppressed: Arc<Mutex<HashMap<FecKey, Instant>>>,
     block_time_cache: Option<BlockTimeCache>,
@@ -489,6 +490,7 @@ impl ShredsUdpState {
                 .enable_latency_monitor
                 .then(|| Arc::new(DashMap::new())),
             shred_buffer: Arc::new(Mutex::new(HashMap::new())),
+            slot_data_buffer: Arc::new(Mutex::new(HashMap::new())),
             completed: Arc::new(Mutex::new(HashMap::new())),
             suppressed: Arc::new(Mutex::new(HashMap::new())),
             block_time_cache: cfg
@@ -605,9 +607,15 @@ struct ShredBatch {
     expected_first_coding_index: Option<u32>,
     expected_num_data: Option<u16>,
     expected_num_coding: Option<u16>,
-    last_attempted_count: usize,
     dup_data: usize,
     dup_code: usize,
+}
+
+#[derive(Clone)]
+struct SlotDataBatch {
+    data_shreds: BTreeMap<u32, Shred>,
+    data_complete_indices: BTreeSet<u32>,
+    boundary: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -643,6 +651,12 @@ pub struct FecKey {
     pub fec_set: u32,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+struct SlotKey {
+    slot: u64,
+    version: u16,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct CodingHeaderSummary {
     pub parsed: usize,
@@ -654,14 +668,6 @@ pub struct CodingHeaderSummary {
 }
 
 impl CodingHeaderSummary {
-    fn consistent_num_data(&self) -> Option<usize> {
-        (self.num_data_shreds.len() == 1).then(|| self.num_data_shreds[0])
-    }
-
-    fn consistent_first_index(&self) -> Option<u32> {
-        (self.first_coding_indices.len() == 1).then(|| self.first_coding_indices[0])
-    }
-
     fn describe(&self) -> String {
         format!(
             "parsed={} invalid={} num_data={:?} num_coding={:?} first_coding_index={:?} pos_sample={:?}",
@@ -678,12 +684,6 @@ impl CodingHeaderSummary {
 #[derive(Clone, Copy)]
 pub struct DeshredPolicy {
     pub require_code_match: bool,
-}
-
-enum ReadyToDeshred {
-    Ready(Vec<Shred>),
-    Gated(String),
-    NotReady,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1256,7 +1256,7 @@ async fn process_data_shred(
     datagram: &UdpDatagram,
     state: &ShredsUdpState,
     cfg: &ShredsUdpConfig,
-    policy: &DeshredPolicy,
+    _policy: &DeshredPolicy,
     key: FecKey,
     metrics: Arc<ShredMetrics>,
 ) -> ShredInsertOutcome {
@@ -1279,8 +1279,9 @@ async fn process_data_shred(
             decoded.canonical_payload_len(),
         );
     }
-    let ready = {
+    {
         let mut buf = state.shred_buffer.lock().await;
+        buf.retain(|fec_key, _| fec_key.slot.saturating_add(128) >= key.slot);
         let entry = buf.entry(key).or_insert_with(ShredBatch::new);
 
         if last || complete {
@@ -1289,11 +1290,21 @@ async fn process_data_shred(
         }
 
         entry.insert_data_shred(decoded.shred.clone(), metrics.as_ref());
-        entry.ready_to_deshred(policy)
+    }
+
+    let segment = {
+        let mut slots = state.slot_data_buffer.lock().await;
+        slots.retain(|slot_key, _| slot_key.slot.saturating_add(128) >= key.slot);
+        let slot_key = SlotKey {
+            slot: key.slot,
+            version: key.version,
+        };
+        let entry = slots.entry(slot_key).or_insert_with(SlotDataBatch::new);
+        entry.insert_data_shred(decoded.shred.clone(), metrics.as_ref())
     };
 
-    match ready {
-        ReadyToDeshred::Ready(shreds) => {
+    match segment {
+        Some(shreds) => {
             let status = {
                 let buf = state.shred_buffer.lock().await;
                 buf.get(&key).map(|b| b.status(key.fec_set))
@@ -1305,19 +1316,7 @@ async fn process_data_shred(
                 source: ShredSource::Data,
             })
         }
-        ReadyToDeshred::Gated(reason) => {
-            let status = {
-                let buf = state.shred_buffer.lock().await;
-                buf.get(&key).map(|b| b.status(key.fec_set))
-            };
-            ShredInsertOutcome::Deferred {
-                key,
-                source: ShredSource::Data,
-                reason,
-                status,
-            }
-        }
-        ReadyToDeshred::NotReady => ShredInsertOutcome::Buffered {
+        None => ShredInsertOutcome::Buffered {
             key,
             source: ShredSource::Data,
         },
@@ -1329,12 +1328,13 @@ async fn process_code_shred(
     datagram: &UdpDatagram,
     state: &ShredsUdpState,
     cfg: &ShredsUdpConfig,
-    policy: &DeshredPolicy,
+    _policy: &DeshredPolicy,
     key: FecKey,
     metrics: Arc<ShredMetrics>,
 ) -> ShredInsertOutcome {
-    let ready = {
+    {
         let mut buf = state.shred_buffer.lock().await;
+        buf.retain(|fec_key, _| fec_key.slot.saturating_add(128) >= key.slot);
         let entry = buf.entry(key).or_insert_with(ShredBatch::new);
 
         if let Some(header) = decode_coding_header(&decoded.shred) {
@@ -1342,39 +1342,7 @@ async fn process_code_shred(
         }
 
         entry.insert_code_shred(decoded.shred.clone(), metrics.as_ref());
-        entry.ready_to_deshred(policy)
-    };
-
-    let outcome = match ready {
-        ReadyToDeshred::Ready(shreds) => {
-            let status = {
-                let buf = state.shred_buffer.lock().await;
-                buf.get(&key).map(|b| b.status(key.fec_set))
-            };
-            ShredInsertOutcome::Ready(ShredReadyBatch {
-                key,
-                shreds,
-                status,
-                source: ShredSource::Coding,
-            })
-        }
-        ReadyToDeshred::Gated(reason) => {
-            let status = {
-                let buf = state.shred_buffer.lock().await;
-                buf.get(&key).map(|b| b.status(key.fec_set))
-            };
-            ShredInsertOutcome::Deferred {
-                key,
-                source: ShredSource::Coding,
-                reason,
-                status,
-            }
-        }
-        ReadyToDeshred::NotReady => ShredInsertOutcome::Buffered {
-            key,
-            source: ShredSource::Coding,
-        },
-    };
+    }
 
     if cfg.log_shreds {
         info!(
@@ -1389,7 +1357,10 @@ async fn process_code_shred(
         );
     }
 
-    outcome
+    ShredInsertOutcome::Buffered {
+        key,
+        source: ShredSource::Coding,
+    }
 }
 
 async fn process_ready_batch(
@@ -1405,6 +1376,17 @@ async fn process_ready_batch(
         status,
         source,
     } = ready;
+    let segment_keys: Vec<FecKey> = shreds
+        .iter()
+        .map(|shred| shred.fec_set_index())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|fec_set| FecKey {
+            slot: key.slot,
+            version: key.version,
+            fec_set,
+        })
+        .collect();
 
     match deshred_shreds_to_entries(&shreds) {
         Ok(entries) => {
@@ -1440,9 +1422,13 @@ async fn process_ready_batch(
                 );
             }
 
-            state.remove_batch(&key).await;
+            for segment_key in &segment_keys {
+                state.remove_batch(segment_key).await;
+            }
             if matches!(source, ShredSource::Data) {
-                state.mark_completed(key).await;
+                for segment_key in segment_keys {
+                    state.mark_completed(segment_key).await;
+                }
             }
         }
         Err(e) => {
@@ -1465,8 +1451,10 @@ async fn process_ready_batch(
                     );
                 }
             }
-            state.remove_batch(&key).await;
-            state.mark_suppressed(key).await;
+            for segment_key in &segment_keys {
+                state.remove_batch(segment_key).await;
+                state.mark_suppressed(*segment_key).await;
+            }
         }
     }
 }
@@ -2094,7 +2082,6 @@ impl ShredBatch {
             expected_first_coding_index: None,
             expected_num_data: None,
             expected_num_coding: None,
-            last_attempted_count: 0,
             dup_data: 0,
             dup_code: 0,
         }
@@ -2191,51 +2178,6 @@ impl ShredBatch {
         self.code_shreds.insert(shred.index(), shred);
     }
 
-    fn ready_to_deshred(&mut self, policy: &DeshredPolicy) -> ReadyToDeshred {
-        let data_len = self.data_shreds.len();
-        let Some(required) = self.required_data else {
-            return ReadyToDeshred::NotReady;
-        };
-        if data_len < required || data_len <= self.last_attempted_count {
-            return ReadyToDeshred::NotReady;
-        }
-        if !self.data_complete_seen {
-            return ReadyToDeshred::Gated("waiting for data-complete shred".to_string());
-        }
-
-        if policy.require_code_match {
-            if self.code_shreds.is_empty() {
-                return ReadyToDeshred::Gated("waiting for coding shred".to_string());
-            }
-            let summary = summarize_coding_headers(&self.code_shreds);
-            if summary.parsed == 0 {
-                return ReadyToDeshred::Gated("no parseable coding headers yet".to_string());
-            }
-            if summary.consistent_first_index().is_none() {
-                return ReadyToDeshred::Gated(
-                    "coding headers disagree on first_coding_index".to_string(),
-                );
-            }
-            let Some(code_required) = summary.consistent_num_data() else {
-                return ReadyToDeshred::Gated(
-                    "coding headers disagree on num_data_shreds".to_string(),
-                );
-            };
-            let data_required = self.required_data_from_data.unwrap_or(required);
-            if code_required != data_required {
-                return ReadyToDeshred::Gated(format!(
-                    "coding num_data_shreds {} mismatches data {}",
-                    code_required, data_required
-                ));
-            }
-        }
-
-        self.last_attempted_count = data_len;
-        let mut shreds: Vec<Shred> = self.data_shreds.values().cloned().collect();
-        shreds.sort_by_key(|s| s.index());
-        ReadyToDeshred::Ready(shreds)
-    }
-
     fn status(&self, fec_set: u32) -> BatchStatus {
         let required = self.required_data;
         let mut missing = Vec::new();
@@ -2266,6 +2208,76 @@ impl ShredBatch {
             expected_num_coding: self.expected_num_coding,
             coding_summary: summarize_coding_headers(&self.code_shreds),
         }
+    }
+}
+
+impl SlotDataBatch {
+    fn new() -> Self {
+        Self {
+            data_shreds: BTreeMap::new(),
+            data_complete_indices: BTreeSet::new(),
+            boundary: None,
+        }
+    }
+
+    fn insert_data_shred(&mut self, shred: Shred, metrics: &ShredMetrics) -> Option<Vec<Shred>> {
+        let index = shred.index();
+        if let Some(existing) = self.data_shreds.get(&index) {
+            if existing.payload() != shred.payload() {
+                metrics.inc_duplicate_conflict();
+            }
+        } else {
+            if shred.data_complete() {
+                self.data_complete_indices.insert(index);
+            }
+            self.data_shreds.insert(index, shred);
+        }
+
+        self.ready_segment()
+    }
+
+    fn ready_segment(&mut self) -> Option<Vec<Shred>> {
+        let base = self.boundary.map_or(0, |index| index.saturating_add(1));
+        let completes: Vec<u32> = self
+            .data_complete_indices
+            .range(base..)
+            .copied()
+            .collect();
+
+        let mut skipped_boundary = self.boundary;
+        for (position, complete) in completes.iter().copied().enumerate() {
+            let start = skipped_boundary.map_or(0, |index| index.saturating_add(1));
+            if self.has_contiguous_range(start, complete) {
+                let shreds: Vec<Shred> = (start..=complete)
+                    .map(|index| self.data_shreds.get(&index).cloned())
+                    .collect::<Option<Vec<_>>>()?;
+                self.boundary = Some(complete);
+                self.remove_through(complete);
+                return Some(shreds);
+            }
+
+            if position + 1 < completes.len() {
+                skipped_boundary = Some(complete);
+            }
+        }
+
+        if skipped_boundary != self.boundary {
+            if let Some(complete) = skipped_boundary {
+                self.boundary = Some(complete);
+                self.remove_through(complete);
+            }
+        }
+
+        None
+    }
+
+    fn has_contiguous_range(&self, start: u32, complete: u32) -> bool {
+        (start..=complete).all(|index| self.data_shreds.contains_key(&index))
+    }
+
+    fn remove_through(&mut self, complete: u32) {
+        self.data_shreds.retain(|index, _| *index > complete);
+        self.data_complete_indices.retain(|index| *index > complete);
     }
 }
 
@@ -2355,6 +2367,104 @@ mod tests {
         let decoded = deshred_shreds_to_entries(&shreds).expect("decode entries");
 
         assert_eq!(decoded, entries);
+    }
+
+    #[test]
+    fn slot_data_batch_decodes_segments_across_fec_sets() {
+        let keypair = Keypair::new();
+        let entries = vec![Entry::new(&Hash::default(), 1, vec![]); 4096];
+        let shredder = Shredder::new(2, 1, 0, 42).expect("create shredder");
+        let mut stats = ProcessShredsStats::default();
+        let reed_solomon_cache = ReedSolomonCache::default();
+        let data_shreds: Vec<_> = shredder
+            .make_merkle_shreds_from_entries(
+                &keypair,
+                &entries,
+                true,
+                Hash::default(),
+                0,
+                0,
+                &reed_solomon_cache,
+                &mut stats,
+            )
+            .filter(Shred::is_data)
+            .collect();
+        let fec_sets: BTreeSet<_> = data_shreds.iter().map(Shred::fec_set_index).collect();
+        assert!(
+            fec_sets.len() > 1,
+            "test data should span multiple FEC sets"
+        );
+
+        let metrics = ShredMetrics::default();
+        let mut batch = SlotDataBatch::new();
+        let mut ready = None;
+        for shred in data_shreds {
+            ready = batch.insert_data_shred(shred, &metrics);
+            if ready.is_some() {
+                break;
+            }
+        }
+
+        let shreds = ready.expect("complete slot data segment");
+        assert_eq!(shreds.first().map(Shred::index), Some(0));
+        assert!(shreds.last().is_some_and(Shred::data_complete));
+
+        let decoded = deshred_shreds_to_entries(&shreds).expect("decode entries");
+        assert_eq!(decoded, entries);
+    }
+
+    #[test]
+    fn slot_data_batch_skips_incomplete_leading_segment() {
+        let keypair = Keypair::new();
+        let first_entries = vec![Entry::new(&Hash::default(), 1, vec![]); 256];
+        let second_entries = vec![Entry::new(&Hash::default(), 2, vec![]); 256];
+        let shredder = Shredder::new(3, 1, 0, 42).expect("create shredder");
+        let mut stats = ProcessShredsStats::default();
+        let reed_solomon_cache = ReedSolomonCache::default();
+        let first_data: Vec<_> = shredder
+            .make_merkle_shreds_from_entries(
+                &keypair,
+                &first_entries,
+                false,
+                Hash::default(),
+                0,
+                0,
+                &reed_solomon_cache,
+                &mut stats,
+            )
+            .filter(Shred::is_data)
+            .collect();
+        let next_index = first_data.last().map_or(0, |shred| shred.index() + 1);
+        let second_data: Vec<_> = shredder
+            .make_merkle_shreds_from_entries(
+                &keypair,
+                &second_entries,
+                true,
+                Hash::default(),
+                next_index,
+                0,
+                &reed_solomon_cache,
+                &mut stats,
+            )
+            .filter(Shred::is_data)
+            .collect();
+
+        let metrics = ShredMetrics::default();
+        let mut batch = SlotDataBatch::new();
+        let mut ready = None;
+        for shred in first_data.into_iter().skip(1).chain(second_data.clone()) {
+            ready = batch.insert_data_shred(shred, &metrics);
+            if ready.is_some() {
+                break;
+            }
+        }
+
+        let shreds = ready.expect("second complete segment");
+        assert_eq!(shreds.first().map(Shred::index), Some(next_index));
+        assert_eq!(shreds.last().map(Shred::index), second_data.last().map(Shred::index));
+
+        let decoded = deshred_shreds_to_entries(&shreds).expect("decode entries");
+        assert_eq!(decoded, second_entries);
     }
 
     fn make_detail(

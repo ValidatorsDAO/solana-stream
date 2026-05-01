@@ -145,7 +145,7 @@ importers:
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 1.2.1
+        specifier: 1.2.2
         version: link:../../package/solana-stream-sdk
       dotenv:
         specifier: 16.5.0
@@ -173,7 +173,7 @@ importers:
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@validators-dao/solana-stream-sdk':
-        specifier: 1.2.1
+        specifier: 1.2.2
         version: link:../../package/solana-stream-sdk
       dotenv:
         specifier: 16.5.0

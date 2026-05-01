@@ -1,7 +1,7 @@
 {
   "name": "shreds-ts-starter",
   "description": "Solana Shreds TypeScript Client",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "main": "dist/index.js",
   "type": "module",
   "engines": {
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@solana/web3.js": "1.98.4",
-    "@validators-dao/solana-stream-sdk": "1.2.1",
+    "@validators-dao/solana-stream-sdk": "1.2.2",
     "dotenv": "16.5.0"
   },
   "devDependencies": {
