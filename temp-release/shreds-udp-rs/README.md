@@ -4,23 +4,27 @@ Minimal Rust client that listens for Shredstream over **UDP** and prints signal-
 
 ## Quick start
 
-1) `cd temp-release/shreds-udp-rs` (from repo root)
-2) Edit `settings.jsonc` (jsonc comments allowed). It is embedded into the binary at build time, so no runtime `SHREDS_UDP_CONFIG` is needed.
-3) Provide secrets (e.g., RPC) via env:
+1) Edit `settings.jsonc` (jsonc comments allowed). It is embedded into the binary at build time, so no runtime `SHREDS_UDP_CONFIG` is needed.
+2) Provide secrets (e.g., RPC) via env:
 ```env
 SOLANA_RPC_ENDPOINT=https://api.mainnet-beta.solana.com
 ```
-4) Run (pump.fun defaults, one-call):
+3) Run (pump.fun defaults, one-call):
 ```bash
 cargo run
 ```
 (`handle_pumpfun_watcher` keeps the pump.fun watcher/detailer wired up for a quick start.)
 
-5) Modular pipeline (custom sinks/watchers):
+4) Modular pipeline (custom sinks/watchers):
 ```bash
 GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run --bin generic_logger
 ```
 `generic_logger` shows the layered API (5 layers: `decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_entries` → `collect_watch_events` → any sink) with `SplTokenMintFinder` only. Leave `GENERIC_WATCH_*` unset to just log slots/entries without pump.fun defaults.
+
+## Deshred decode troubleshooting
+- Use `solana-stream-sdk >= 1.2.1` for Direct Shreds UDP. Agave 3.x serializes deshredded entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper and can reject otherwise valid packets.
+- Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `io error: unexpected end of file`, or `alias encoding, expected strict form encoding` usually mean the deshredded entry bytes are being decoded with the wrong codec.
+- UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation. If `tcpdump` shows packets but all deshreds fail with the errors above, update the SDK/example before tuning socket buffers or firewall rules.
 
 ## Log legend
 - Prefix: `🎯` program hit, `🐣` authority hit (`🎯🐣` means both)

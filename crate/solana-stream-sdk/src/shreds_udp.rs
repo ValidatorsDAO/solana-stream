@@ -111,8 +111,16 @@ pub fn deshred_shreds_to_entries(
     let data = Shredder::deshred(payloads)
         .map_err(|e| SolanaStreamError::Serialization(format!("deshred failed: {e}")))?;
 
-    bincode::deserialize::<Vec<solana_entry::entry::Entry>>(&data)
-        .map_err(|e| SolanaStreamError::Serialization(format!("entry decode failed: {e}")))
+    wincode::deserialize::<Vec<solana_entry::entry::Entry>>(&data)
+        .or_else(|wincode_err| {
+            bincode::deserialize::<Vec<solana_entry::entry::Entry>>(&data)
+                .map_err(|bincode_err| (wincode_err, bincode_err))
+        })
+        .map_err(|(wincode_err, bincode_err)| {
+            SolanaStreamError::Serialization(format!(
+                "entry decode failed: wincode={wincode_err}; bincode={bincode_err}"
+            ))
+        })
 }
 
 #[derive(Clone)]
@@ -2319,7 +2327,35 @@ fn missing_ranges(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solana_sdk::pubkey::Pubkey;
+    use solana_entry::entry::Entry;
+    use solana_ledger::shred::{ProcessShredsStats, ReedSolomonCache};
+    use solana_sdk::{hash::Hash, pubkey::Pubkey, signer::keypair::Keypair};
+
+    #[test]
+    fn deshred_decodes_agave_wincode_entries() {
+        let keypair = Keypair::new();
+        let entries = vec![Entry::new(&Hash::default(), 1, vec![])];
+        let shredder = Shredder::new(2, 1, 0, 42).expect("create shredder");
+        let mut stats = ProcessShredsStats::default();
+        let reed_solomon_cache = ReedSolomonCache::default();
+        let shreds: Vec<_> = shredder
+            .make_merkle_shreds_from_entries(
+                &keypair,
+                &entries,
+                true,
+                Hash::default(),
+                0,
+                0,
+                &reed_solomon_cache,
+                &mut stats,
+            )
+            .filter(Shred::is_data)
+            .collect();
+
+        let decoded = deshred_shreds_to_entries(&shreds).expect("decode entries");
+
+        assert_eq!(decoded, entries);
+    }
 
     fn make_detail(
         mint: Pubkey,

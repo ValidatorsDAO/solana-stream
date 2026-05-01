@@ -29,7 +29,7 @@ Resilient Geyser gRPC sample using the [solana-stream-sdk](https://github.com/Va
 
 ## Quick start
 
-1) `cd client/geyser-rs` (or `cd temp-release/geyser-rs` for the temp bundle)
+1) `cd temp-release/geyser-rs`
 2) Provide env:
 ```env
 GRPC_ENDPOINT=https://your-geyser-grpc-endpoint

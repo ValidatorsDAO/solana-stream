@@ -47,7 +47,6 @@ export const runGeyser = async ({
   let lastMetricsDropped = 0
 
   let currentRequest: SubscribeRequest = request
-  let activeStream: any = null
 
   const enqueueUpdate = (update: any) => {
     if (!updateQueue.enqueue(update)) {
@@ -133,7 +132,6 @@ export const runGeyser = async ({
         const version = await client.getVersion()
         console.log('version: ', version)
         const stream = await client.subscribe()
-        activeStream = stream
         const sendPing = () => {
           stream.write({ ping: { id: 1 } }, (err: any) => {
             if (err) {
@@ -158,7 +156,6 @@ export const runGeyser = async ({
 
         const streamClosed = new Promise<void>((_, reject) => {
           const handleClose = (error: Error) => {
-            activeStream = null
             reject(error)
           }
           stream.on('error', (e: any) => handleClose(e))
@@ -172,7 +169,6 @@ export const runGeyser = async ({
         await writeSubscription(stream, currentRequest, lastSeenSlot, true)
         await streamClosed
       } catch (error) {
-        activeStream = null
         retries = sawNonHeartbeat ? 0 : retries + 1
         if (retries > maxRetries) {
           throw error

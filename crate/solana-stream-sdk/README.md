@@ -64,6 +64,17 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 - Dedicated Shreds users: point your Shreds sender to the sample’s `ip:port` to see detections.
 - Not on UDP yet? Run it locally or on your own server to explore logs and customize hooks.
 
+### UDP deshred decode troubleshooting
+
+Use `solana-stream-sdk >= 1.2.1` for Direct Shreds UDP. Agave 3.x serializes deshredded
+entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper and can reject
+otherwise valid packets with errors such as `entry decode failed: invalid value: integer ...`,
+`continue signal on byte-three`, `unexpected end of file`, or `alias encoding`.
+
+UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves
+indicate truncation. If packets arrive but every deshred fails with the errors above, update the
+SDK/example before tuning socket buffers or firewall rules.
+
 ### Pump.fun example log
 
 ![pump.fun hits over UDP Shreds](https://storage.validators.solutions/SolanaStreamSDKUDPClientExample.jpg)
@@ -76,7 +87,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "1.2.0"
+solana-stream-sdk = "1.2.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```

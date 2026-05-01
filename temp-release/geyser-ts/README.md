@@ -41,6 +41,7 @@ npm run dev
 Create a `.env` file with the following configuration:
 
 ```env
+# Optional: required only if your endpoint enforces auth
 X_TOKEN=your_token_here
 GEYSER_ENDPOINT=https://grpc-ams.erpc.global
 SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"

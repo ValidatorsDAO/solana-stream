@@ -21,6 +21,11 @@ GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run -p shreds-udp-rs --bin gen
 ```
 `generic_logger` shows the layered API (5 layers: `decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_entries` → `collect_watch_events` → any sink) with `SplTokenMintFinder` only. Leave `GENERIC_WATCH_*` unset to just log slots/entries without pump.fun defaults.
 
+## Deshred decode troubleshooting
+- Use `solana-stream-sdk >= 1.2.1` for Direct Shreds UDP. Agave 3.x serializes deshredded entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper and can reject otherwise valid packets.
+- Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `io error: unexpected end of file`, or `alias encoding, expected strict form encoding` usually mean the deshredded entry bytes are being decoded with the wrong codec.
+- UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation. If `tcpdump` shows packets but all deshreds fail with the errors above, update the SDK/example before tuning socket buffers or firewall rules.
+
 ## Log legend
 - Prefix: `🎯` program hit, `🐣` authority hit (`🎯🐣` means both)
 - Action: `🐣` create (`create/buy` when amounts are present), `🟢` buy, `🔻` sell, `🪙` other, `❓` missing/unknown
