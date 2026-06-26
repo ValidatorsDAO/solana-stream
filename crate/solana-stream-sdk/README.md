@@ -66,7 +66,7 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 
 ### UDP deshred decode troubleshooting
 
-Use `solana-stream-sdk >= 1.2.2` for Direct Shreds UDP. Agave 3.x serializes deshredded
+Use `solana-stream-sdk >= 1.3.0` for Direct Shreds UDP. Agave 3.x serializes deshredded
 entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper, and SDK 1.2.1
 could still decode from the middle of a multi-FEC entry segment. Both cases can reject otherwise
 valid packets with errors such as `entry decode failed: invalid value: integer ...`,
@@ -88,7 +88,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "1.2.2"
+solana-stream-sdk = "1.3.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```
