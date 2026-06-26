@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ValidatorsDAO/solana-stream.git"
+    "url": "git+https://github.com/ValidatorsDAO/solana-stream.git"
   },
   "bugs": {
     "url": "https://discord.gg/C7ZQSrCkYR"
@@ -28,15 +28,15 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@triton-one/yellowstone-grpc": "5.0.1",
+    "@triton-one/yellowstone-grpc": "5.0.9",
     "@validators-dao/solana-entry-decoder": "workspace:*",
     "@validators-dao/solana-shreds-client": "workspace:*",
     "bs58": "6.0.0"
   },
   "devDependencies": {
-    "@types/node": "22.15.27",
-    "prettier": "3.5.3",
-    "tsup": "8.5.0",
-    "typescript": "5.8.3"
+    "@types/node": "24.13.2",
+    "prettier": "3.8.4",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3"
   }
 }

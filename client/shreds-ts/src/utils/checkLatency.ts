@@ -1,12 +1,12 @@
-import { Connection, clusterApiUrl } from '@solana/web3.js'
+import { createSolanaRpc, mainnet, type Slot } from '@solana/kit'
 import 'dotenv/config'
 
 export const MAX_CACHE_SIZE = 20
 export const slotTimestampCache = new Map<number, number>()
 
 const SOLANA_RPC_ENDPOINT =
-  process.env.SOLANA_RPC_ENDPOINT || clusterApiUrl('mainnet-beta')
-const connection = new Connection(SOLANA_RPC_ENDPOINT)
+  process.env.SOLANA_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com'
+const rpc = createSolanaRpc(mainnet(SOLANA_RPC_ENDPOINT))
 
 export const receivedSlots = new Map<number, Array<{ receivedAt: Date }>>()
 
@@ -39,11 +39,11 @@ async function getCachedSlotTimestamp(slot: number): Promise<number | null> {
   slotFetching.add(slot)
 
   try {
-    const timestamp = await connection.getBlockTime(slot)
+    const timestamp = await rpc.getBlockTime(BigInt(slot) as Slot).send()
     if (timestamp !== null) {
-      cacheSlotTimestamp(slot, timestamp)
+      cacheSlotTimestamp(slot, Number(timestamp))
     }
-    return timestamp
+    return timestamp === null ? null : Number(timestamp)
   } catch (error: any) {
     if (error.message.includes('Block not available')) {
       return null

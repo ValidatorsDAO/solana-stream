@@ -2486,7 +2486,7 @@ mod tests {
     }
 
     #[test]
-    fn merge_prefers_buy_over_create() {
+    fn merge_keeps_create_and_backfills_buy_amounts() {
         let mint = Pubkey::new_from_array([1u8; 32]);
         let mut current = make_detail(mint, Some("create"), Some("pump:create"), None);
         let incoming = MintDetail {
@@ -2496,8 +2496,8 @@ mod tests {
 
         merge_mint_detail(&mut current, &incoming);
 
-        assert_eq!(current.action, Some("buy"));
-        assert_eq!(current.label, Some("pump:buy"));
+        assert_eq!(current.action, Some("create"));
+        assert_eq!(current.label, Some("pump:create"));
         assert_eq!(current.sol_amount, Some(200));
         assert_eq!(current.token_amount, Some(42));
     }

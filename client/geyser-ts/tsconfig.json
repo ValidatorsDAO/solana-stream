@@ -8,8 +8,9 @@
     "outDir": "dist",
     "target": "ESNext",
     "strict": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "skipLibCheck": true,
@@ -17,6 +18,7 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "lib": ["esnext"],
+    "types": ["node"],
     "sourceMap": true,
     "paths": {
       "@/*": ["src/*"]
