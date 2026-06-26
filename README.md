@@ -47,6 +47,7 @@ This project provides libraries and tools for streaming real-time data from the 
 
 ## Production-Ready Geyser Clients (TypeScript + Rust)
 
+- Rust Geyser exports track `yellowstone-grpc-client` 13.x and expose deshred, token-account expansion, and cuckoo filter helpers
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus gap recovery (`fromSlot` / `from_slot`)
 - Bounded queues/channels with drop logging for backpressure safety
@@ -100,13 +101,13 @@ This example comes from the SDK sample; clone and run it to see hits, or swap in
 
 ### Rust Clients
 
-- **client/geyser-rs/**: Rust client using Geyser plugin (gRPC)
+- **client/geyser-rs/**: Rust client using Geyser gRPC
 - **client/shreds-rs/**: Rust client for Shredstream over gRPC
 - **client/shreds-udp-rs/**: Minimal UDP shred listener; includes pump.fun token-mint detection example
 
 ### TypeScript Clients
 
-- **client/geyser-ts/**: TypeScript client using Geyser plugin (gRPC)
+- **client/geyser-ts/**: TypeScript client using Geyser gRPC
 - **client/shreds-ts/**: TypeScript client for Shredstream over gRPC
 
 ### SDK Packages
@@ -185,7 +186,7 @@ You can also use the published crate in your own projects:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "1.3.0"
+solana-stream-sdk = "1.4.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"
 solana-entry = "3.0.12"
@@ -263,7 +264,7 @@ Components from `crate/solana-stream-sdk` (5 layers):
 
 Troubleshooting:
 
-- Use `solana-stream-sdk >= 1.3.0` for Direct Shreds UDP. Agave 3.x serializes deshredded entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper, and SDK 1.2.1 could still decode from the middle of a multi-FEC entry segment.
+- Use `solana-stream-sdk >= 1.4.0` for Direct Shreds UDP. Agave 3.x serializes deshredded entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper, and SDK 1.2.1 could still decode from the middle of a multi-FEC entry segment.
 - Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `unexpected end of file`, or `alias encoding` usually indicate a codec mismatch rather than firewall loss.
 - UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation.
 

@@ -39,19 +39,26 @@ pub use shredstream_proto::{
 pub use yellowstone_grpc_client::{GeyserGrpcClient, GeyserGrpcClientError, Interceptor};
 
 // Geyser protobuf exports with clear prefixes
+pub use yellowstone_grpc_proto::cuckoo::{
+    CompressedAccountFilterSet as GeyserCompressedAccountFilterSet,
+    CuckooBuildError as GeyserCuckooBuildError, CuckooFilter as GeyserCuckooFilter,
+    TableFullError as GeyserCuckooTableFullError,
+    YellowstoneHasherBuilder as GeyserYellowstoneHasherBuilder,
+};
 pub use yellowstone_grpc_proto::{
     geyser::{
-        subscribe_update::UpdateOneof as GeyserUpdateOneof, SlotStatus as GeyserSlotStatus,
+        subscribe_update::UpdateOneof as GeyserUpdateOneof,
+        CuckooFilter as GeyserCuckooFilterMessage,
+        CuckooHashAlgorithm as GeyserCuckooHashAlgorithm, SlotStatus as GeyserSlotStatus,
+        SubscribeDeshredRequest as GeyserSubscribeDeshredRequest,
+        SubscribeRequestFilterDeshredTransactions as GeyserSubscribeRequestFilterDeshredTransactions,
         SubscribeUpdateBlock as GeyserUpdateBlock,
-        SubscribeUpdateBlockMeta as GeyserUpdateBlockMeta, SubscribeUpdateSlot as GeyserUpdateSlot,
-    },
-    plugin::{
-        filter::message::FilteredUpdate as GeyserFilteredUpdate,
-        message::{
-            MessageAccount as GeyserMessageAccount, MessageBlock as GeyserMessageBlock,
-            MessageBlockMeta as GeyserMessageBlockMeta, MessageEntry as GeyserMessageEntry,
-            MessageSlot as GeyserMessageSlot, MessageTransaction as GeyserMessageTransaction,
-        },
+        SubscribeUpdateBlockMeta as GeyserUpdateBlockMeta,
+        SubscribeUpdateDeshred as GeyserSubscribeUpdateDeshred,
+        SubscribeUpdateDeshredTransaction as GeyserSubscribeUpdateDeshredTransaction,
+        SubscribeUpdateDeshredTransactionInfo as GeyserSubscribeUpdateDeshredTransactionInfo,
+        SubscribeUpdateSlot as GeyserUpdateSlot,
+        TokenAccountExpansionControlFlag as GeyserTokenAccountExpansionControlFlag,
     },
     prelude::{
         geyser_client::GeyserClient as GeyserGrpcInnerClient,
@@ -69,6 +76,7 @@ pub use yellowstone_grpc_proto::{
         SubscribeRequestFilterEntry as GeyserSubscribeRequestFilterEntry,
         SubscribeRequestFilterSlots as GeyserSubscribeRequestFilterSlots,
         SubscribeRequestFilterTransactions as GeyserSubscribeRequestFilterTransactions,
+        SubscribeRequestPing as GeyserSubscribeRequestPing,
         SubscribeUpdate as GeyserSubscribeUpdate,
         SubscribeUpdateAccountInfo as GeyserSubscribeUpdateAccountInfo,
         SubscribeUpdateEntry as GeyserSubscribeUpdateEntry,

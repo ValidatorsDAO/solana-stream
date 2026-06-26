@@ -1,6 +1,6 @@
 [package]
 name = "solana-stream-sdk"
-version = "1.3.0"
+version = "1.4.0"
 description = "Rust SDK for Solana streaming data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -25,7 +25,7 @@ solana-packet = { workspace = true }
 toml = "0.8"
 url = { workspace = true }
 yellowstone-grpc-client = { workspace = true }
-yellowstone-grpc-proto = { workspace = true, features = ["plugin"] }
+yellowstone-grpc-proto = { workspace = true }
 bincode = { workspace = true }
 dashmap = { workspace = true }
 solana-entry = { workspace = true }

@@ -16,7 +16,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "1.3.0"
+version = "1.4.0"
 description = ""
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -85,5 +85,5 @@ tonic-prost = "0.14.2"
 tonic-prost-build = "0.14.2"
 url = "2.5.4"
 wincode = { version = "0.1.2", features = ["derive", "solana-short-vec"] }
-yellowstone-grpc-client = "10.2.0"
-yellowstone-grpc-proto = "10.1.1"
+yellowstone-grpc-client = "13.1.1"
+yellowstone-grpc-proto = "12.5.0"

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 - 2026-06-26
+
+- Updated the Rust Yellowstone client to `yellowstone-grpc-client@13.1.1` and protobuf crate to `yellowstone-grpc-proto@12.5.0`, matching the current stable upstream 13.x client line.
+- Removed legacy `yellowstone_grpc_proto::plugin` re-export aliases because upstream 12.5.0 no longer ships the `plugin` module.
+- Added public aliases for Yellowstone 13.x deshred subscription types, token-account expansion controls, and cuckoo compressed account filter helpers.
+- Updated Rust Geyser sample builders for new optional protobuf fields: `token_accounts`, `cuckoo_accounts_filter`, and `cuckoo_account_include`.
+- Confirmed the TypeScript SDK remains on current upstream `@triton-one/yellowstone-grpc@5.0.9`.
+
 ## 1.3.0 - 2026-06-26
 
 - Updated the TypeScript SDK and starter clients to Solana Kit (`@solana/kit`) for RPC block-time lookups.

@@ -31,6 +31,7 @@ This SDK provides a simple and efficient way to connect to Shredstream service a
 ## Features
 
 - **Easy-to-use API** - Simple wrapper around the Shredstream protocols and Geyser gRPC
+- **Yellowstone 13.x Geyser API** - Rust exports track `yellowstone-grpc-client` 13.x and expose deshred, token-account expansion, and cuckoo filter helpers
 - **Async Support** - Built with tokio for async/await patterns
 - **Type Safety** - Strongly typed Rust interfaces
 - **Error Handling** - Comprehensive error types with proper error propagation
@@ -66,7 +67,7 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 
 ### UDP deshred decode troubleshooting
 
-Use `solana-stream-sdk >= 1.3.0` for Direct Shreds UDP. Agave 3.x serializes deshredded
+Use `solana-stream-sdk >= 1.4.0` for Direct Shreds UDP. Agave 3.x serializes deshredded
 entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper, and SDK 1.2.1
 could still decode from the middle of a multi-FEC entry segment. Both cases can reject otherwise
 valid packets with errors such as `entry decode failed: invalid value: integer ...`,
@@ -88,7 +89,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "1.3.0"
+solana-stream-sdk = "1.4.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```
@@ -337,6 +338,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             owner: vec![],
             filters: vec![],
             nonempty_txn_signature: None,
+            cuckoo_accounts_filter: None,
         },
     );
 
@@ -422,6 +424,10 @@ For convenience, the following types are re-exported:
 - `GeyserCommitmentLevel`
 - `GeyserSubscribeRequest`
 - `GeyserSubscribeRequestFilterAccounts`
+- `GeyserSubscribeDeshredRequest`
+- `GeyserSubscribeRequestFilterDeshredTransactions`
+- `GeyserTokenAccountExpansionControlFlag`
+- `GeyserCompressedAccountFilterSet`
 - `GeyserSubscribeRequestFilterBlocks`
 - `GeyserSubscribeRequestFilterBlocksMeta`
 - `GeyserSubscribeRequestFilterEntry`

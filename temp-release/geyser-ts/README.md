@@ -104,7 +104,7 @@ const onTransaction = (transactionUpdate: any) => {
 
 This project uses:
 
-- `@solana/yellowstone-grpc` - Main gRPC client for Yellowstone
+- `@triton-one/yellowstone-grpc` - Main gRPC client for Yellowstone
 - `@solana/web3.js` - Solana JavaScript SDK
 - `dotenv` - Environment variable loading
 
