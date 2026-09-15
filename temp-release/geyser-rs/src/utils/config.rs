@@ -41,6 +41,7 @@ impl From<&TransactionFilter> for GeyserSubscribeRequestFilterTransactions {
             failed: filter.failed,
             signature: filter.signature.clone(),
             token_accounts: None,
+            cuckoo_account_include: None,
         }
     }
 }
