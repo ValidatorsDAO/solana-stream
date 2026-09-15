@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // You can see data with deserializing like below
                     // let entries =
-                    //     match bincode::deserialize::<Vec<solana_entry::entry::Entry>>(&slot_entry.entries) {
+                    //     match solana_stream_sdk::decode_entries(&data.entries) {
                     //         Ok(e) => e,
                     //         Err(e) => {
                     //             println!("Deserialization failed with err: {e}");

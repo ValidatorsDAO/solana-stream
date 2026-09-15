@@ -34,7 +34,11 @@ export function logDecodedEntries(decodedEntries: any) {
 
       console.log(`  - Signatures:`, signaturesBase58)
 
-      const message = tx.message[0]
+      const prefix = tx.message[0]
+      const version = typeof prefix === 'number' ? prefix - 0x80 : 'legacy'
+      const message = typeof prefix === 'number' ? tx.message[1] : prefix
+      console.log(`  - Version: ${version}`)
+      if (version === 1) console.log('  - Transaction config:', message?.config)
 
       if (message) {
         if (Array.isArray(message.accountKeys)) {
@@ -75,10 +79,10 @@ export function logDecodedEntries(decodedEntries: any) {
         }
 
         console.log(
-          `  📌 Recent Blockhash: ${message.recentBlockhash ? bs58.encode(Buffer.from(message.recentBlockhash)) : 'N/A'}`,
+          `  📌 Recent Blockhash: ${(message.recentBlockhash ?? message.lifetimeSpecifier) ? bs58.encode(Buffer.from(message.recentBlockhash ?? message.lifetimeSpecifier)) : 'N/A'}`,
         )
       } else {
-        console.warn('⚠️ message[0] is undefined:', tx.message)
+        console.warn('⚠️ transaction message is undefined:', tx.message)
       }
     })
   })

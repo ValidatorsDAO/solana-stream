@@ -22,7 +22,7 @@ async fn handle_ready_batch(
     let key = ready.key;
     match deshred_shreds_to_entries(&ready.shreds) {
         Ok(entries) => {
-            let txs: Vec<&solana_sdk::transaction::VersionedTransaction> =
+            let txs: Vec<&solana_stream_sdk::VersionedTransaction> =
                 entries.iter().flat_map(|e| e.transactions.iter()).collect();
             info!(
                 "deshred slot={} entries={} txs={}",

@@ -46,7 +46,7 @@ async fn handle_ready_batch(
 
     match deshred_shreds_to_entries(&ready.shreds) {
         Ok(entries) => {
-            let txs: Vec<&solana_sdk::transaction::VersionedTransaction> =
+            let txs: Vec<&solana_stream_sdk::VersionedTransaction> =
                 entries.iter().flat_map(|e| e.transactions.iter()).collect();
             info!(
                 "slot={} entries={} txs={} (generic logger)",
@@ -56,14 +56,11 @@ async fn handle_ready_batch(
             );
 
             if cfg.log_entries {
-                let sigs: Vec<String> = first_signatures(
-                    txs.iter().copied(),
-                    12,
-                    watch_cfg.skip_vote_txs,
-                )
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect();
+                let sigs: Vec<String> =
+                    first_signatures(txs.iter().copied(), 12, watch_cfg.skip_vote_txs)
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect();
                 info!(
                     "entries preview slot={} fec_set={} sigs_first_non_vote={:?}",
                     key.slot, key.fec_set, sigs
@@ -119,10 +116,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         require_code_match: cfg.require_code_match,
     };
     let state = ShredsUdpState::new(&cfg);
-    let watch_program_ids =
-        parse_pubkeys(std::env::var("GENERIC_WATCH_PROGRAM_IDS").ok().as_deref(), &[]);
-    let watch_authorities =
-        parse_pubkeys(std::env::var("GENERIC_WATCH_AUTHORITIES").ok().as_deref(), &[]);
+    let watch_program_ids = parse_pubkeys(
+        std::env::var("GENERIC_WATCH_PROGRAM_IDS").ok().as_deref(),
+        &[],
+    );
+    let watch_authorities = parse_pubkeys(
+        std::env::var("GENERIC_WATCH_AUTHORITIES").ok().as_deref(),
+        &[],
+    );
     let watch_cfg = Arc::new(
         ProgramWatchConfig::new(watch_program_ids, watch_authorities)
             .with_token_program_ids(cfg.token_program_ids.clone())

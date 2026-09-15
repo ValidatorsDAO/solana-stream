@@ -27,3 +27,18 @@ fn exposes_yellowstone_13_proto_helpers() {
     assert_eq!(GeyserCuckooHashAlgorithm::SipHash as i32, 0);
     assert_eq!(GeyserTokenAccountExpansionControlFlag::All as i32, 0);
 }
+
+#[test]
+fn preserves_v1_config_presence_through_protobuf() {
+    use solana_stream_sdk::yellowstone_grpc_proto::{
+        prelude::Message as SolanaMessage, prost::Message as _,
+        solana::storage::confirmed_block::TransactionConfig,
+    };
+    // Even an empty config distinguishes a v1 message from v0.
+    let message = SolanaMessage {
+        config: Some(TransactionConfig::default()),
+        ..Default::default()
+    };
+    let decoded = SolanaMessage::decode(message.encode_to_vec().as_slice()).unwrap();
+    assert!(decoded.config.is_some());
+}

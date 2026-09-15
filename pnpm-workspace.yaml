@@ -1,3 +1,5 @@
+linkWorkspacePackages: true
+
 packages:
   - client/*-ts
   - package/*

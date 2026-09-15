@@ -105,6 +105,8 @@ message Entry {
   // the slot that the entry is from
   uint64 slot = 1;
 
-  // Serialized bytes of Vec<Entry>: https://docs.rs/solana-entry/latest/solana_entry/entry/struct.Entry.html
+  // Solana ledger wire bytes of Vec<Entry> (legacy, v0 and v1 transactions).
+  // Decode with a current Agave/wincode schema, not a bincode-only decoder.
+  // https://docs.rs/solana-entry/latest/solana_entry/entry/struct.Entry.html
   bytes entries = 2;
 }

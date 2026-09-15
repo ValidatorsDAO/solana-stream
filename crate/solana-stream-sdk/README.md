@@ -1,3 +1,5 @@
+> Transaction v1 release preparation: see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md) for compatible decoding and release status.
+
 <p align="center">
   <a href="https://slv.dev/" target="_blank">
     <img src="https://storage.validators.solutions/SolanaStreamSDK.jpg" alt="SolanaStreamSDK" />
@@ -88,7 +90,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "1.4.0"
+solana-stream-sdk = "2.0.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```
@@ -171,7 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Received entry for slot: {}", entry.slot);
 
         // Deserialize entries
-        let entries = bincode::deserialize::<Vec<solana_entry::entry::Entry>>(&entry.entries)?;
+        let entries = solana_stream_sdk::decode_entries(&entry.entries)?;
 
         for entry in entries {
             println!("Entry has {} transactions", entry.transactions.len());
@@ -217,7 +219,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while let Some(entry) = stream.message().await? {
         println!("Received entry for slot: {}", entry.slot);
 
-        let entries = bincode::deserialize::<Vec<solana_entry::entry::Entry>>(&entry.entries)?;
+        let entries = solana_stream_sdk::decode_entries(&entry.entries)?;
 
         for entry in entries {
             println!("Entry has {} transactions", entry.transactions.len());

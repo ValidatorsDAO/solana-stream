@@ -14,8 +14,9 @@ use solana_ledger::shred::{
     Shred, Shredder, MAX_CODE_SHREDS_PER_SLOT, MAX_DATA_SHREDS_PER_SLOT, SIZE_OF_NONCE,
 };
 use solana_packet::PACKET_DATA_SIZE;
+use solana_pubkey::Pubkey;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, transaction::VersionedTransaction};
+use solana_transaction::versioned::VersionedTransaction;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     env, fs,
@@ -111,16 +112,7 @@ pub fn deshred_shreds_to_entries(
     let data = Shredder::deshred(payloads)
         .map_err(|e| SolanaStreamError::Serialization(format!("deshred failed: {e}")))?;
 
-    wincode::deserialize::<Vec<solana_entry::entry::Entry>>(&data)
-        .or_else(|wincode_err| {
-            bincode::deserialize::<Vec<solana_entry::entry::Entry>>(&data)
-                .map_err(|bincode_err| (wincode_err, bincode_err))
-        })
-        .map_err(|(wincode_err, bincode_err)| {
-            SolanaStreamError::Serialization(format!(
-                "entry decode failed: wincode={wincode_err}; bincode={bincode_err}"
-            ))
-        })
+    crate::decode_entries(&data)
 }
 
 #[derive(Clone)]
@@ -451,13 +443,16 @@ impl ShredsUdpConfig {
 
     /// Build a watch config without populating pump.fun defaults when the lists are empty.
     pub fn watch_config_no_defaults(&self) -> ProgramWatchConfig {
-        ProgramWatchConfig::new(self.watch_program_ids.clone(), self.watch_authorities.clone())
-            .with_token_program_ids(if self.token_program_ids.is_empty() {
-                default_token_program_ids()
-            } else {
-                self.token_program_ids.clone()
-            })
-            .with_skip_vote_txs(self.skip_vote_sigs)
+        ProgramWatchConfig::new(
+            self.watch_program_ids.clone(),
+            self.watch_authorities.clone(),
+        )
+        .with_token_program_ids(if self.token_program_ids.is_empty() {
+            default_token_program_ids()
+        } else {
+            self.token_program_ids.clone()
+        })
+        .with_skip_vote_txs(self.skip_vote_sigs)
     }
 
     pub fn describe(&self) -> String {
@@ -486,9 +481,7 @@ impl ShredsUdpConfig {
 impl ShredsUdpState {
     pub fn new(cfg: &ShredsUdpConfig) -> Self {
         Self {
-            transactions_by_slot: cfg
-                .enable_latency_monitor
-                .then(|| Arc::new(DashMap::new())),
+            transactions_by_slot: cfg.enable_latency_monitor.then(|| Arc::new(DashMap::new())),
             shred_buffer: Arc::new(Mutex::new(HashMap::new())),
             slot_data_buffer: Arc::new(Mutex::new(HashMap::new())),
             completed: Arc::new(Mutex::new(HashMap::new())),
@@ -507,9 +500,7 @@ impl ShredsUdpState {
         self.block_time_cache.clone()
     }
 
-    pub fn transactions_by_slot(
-        &self,
-    ) -> Option<Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>> {
+    pub fn transactions_by_slot(&self) -> Option<Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>> {
         self.transactions_by_slot.clone()
     }
 
@@ -570,14 +561,9 @@ pub async fn run_shreds_udp(
         let state = state.clone();
         tokio::spawn(async move {
             loop {
-                if let Err(e) = handle_pumpfun_watcher(
-                    &mut receiver,
-                    &state,
-                    &cfg,
-                    policy,
-                    watch_cfg.clone(),
-                )
-                .await
+                if let Err(e) =
+                    handle_pumpfun_watcher(&mut receiver, &state, &cfg, policy, watch_cfg.clone())
+                        .await
                 {
                     error!("UDP handling error: {:?}", e);
                 }
@@ -950,7 +936,8 @@ fn apply_env_overrides(mut cfg: ShredsUdpConfig) -> ShredsUdpConfig {
         }
     };
     let strict_fec = env_bool_opt("SHREDS_UDP_STRICT_FEC").unwrap_or(cfg.strict_fec);
-    let strict_num_data = env_parse_u16("SHREDS_UDP_STRICT_NUM_DATA").unwrap_or(cfg.strict_num_data);
+    let strict_num_data =
+        env_parse_u16("SHREDS_UDP_STRICT_NUM_DATA").unwrap_or(cfg.strict_num_data);
     let strict_num_coding =
         env_parse_u16("SHREDS_UDP_STRICT_NUM_CODING").unwrap_or(cfg.strict_num_coding);
     let slot_window_root = env_parse_u64("SHREDS_UDP_ROOT_SLOT");
@@ -1146,15 +1133,7 @@ pub async fn handle_pumpfun_watcher(
     }
 
     if let Some(shred_info) = decode_udp_datagram(&datagram, state, cfg).await {
-        match insert_shred(
-            shred_info,
-            &datagram,
-            state,
-            cfg,
-            &policy,
-        )
-        .await
-        {
+        match insert_shred(shred_info, &datagram, state, cfg, &policy).await {
             ShredInsertOutcome::Ready(ready) => {
                 if cfg.log_deshred_attempts {
                     if let Some(st) = &ready.status {
@@ -1808,7 +1787,6 @@ fn merge_mint_detail(current: &mut MintDetail, incoming: &MintDetail) {
         }
         return;
     } else if current_is_create && incoming_is_trade {
-
         // Keep create, but backfill amounts from the trade.
         if current.sol_amount.is_none() {
             current.sol_amount = incoming.sol_amount;
@@ -1921,11 +1899,7 @@ pub fn collect_watch_events(
             let mut details: Vec<MintDetail> = detail_map.values().cloned().collect();
             details.sort_by(|a, b| a.mint.cmp(&b.mint));
             details.dedup_by(|a, b| a.mint == b.mint);
-            events.push(WatchEvent {
-                slot,
-                hit,
-                details,
-            });
+            events.push(WatchEvent { slot, hit, details });
         }
     }
     events
@@ -1977,7 +1951,8 @@ pub fn log_watch_events(
             continue;
         }
         if let Some(primary) = details.first() {
-            let is_create = primary.action == Some("create") || primary.label == Some("pump:create");
+            let is_create =
+                primary.action == Some("create") || primary.label == Some("pump:create");
             let base_kind = primary.action.or(primary.label).unwrap_or("unknown");
             let kind =
                 if is_create && (primary.sol_amount.is_some() || primary.token_amount.is_some()) {
@@ -2238,11 +2213,7 @@ impl SlotDataBatch {
 
     fn ready_segment(&mut self) -> Option<Vec<Shred>> {
         let base = self.boundary.map_or(0, |index| index.saturating_add(1));
-        let completes: Vec<u32> = self
-            .data_complete_indices
-            .range(base..)
-            .copied()
-            .collect();
+        let completes: Vec<u32> = self.data_complete_indices.range(base..).copied().collect();
 
         let mut skipped_boundary = self.boundary;
         for (position, complete) in completes.iter().copied().enumerate() {
@@ -2340,8 +2311,9 @@ fn missing_ranges(
 mod tests {
     use super::*;
     use solana_entry::entry::Entry;
+    use solana_hash::Hash;
+    use solana_keypair::Keypair;
     use solana_ledger::shred::{ProcessShredsStats, ReedSolomonCache};
-    use solana_sdk::{hash::Hash, pubkey::Pubkey, signer::keypair::Keypair};
 
     #[test]
     fn deshred_decodes_agave_wincode_entries() {
@@ -2461,7 +2433,10 @@ mod tests {
 
         let shreds = ready.expect("second complete segment");
         assert_eq!(shreds.first().map(Shred::index), Some(next_index));
-        assert_eq!(shreds.last().map(Shred::index), second_data.last().map(Shred::index));
+        assert_eq!(
+            shreds.last().map(Shred::index),
+            second_data.last().map(Shred::index)
+        );
 
         let decoded = deshred_shreds_to_entries(&shreds).expect("decode entries");
         assert_eq!(decoded, second_entries);

@@ -22,6 +22,6 @@ log = { workspace = true }
 solana-entry = { workspace = true }
 solana-rpc-client = { workspace = true }
 solana-ledger = { workspace = true }
-solana-sdk = { workspace = true }
+solana-transaction = { workspace = true }
 solana-stream-sdk = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
