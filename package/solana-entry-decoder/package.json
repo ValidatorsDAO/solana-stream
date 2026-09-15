@@ -22,8 +22,8 @@
   },
   "scripts": {
     "test": "node --test test/decode.test.cjs",
-    "build:linux:x64": "OPENSSL_STATIC=1 PKG_CONFIG_ALLOW_CROSS=1 napi build --platform --release --target x86_64-unknown-linux-gnu --zig dist",
-    "build:linux:arm64": "OPENSSL_STATIC=1 PKG_CONFIG_ALLOW_CROSS=1 napi build --platform --release --target aarch64-unknown-linux-gnu --zig dist",
+    "build:linux:x64": "node ../../scripts/build-native-linux.mjs x86_64-unknown-linux-gnu",
+    "build:linux:arm64": "node ../../scripts/build-native-linux.mjs aarch64-unknown-linux-gnu",
     "build:mac:x64": "OPENSSL_DIR=$(brew --prefix openssl@3) OPENSSL_LIB_DIR=$(brew --prefix openssl@3)/lib OPENSSL_INCLUDE_DIR=$(brew --prefix openssl@3)/include arch -x86_64 napi build --release --platform --target x86_64-apple-darwin dist",
     "build:mac:arm64": "napi build --release --platform --target aarch64-apple-darwin dist",
     "build:all": "npm-run-all --parallel build:linux:x64 build:linux:arm64 build:mac:arm64 build:mac:x64",
