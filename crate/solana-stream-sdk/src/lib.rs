@@ -4,7 +4,9 @@
 //! This crate provides convenient wrappers around the Shreds protobuf definitions
 //! for easier integration with Solana streaming services.
 
+pub mod entries;
 pub mod error;
+#[cfg(feature = "udp")]
 pub mod shreds_udp;
 pub mod shredstream;
 pub mod txn;
@@ -22,10 +24,14 @@ pub mod shredstream_proto {
 
 // Re-export commonly used types for convenience
 // Re-export error types
+pub use entries::decode_entries;
 pub use error::SolanaStreamError;
+pub use solana_entry::entry::Entry;
+pub use solana_transaction::versioned::VersionedTransaction;
 // Re-export shredstream client
 pub use shredstream::ShredstreamClient;
 // Re-export UDP receiver
+#[cfg(feature = "udp")]
 pub use shreds_udp::{deshred_shreds_to_entries, UdpDatagram, UdpShredReceiver};
 
 // Shredstream protobuf exports

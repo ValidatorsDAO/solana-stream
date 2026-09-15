@@ -1,6 +1,6 @@
 [package]
 name = "solana-entry-decoder"
-version = "2.4.0"
+version = "2.5.0"
 description = "For decoding Solana shred entry data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -10,8 +10,10 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-solana-entry = {version = "3.0"}
-bincode = "1.3"
+solana-entry = { version = "=4.2.2", features = ["agave-unstable-api"] }
+solana-transaction = { version = ">=4.1.4, <4.2.0", features = ["serde", "wincode"] }
+solana-hash = { version = ">=4.4.0, <4.6.0", features = ["serde"] }
+wincode = "0.5.5"
 napi = { version = "2.15.0", default-features = false, features = ["napi4", "serde-json"] }
 napi-derive = "2.15.0"
 serde = { version = "1", features = ["derive"] }

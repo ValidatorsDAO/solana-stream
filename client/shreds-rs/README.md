@@ -82,11 +82,11 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 This project uses the published `solana-stream-sdk` crate:
 
-- `solana-stream-sdk = "1.4.0"` - Main SDK for Solana streaming
+- `solana-stream-sdk = "2.0.0"` - Main SDK for Solana streaming
 - `tokio` - Async runtime
 - `dotenvy` - Environment variable loading
 - `solana-entry` - Solana entry types
-- `bincode` - Serialization
+- `solana_stream_sdk::decode_entries` - legacy, v0 and v1 wire decoding
 
 ## Example Output
 

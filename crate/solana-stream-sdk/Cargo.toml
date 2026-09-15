@@ -1,14 +1,19 @@
 [package]
 name = "solana-stream-sdk"
-version = "1.4.0"
+version = "2.0.0"
 description = "Rust SDK for Solana streaming data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
 edition = "2021"
+rust-version = "1.96.1"
 license = "Apache-2.0"
 repository = "https://github.com/ValidatorsDAO/solana-stream"
 keywords = ["solana", "blockchain", "streaming", "grpc", "shreds"]
 categories = ["api-bindings", "network-programming"]
+
+[features]
+default = ["udp"]
+udp = ["dep:solana-ledger", "dep:solana-rpc-client"]
 
 [dependencies]
 futures = { workspace = true }
@@ -26,16 +31,24 @@ toml = "0.8"
 url = { workspace = true }
 yellowstone-grpc-client = { workspace = true }
 yellowstone-grpc-proto = { workspace = true }
-bincode = { workspace = true }
 dashmap = { workspace = true }
 solana-entry = { workspace = true }
-solana-ledger = { workspace = true, features = ["agave-unstable-api"] }
-solana-sdk = { workspace = true }
-solana-vote-program = { workspace = true }
-solana-rpc-client = { workspace = true }
+solana-ledger = { workspace = true, optional = true }
+solana-message = { workspace = true }
+solana-pubkey = { workspace = true }
+solana-signature = { workspace = true }
+solana-transaction = { workspace = true }
+solana-sdk-ids = { workspace = true }
+solana-rpc-client = { workspace = true, optional = true }
 chrono = { workspace = true }
 log = { workspace = true }
 wincode = { workspace = true }
+
+[dev-dependencies]
+solana-hash = { workspace = true }
+solana-keypair = { workspace = true }
+solana-signer = { workspace = true }
+bincode = { workspace = true }
 
 
 [build-dependencies]

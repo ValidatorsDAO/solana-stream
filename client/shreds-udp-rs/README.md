@@ -1,3 +1,5 @@
+> Transaction v1 release preparation: see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md) for compatible decoding and release status.
+
 # shreds-udp-rs
 
 Minimal Rust client that listens for Shredstream over **UDP** and prints signal-first logs. No heartbeat required—just point your sender to the bound `ip:port`.

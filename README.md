@@ -1,3 +1,5 @@
+> Transaction v1 release preparation: see the [migration guide](docs/transaction-v1.md) for compatible decoding and release status.
+
 <p align="center">
   <a href="https://slv.dev/" target="_blank">
     <img src="https://storage.validators.solutions/SolanaStreamSDK.jpg" alt="SolanaStreamSDK" />

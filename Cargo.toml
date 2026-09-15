@@ -16,7 +16,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "1.4.0"
+version = "2.0.0"
 description = ""
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -57,25 +57,29 @@ serde_json = "1"
 serde_jsonc = "1"
 serde = "1"
 signal-hook = "0.3"
-solana-client = "3.0"
-solana-rpc-client = "3.0"
-solana-hash = "3.0"
+solana-client = { version = "=4.2.2", features = ["agave-unstable-api"] }
+solana-rpc-client = { version = "=4.2.2", features = ["agave-unstable-api"] }
+solana-hash = { version = ">=4.4.0, <4.6.0", features = ["serde", "wincode"] }
 solana-metrics = "3.0"
 solana-net-utils = "3.0"
 solana-perf = "3.0"
-solana-pubkey = "3.0"
-solana-signature = "3.0"
-solana-sdk = "3.0"
-solana-vote-program = "3.0"
+solana-pubkey = ">=4.2.0, <4.3.0"
+solana-signature = ">=3.4.1, <3.5.0"
+solana-message = { version = ">=4.2.3, <4.5.0", features = ["serde", "wincode"] }
+solana-transaction = { version = ">=4.1.4, <4.2.0", features = ["serde", "wincode", "verify"] }
+solana-keypair = "3.1.2"
+solana-signer = "3.0.1"
+solana-sdk-ids = "3.0.0"
+solana-vote-program = { version = "=4.2.2", features = ["agave-unstable-api"] }
 solana-streamer = "3.0"
 solana-stream-sdk = { path = "crate/solana-stream-sdk" }
-solana-ledger = { version = "3.0", features = ["agave-unstable-api"] }
-solana-entry = "3.0"
+solana-ledger = { version = "=4.2.2", features = ["agave-unstable-api"] }
+solana-entry = { version = "=4.2.2", features = ["agave-unstable-api"] }
 solana-account-decoder = "3.0"
 solana-transaction-context = "3.0"
 solana-transaction-error = "3.0"
 solana-transaction-status = "3.0"
-solana-packet = "3.0"
+solana-packet = ">=4.1.0, <4.3.0"
 thiserror = "1"
 tokio = { version = "1.41.1" }
 tokio-util = "0.7.15"
@@ -84,6 +88,6 @@ tonic-build = "0.14.2"
 tonic-prost = "0.14.2"
 tonic-prost-build = "0.14.2"
 url = "2.5.4"
-wincode = { version = "0.1.2", features = ["derive", "solana-short-vec"] }
+wincode = { version = "0.5.5", features = ["derive"] }
 yellowstone-grpc-client = "13.1.1"
 yellowstone-grpc-proto = "12.5.0"

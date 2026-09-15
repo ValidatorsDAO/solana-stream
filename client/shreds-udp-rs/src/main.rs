@@ -4,8 +4,8 @@ use log::{error, info};
 use solana_stream_sdk::{
     shreds_udp::{
         collect_watch_events, decode_udp_datagram, deshred_shreds_to_entries, insert_shred,
-        latency_monitor_task, DeshredPolicy, ShredInsertOutcome, ShredReadyBatch, ShredSource,
-        ShredsUdpConfig, ShredsUdpState, WatchEvent, log_watch_events,
+        latency_monitor_task, log_watch_events, DeshredPolicy, ShredInsertOutcome, ShredReadyBatch,
+        ShredSource, ShredsUdpConfig, ShredsUdpState, WatchEvent,
     },
     UdpShredReceiver,
 };
@@ -22,7 +22,7 @@ async fn handle_ready_batch(
     let key = ready.key;
     match deshred_shreds_to_entries(&ready.shreds) {
         Ok(entries) => {
-            let txs: Vec<&solana_sdk::transaction::VersionedTransaction> =
+            let txs: Vec<&solana_stream_sdk::VersionedTransaction> =
                 entries.iter().flat_map(|e| e.transactions.iter()).collect();
             info!(
                 "deshred slot={} entries={} txs={}",
@@ -88,10 +88,7 @@ fn maybe_custom_watch_hook(events: &[WatchEvent], pump_min_lamports: u64) {
     // It already respects pump_min_lamports (only logs hits at/above the threshold if amounts exist).
     for event in events.iter() {
         for detail in event.details.iter().filter(|d| {
-            pump_min_lamports == 0
-                || d.sol_amount
-                    .map(|l| l >= pump_min_lamports)
-                    .unwrap_or(true)
+            pump_min_lamports == 0 || d.sol_amount.map(|l| l >= pump_min_lamports).unwrap_or(true)
         }) {
             info!(
                 "[custom hook] slot={} sig={} mint={} action={:?} sol_amount={:?} token_amount={:?}",
@@ -158,7 +155,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         state.block_time_cache(),
         state.transactions_by_slot(),
     ) {
-        Some(tokio::spawn(async move { latency_monitor_task(cache, txs).await }))
+        Some(tokio::spawn(async move {
+            latency_monitor_task(cache, txs).await
+        }))
     } else {
         None
     };
