@@ -442,7 +442,7 @@ For convenience, the following types are re-exported:
 
 ## Requirements
 
-- Rust 1.86+
+- Rust 1.96.1 or later
 - Tokio runtime for async operations
 
 ## ⚠️ Experimental Filtering Feature Notice
