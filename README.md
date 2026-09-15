@@ -183,19 +183,17 @@ A 1-day free trial for the Shreds endpoints is available by joining the Validato
 
 #### Usage with solana-stream-sdk
 
-You can also use the published crate in your own projects:
+The following example targets SDK 2.0.0. Check the [release status](docs/transaction-v1.md#release-preparation) before installing from crates.io.
 
 ```toml
 [dependencies]
-solana-stream-sdk = "1.4.0"
+solana-stream-sdk = { version = "2.0.0", default-features = false }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"
-solana-entry = "3.0.12"
-bincode = "1.3.3"
 ```
 
 ```rust
-use solana_stream_sdk::{CommitmentLevel, ShredstreamClient};
+use solana_stream_sdk::{decode_entries, CommitmentLevel, ShredstreamClient};
 use std::env;
 
 #[tokio::main]
@@ -219,7 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Process incoming entries
     while let Some(entry) = stream.message().await? {
-        let entries = bincode::deserialize::<Vec<solana_entry::entry::Entry>>(&entry.entries)?;
+        let entries = decode_entries(&entry.entries)?;
         println!("Slot: {}, Entries: {}", entry.slot, entries.len());
 
         for entry in entries {
@@ -264,7 +262,7 @@ Components from `crate/solana-stream-sdk` (5 layers):
 
 Troubleshooting:
 
-- Use `solana-stream-sdk >= 1.4.0` for Direct Shreds UDP. Agave 3.x serializes deshredded entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper, and SDK 1.2.1 could still decode from the middle of a multi-FEC entry segment.
+- Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide and release status](docs/transaction-v1.md) before updating.
 - Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `unexpected end of file`, or `alias encoding` usually indicate a codec mismatch rather than firewall loss.
 - UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation.
 
