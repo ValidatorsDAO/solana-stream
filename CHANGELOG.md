@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Transaction v1
+
+- Prepare Rust SDK 2.0.0, Node.js SDK/client 2.0.0 and entry decoder 2.5.0. Registry publication is still pending; see the [migration guide](docs/transaction-v1.md).
+- Decode legacy, v0 and v1 entries with the Agave 4.2.2 wire schema in Rust, UDP reconstruction and the native Node.js decoder. Use `solana_stream_sdk::decode_entries` instead of a legacy `bincode` decoder.
+- Move Rust public transaction types to the compatible modular Solana crates and require Rust 1.96.1. The optional `udp` feature remains enabled by default.
+- Update Yellowstone dependencies to Rust client 13.5/protobuf 12.7 and Node.js client 7.0.1, preserving v1 configuration presence and values.
+- Keep the existing Shredstream gRPC method and field numbers, provider-independent endpoint selection and local protobuf definitions.
+
 ## 1.4.0 - 2026-06-26
 
 - Updated the Rust Yellowstone client to `yellowstone-grpc-client@13.1.1` and protobuf crate to `yellowstone-grpc-proto@12.5.0`, matching the current stable upstream 13.x client line.

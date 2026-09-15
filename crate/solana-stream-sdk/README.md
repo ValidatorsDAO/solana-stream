@@ -68,11 +68,12 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 
 ### UDP deshred decode troubleshooting
 
-Use `solana-stream-sdk >= 1.4.0` for Direct Shreds UDP. Agave 3.x serializes deshredded
-entries with `wincode`; SDK 1.2.0 tried `bincode` first in the UDP helper, and SDK 1.2.1
-could still decode from the middle of a multi-FEC entry segment. Both cases can reject otherwise
-valid packets with errors such as `entry decode failed: invalid value: integer ...`,
-`continue signal on byte-three`, `unexpected end of file`, or `alias encoding`.
+Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema
+for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the
+[migration guide and release status](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md)
+before updating. An old decoder can reject valid packets with errors such as
+`entry decode failed: invalid value: integer ...`, `continue signal on byte-three`,
+`unexpected end of file`, or `alias encoding`.
 
 UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves
 indicate truncation. If packets arrive but every deshred fails with the errors above, update the

@@ -85,8 +85,7 @@ This project uses the published `solana-stream-sdk` crate:
 - `solana-stream-sdk = "2.0.0"` - Main SDK for Solana streaming
 - `tokio` - Async runtime
 - `dotenvy` - Environment variable loading
-- `solana-entry` - Solana entry types
-- `bincode` - Serialization
+- `solana-stream-sdk::decode_entries` - Shared legacy, v0 and v1 entry decoder
 
 ## Example Output
 
