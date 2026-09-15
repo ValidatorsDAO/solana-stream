@@ -55,6 +55,10 @@ Upgrade the native `@validators-dao/solana-entry-decoder` along with
 is unchanged. Entry JSON retains `num_hashes`, `hash`, and `transactions`, and
 v1 messages include their transaction configuration.
 
+The Geyser dependencies also move to Rust client 13.5/protobuf 12.7 and Node.js
+client 7.0.1. These preserve the optional v1 transaction configuration, including
+an empty configuration whose presence distinguishes v1 from v0.
+
 Use matching published platform artifacts for your operating system and CPU;
 a JavaScript-only package update cannot replace an older native decoder.
 

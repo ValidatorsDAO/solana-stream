@@ -89,5 +89,5 @@ tonic-prost = "0.14.2"
 tonic-prost-build = "0.14.2"
 url = "2.5.4"
 wincode = { version = "0.5.5", features = ["derive"] }
-yellowstone-grpc-client = "13.1.1"
-yellowstone-grpc-proto = "12.5.0"
+yellowstone-grpc-client = "13.5.0"
+yellowstone-grpc-proto = "12.7.0"
