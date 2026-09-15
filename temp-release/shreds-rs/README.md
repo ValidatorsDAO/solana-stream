@@ -87,7 +87,7 @@ This project targets `solana-stream-sdk` 2.0.0; check the release status above b
 - `solana-stream-sdk = "2.0.0"` - Main SDK for Solana streaming
 - `tokio` - Async runtime
 - `dotenvy` - Environment variable loading
-- `solana-stream-sdk::decode_entries` - Shared legacy, v0 and v1 entry decoder
+- `solana_stream_sdk::decode_entries` - Shared legacy, v0 and v1 entry decoder
 
 ## Example Output
 
