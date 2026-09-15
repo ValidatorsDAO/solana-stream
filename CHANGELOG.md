@@ -6,6 +6,7 @@
 - Decode legacy, v0 and v1 entries with the Agave 4.2.2 wire schema in Rust, UDP reconstruction and the native Node.js decoder. Use `solana_stream_sdk::decode_entries` instead of a legacy `bincode` decoder.
 - Move Rust public transaction types to the compatible modular Solana crates and require Rust 1.96.1. The optional `udp` feature remains enabled by default.
 - Update Yellowstone dependencies to Rust client 13.5/protobuf 12.7 and Node.js client 7.0.1, preserving v1 configuration presence and values.
+- Return a present Node.js v1 `config.priorityFee` as an exact decimal string, including zero, preserving values above JavaScript's safe integer limit.
 - Keep the existing Shredstream gRPC method and field numbers, provider-independent endpoint selection and local protobuf definitions.
 
 ## 1.4.0 - 2026-06-26

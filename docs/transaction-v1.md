@@ -55,6 +55,11 @@ Upgrade the native `@validators-dao/solana-entry-decoder` along with
 is unchanged. Entry JSON retains `num_hashes`, `hash`, and `transactions`, and
 v1 messages include their transaction configuration.
 
+When present, a v1 message's `config.priorityFee` is a decimal string, including
+`"0"`. This preserves all 64-bit lamport values without JavaScript number
+rounding. Use `BigInt` for exact arithmetic; an unspecified priority fee remains
+`null` in the native decoder's JSON, distinct from an explicit `"0"`.
+
 The Geyser dependencies also move to Rust client 13.5/protobuf 12.7 and Node.js
 client 7.0.1. These preserve the optional v1 transaction configuration, including
 an empty configuration whose presence distinguishes v1 from v0.

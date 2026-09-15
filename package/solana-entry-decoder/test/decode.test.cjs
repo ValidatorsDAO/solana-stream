@@ -41,19 +41,21 @@ const v0Message = Buffer.concat([
   legacyMessage,
   Buffer.from([0]),
 ])
-const v1Message = Buffer.concat([
-  // Priority fee uses two mask bits; the other three settings use one each.
-  Buffer.from([0x81]),
-  header,
-  u32(31),
-  hash,
-  Buffer.from([0, 1]),
-  key,
-  u64(12345),
-  u32(200000),
-  u32(64000),
-  u32(32768),
-])
+const makeV1Message = (priorityFee) =>
+  Buffer.concat([
+    // Priority fee uses two mask bits; the other three settings use one each.
+    Buffer.from([0x81]),
+    header,
+    u32(priorityFee === null ? 28 : 31),
+    hash,
+    Buffer.from([0, 1]),
+    key,
+    ...(priorityFee === null ? [] : [u64(priorityFee)]),
+    u32(200000),
+    u32(64000),
+    u32(32768),
+  ])
+const v1Message = makeV1Message(12345n)
 const oldTransaction = (message) =>
   Buffer.concat([Buffer.from([1]), sign(null, message, privateKey), message])
 const v1Signature = sign(null, v1Message, privateKey)
@@ -80,11 +82,52 @@ test('decodes signed legacy, v0 and v1 with unchanged entry JSON fields', () => 
   assert.equal(transactions[2].message[0], 0x81)
   assert.deepEqual(Buffer.from(transactions[2].signatures[1]), v1Signature)
   assert.deepEqual(transactions[2].message[1].config, {
-    priorityFee: 12345,
+    priorityFee: '12345',
     computeUnitLimit: 200000,
     loadedAccountsDataSizeLimit: 64000,
     heapSize: 32768,
   })
+})
+
+test('preserves every v1 priority-fee integer as an exact decimal string', () => {
+  for (const fee of [
+    9007199254740993n,
+    0n,
+    9007199254740991n,
+    9007199254740992n,
+    9223372036854775807n,
+    9223372036854775808n,
+    18446744073709551615n,
+  ]) {
+    const message = makeV1Message(fee)
+    const wire = Buffer.concat([
+      u64(1),
+      u64(1),
+      hash,
+      u64(1),
+      message,
+      sign(null, message, privateKey),
+    ])
+    const transaction = decodeSolanaEntries(wire)[0].transactions[0]
+    const decodedFee = transaction.message[1].config.priorityFee
+    assert.equal(BigInt(decodedFee), fee)
+    assert.equal(decodedFee, fee.toString())
+  }
+})
+
+test('keeps an unspecified v1 priority fee null', () => {
+  const message = makeV1Message(null)
+  const wire = Buffer.concat([
+    u64(1),
+    u64(1),
+    hash,
+    u64(1),
+    message,
+    sign(null, message, privateKey),
+  ])
+  const config = decodeSolanaEntries(wire)[0].transactions[0].message[1].config
+  assert.equal(config.priorityFee, null)
+  assert.equal(config.computeUnitLimit, 200000)
 })
 
 test('accepts ledger zero padding', () => {
