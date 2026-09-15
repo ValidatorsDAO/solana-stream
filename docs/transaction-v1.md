@@ -67,6 +67,27 @@ an empty configuration whose presence distinguishes v1 from v0.
 Use matching published platform artifacts for your operating system and CPU;
 a JavaScript-only package update cannot replace an older native decoder.
 
+### Building Linux native addons from source
+
+Install Zig 0.15.2 and the Rust targets below, then run the normal package scripts
+from the repository root after `pnpm install`:
+
+```bash
+rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+pnpm --dir package/solana-entry-decoder run build:linux:x64
+pnpm --dir package/solana-entry-decoder run build:linux:arm64
+pnpm --dir package/solana-shreds-client run build:linux:x64
+pnpm --dir package/solana-shreds-client run build:linux:arm64
+```
+
+The scripts target glibc 2.17 and keep build-time tools such as `protoc` on the
+host compiler during cross-compilation. The current addons do not link OpenSSL;
+these builds no longer require a separate OpenSSL build. Set `HOST_CC` and
+`HOST_CXX` if the host C/C++ compilers are not available as `cc` and `c++`, and
+use `CARGO_BUILD_JOBS` to override the default of four build jobs.
+
+A successful cross-build does not replace runtime testing on the target machine.
+
 ## Provider independence
 
 The SDK connects to the endpoint supplied by the caller and generates its gRPC
