@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased — Transaction v1
+## 2.0.0 - 2026-09-17 — Transaction v1
 
-- Prepare Rust SDK 2.0.0, Node.js SDK/client 2.0.0 and entry decoder 2.5.0. Registry publication is still pending; see the [migration guide](docs/transaction-v1.md).
+Published 2026-09-17: crates.io `solana-stream-sdk` 2.0.0; npm `@validators-dao/solana-stream-sdk` 2.0.0, `@validators-dao/solana-shreds-client` 2.0.0, `@validators-dao/solana-entry-decoder` 2.5.0 (native decoders rebuilt for darwin/linux × x64/arm64). Migration: [docs/transaction-v1.md](docs/transaction-v1.md).
+
+- Rust SDK 2.0.0, Node.js SDK/client 2.0.0 and entry decoder 2.5.0 (see the [migration guide](docs/transaction-v1.md)).
 - Decode legacy, v0 and v1 entries with the Agave 4.2.2 wire schema in Rust, UDP reconstruction and the native Node.js decoder. Use `solana_stream_sdk::decode_entries` instead of a legacy `bincode` decoder.
 - Move Rust public transaction types to the compatible modular Solana crates and require Rust 1.96.1. The optional `udp` feature remains enabled by default.
 - Update Yellowstone dependencies to Rust client 13.5/protobuf 12.7 and Node.js client 7.0.1, preserving v1 configuration presence and values.
