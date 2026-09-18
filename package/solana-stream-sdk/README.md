@@ -1,4 +1,4 @@
-> Transaction v1 release preparation: see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md) for compatible decoding and release status.
+> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
 <p align="center">
   <a href="https://slv.dev/" target="_blank">

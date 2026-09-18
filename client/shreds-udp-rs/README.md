@@ -1,4 +1,4 @@
-> Transaction v1 release preparation: see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md) for compatible decoding and release status.
+> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
 # shreds-udp-rs
 
@@ -24,7 +24,7 @@ GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run -p shreds-udp-rs --bin gen
 `generic_logger` shows the layered API (5 layers: `decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_entries` → `collect_watch_events` → any sink) with `SplTokenMintFinder` only. Leave `GENERIC_WATCH_*` unset to just log slots/entries without pump.fun defaults.
 
 ## Deshred decode troubleshooting
-- Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide and release status](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md) before updating.
+- Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md) before updating.
 - Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `io error: unexpected end of file`, or `alias encoding, expected strict form encoding` usually mean the deshredded entry bytes are being decoded with the wrong codec.
 - UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation. If `tcpdump` shows packets but all deshreds fail with the errors above, update the SDK/example before tuning socket buffers or firewall rules.
 
