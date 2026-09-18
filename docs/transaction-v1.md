@@ -1,10 +1,12 @@
 # Transaction v1 migration
 
-## Release preparation
+## Released
 
-This change prepares Rust SDK 2.0.0, Node.js SDK/client 2.0.0 and the Node.js entry
-decoder 2.5.0. These versions are not available from a package registry until a
-tested release is published.
+Rust SDK 2.0.0 (crates.io `solana-stream-sdk`), Node.js SDK/client 2.0.0
+(`@validators-dao/solana-stream-sdk`, `@validators-dao/solana-shreds-client`) and
+the Node.js entry decoder 2.5.0 (`@validators-dao/solana-entry-decoder`) were
+published on 2026-09-17. Transaction v1 has been live on Solana mainnet since
+epoch 1035 (2026-09-15); update to these versions to decode it.
 
 Solana Transaction v1 changes the transaction wire layout. Its version prefix is
 at the beginning of the transaction and signatures follow the message. A legacy

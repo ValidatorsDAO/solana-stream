@@ -1,4 +1,4 @@
-> Transaction v1 release preparation: see the [migration guide](docs/transaction-v1.md) for compatible decoding and release status.
+> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 / entry decoder 2.5.0 decode it — see the [migration guide](docs/transaction-v1.md).
 
 <p align="center">
   <a href="https://slv.dev/" target="_blank">
@@ -183,7 +183,7 @@ A 1-day free trial for the Shreds endpoints is available by joining the Validato
 
 #### Usage with solana-stream-sdk
 
-The following example targets SDK 2.0.0. Check the [release status](docs/transaction-v1.md#release-preparation) before installing from crates.io.
+The following example targets SDK 2.0.0 (published 2026-09-17; see the [migration guide](docs/transaction-v1.md)).
 
 ```toml
 [dependencies]
@@ -262,7 +262,7 @@ Components from `crate/solana-stream-sdk` (5 layers):
 
 Troubleshooting:
 
-- Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide and release status](docs/transaction-v1.md) before updating.
+- Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide](docs/transaction-v1.md) before updating.
 - Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `unexpected end of file`, or `alias encoding` usually indicate a codec mismatch rather than firewall loss.
 - UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation.
 
