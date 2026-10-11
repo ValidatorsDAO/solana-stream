@@ -177,9 +177,44 @@ pub struct ShredMetrics {
     duplicate_conflict: AtomicU64,
     entry_decode_failed: AtomicU64,
     fec_set_evicted_on_decode: AtomicU64,
+    /// fork: incomplete segments lost when a slot batch was evicted by batch_ttl.
+    segments_dropped_ttl: AtomicU64,
+    /// fork: incomplete segments lost when a slot batch fell out of the 128-slot window.
+    segments_dropped_slot_window: AtomicU64,
+    /// fork: ready segments the SDK runner could not deshred.
+    segments_dropped_other: AtomicU64,
+}
+
+/// fork: segments the SDK dropped, by reason (cumulative since start).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SegmentDropStats {
+    /// Incomplete segments held by a slot batch evicted after `batch_ttl` without a new shred.
+    pub ttl: u64,
+    /// Incomplete segments held by a slot batch that fell out of the 128-slot window.
+    pub slot_window: u64,
+    /// Any other SDK drop; currently a ready segment `process_ready_batch` could not deshred.
+    pub other: u64,
 }
 
 impl ShredMetrics {
+    /// fork: segments the SDK dropped, by reason (cumulative since start).
+    pub fn segment_drops(&self) -> SegmentDropStats {
+        SegmentDropStats {
+            ttl: self.segments_dropped_ttl.load(Ordering::Relaxed),
+            slot_window: self.segments_dropped_slot_window.load(Ordering::Relaxed),
+            other: self.segments_dropped_other.load(Ordering::Relaxed),
+        }
+    }
+    fn add_segments_dropped_ttl(&self, n: u64) {
+        self.segments_dropped_ttl.fetch_add(n, Ordering::Relaxed);
+    }
+    fn add_segments_dropped_slot_window(&self, n: u64) {
+        self.segments_dropped_slot_window
+            .fetch_add(n, Ordering::Relaxed);
+    }
+    fn inc_segments_dropped_other(&self) {
+        self.segments_dropped_other.fetch_add(1, Ordering::Relaxed);
+    }
     fn inc_payload_size_mismatch(&self) {
         self.payload_size_mismatch.fetch_add(1, Ordering::Relaxed);
     }
@@ -1313,9 +1348,22 @@ async fn process_data_shred(
 
     let segments = {
         let mut slots = state.slot_data_buffer.lock().await;
-        // fork: 128-slot window (upstream) AND batch_ttl without a new shred (fork memory-leak fix)
+        // fork: 128-slot window (upstream) AND batch_ttl without a new shred (fork memory-leak fix);
+        // evicted incomplete segments are counted (ShredMetrics::segment_drops)
         slots.retain(|slot_key, b| {
-            slot_key.slot.saturating_add(128) >= key.slot && b.last_seen.elapsed() < cfg.batch_ttl
+            let in_window = slot_key.slot.saturating_add(128) >= key.slot;
+            let keep = in_window && b.last_seen.elapsed() < cfg.batch_ttl;
+            if !keep {
+                let lost = b.pending_segments();
+                if lost > 0 {
+                    if in_window {
+                        metrics.add_segments_dropped_ttl(lost);
+                    } else {
+                        metrics.add_segments_dropped_slot_window(lost);
+                    }
+                }
+            }
+            keep
         });
         let slot_key = SlotKey {
             slot: key.slot,
@@ -1477,6 +1525,7 @@ async fn process_ready_batch(
             }
         }
         Err(e) => {
+            metrics.inc_segments_dropped_other();
             let err_str = e.to_string();
             if err_str.contains("entry decode failed")
                 || err_str.contains("invalid transaction message version")
@@ -2300,6 +2349,21 @@ impl SlotDataBatch {
         }
     }
 
+    /// Incomplete segments this batch still holds, i.e. what is lost if it is evicted now: one
+    /// per pending DATA_COMPLETE index plus one for pending shreds above the last pending
+    /// DATA_COMPLETE (a tail whose end never arrived).
+    fn pending_segments(&self) -> u64 {
+        let tail = match (
+            self.data_shreds.last_key_value(),
+            self.data_complete_indices.last(),
+        ) {
+            (Some((&hi, _)), Some(&c)) => hi > c,
+            (Some(_), None) => true,
+            (None, _) => false,
+        };
+        self.data_complete_indices.len() as u64 + u64::from(tail)
+    }
+
     fn is_emitted(&self, index: u32) -> bool {
         self.emitted
             .range(..=index)
@@ -2961,5 +3025,116 @@ mod tests {
             details.iter().map(|d| d.mint).collect::<Vec<_>>(),
             vec![mint_create]
         );
+    }
+
+    /// Mutation observed: `u64::from(tail)` -> `0` in `pending_segments` - test failed.
+    #[test]
+    fn pending_segments_counts_completes_and_tail() {
+        let metrics = ShredMetrics::default();
+        let (first, second, _, _) = two_segments(3);
+
+        let mut batch = SlotDataBatch::new();
+        assert_eq!(batch.pending_segments(), 0);
+        for shred in first[1..].iter().cloned() {
+            assert!(batch.insert_data_shred(shred, &metrics).is_none());
+        }
+        assert_eq!(batch.pending_segments(), 1);
+        assert!(batch
+            .insert_data_shred(second[0].clone(), &metrics)
+            .is_none());
+        assert_eq!(batch.pending_segments(), 2);
+
+        let mut tail_only = SlotDataBatch::new();
+        for shred in first[0..2].iter().cloned() {
+            assert!(tail_only.insert_data_shred(shred, &metrics).is_none());
+        }
+        assert_eq!(tail_only.pending_segments(), 1);
+    }
+
+    /// Feed slot `slot`: the first segment without index 1, then the whole second segment
+    /// (second emitted, first held).
+    async fn feed_second_emitted_first_held(
+        state: &ShredsUdpState,
+        cfg: &ShredsUdpConfig,
+        slot: u64,
+    ) {
+        let (first, second, _, _) = two_segments(slot);
+        for shred in first.iter().filter(|s| s.index() != 1) {
+            feed(state, cfg, shred).await;
+        }
+        for shred in &second {
+            feed(state, cfg, shred).await;
+        }
+    }
+
+    /// Mutation observed: `metrics.add_segments_dropped_ttl(lost)` -> `add_segments_dropped_slot_window(lost)` - test failed.
+    #[tokio::test]
+    async fn held_segment_evicted_by_ttl_is_counted() {
+        let cfg = ShredsUdpConfig {
+            batch_ttl: Duration::from_millis(200),
+            ..Default::default()
+        };
+        let state = ShredsUdpState::new(&cfg);
+        feed_second_emitted_first_held(&state, &cfg, 1000).await;
+        assert_eq!(state.metrics().segment_drops(), SegmentDropStats::default());
+
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        feed(&state, &cfg, &make_partial(1001)[0]).await;
+        assert!(!present(&state, 1000).await.1);
+        assert_eq!(
+            state.metrics().segment_drops(),
+            SegmentDropStats {
+                ttl: 1,
+                slot_window: 0,
+                other: 0
+            }
+        );
+    }
+
+    /// Mutation observed: `if in_window {` -> `if !in_window {` in the slot_data eviction - test failed.
+    #[tokio::test]
+    async fn held_segment_evicted_by_slot_window_is_counted() {
+        let cfg = ShredsUdpConfig::default();
+        let state = ShredsUdpState::new(&cfg);
+        feed_second_emitted_first_held(&state, &cfg, 1000).await;
+
+        feed(&state, &cfg, &make_partial(1128)[0]).await;
+        assert!(present(&state, 1000).await.1);
+        assert_eq!(state.metrics().segment_drops(), SegmentDropStats::default());
+
+        // Slot 1128 holds one tail shred and is not evicted, so it must not be counted.
+        feed(&state, &cfg, &make_partial(1129)[0]).await;
+        assert!(!present(&state, 1000).await.1);
+        assert_eq!(
+            state.metrics().segment_drops(),
+            SegmentDropStats {
+                ttl: 0,
+                slot_window: 1,
+                other: 0
+            }
+        );
+    }
+
+    /// Mutation observed: `metrics.inc_segments_dropped_other();` -> `let _ = ();` in `process_ready_batch` - test failed.
+    #[tokio::test]
+    async fn sdk_deshred_failure_counts_other() {
+        let cfg = ShredsUdpConfig::default();
+        let state = ShredsUdpState::new(&cfg);
+        let mut shreds = make_partial(1000);
+        shreds.remove(1);
+        let ready = ShredReadyBatch {
+            key: FecKey {
+                slot: 1000,
+                version: shreds[0].version(),
+                fec_set: shreds[0].fec_set_index(),
+            },
+            shreds,
+            status: None,
+            source: ShredSource::Data,
+        };
+        process_ready_batch(ready, &state, &cfg, Arc::new(cfg.watch_config())).await;
+        let drops = state.metrics().segment_drops();
+        assert_eq!(drops.other, 1);
+        assert_eq!((drops.ttl, drops.slot_window), (0, 0));
     }
 }
