@@ -604,11 +604,20 @@ struct ShredBatch {
 
 #[derive(Clone)]
 struct SlotDataBatch {
+    /// Received data shreds not yet handed out in a segment.
     data_shreds: BTreeMap<u32, Shred>,
+    /// DATA_COMPLETE indices of segments not yet handed out.
     data_complete_indices: BTreeSet<u32>,
-    boundary: Option<u32>,
+    /// fork: segments already handed out, start index -> DATA_COMPLETE index (inclusive).
+    /// Replaces upstream's single `boundary`: an incomplete earlier segment is kept
+    /// (not erased) when a later one completes first, and is handed out when it completes.
+    emitted: BTreeMap<u32, u32>,
     last_seen: Instant,
 }
+
+/// Segments that became ready on one insert, lower index first: the segment containing the
+/// new shred and, when the new shred is itself DATA_COMPLETE, the segment right after it.
+type ReadySegments = Option<(Vec<Shred>, Option<Vec<Shred>>)>;
 
 #[derive(Debug)]
 pub struct BatchStatus {
@@ -695,6 +704,10 @@ pub struct ShredReadyBatch {
 #[derive(Debug)]
 pub enum ShredInsertOutcome {
     Ready(ShredReadyBatch),
+    /// fork: two segments of one slot became ready on the same shred (the arriving shred was the
+    /// DATA_COMPLETE of the first while the second was already complete). Lower index first.
+    /// Handle every element exactly like `Ready`.
+    ReadyMany(Vec<ShredReadyBatch>),
     Deferred {
         key: FecKey,
         source: ShredSource,
@@ -1151,6 +1164,24 @@ pub async fn handle_pumpfun_watcher(
                 }
                 process_ready_batch(ready, state, cfg, watch_cfg.clone()).await;
             }
+            ShredInsertOutcome::ReadyMany(batches) => {
+                for ready in batches {
+                    if cfg.log_deshred_attempts {
+                        if let Some(st) = &ready.status {
+                            info!(
+                                "deshred attempt {}",
+                                format_status(
+                                    ready.key.slot,
+                                    ready.key.version,
+                                    ready.key.fec_set,
+                                    st
+                                )
+                            );
+                        }
+                    }
+                    process_ready_batch(ready, state, cfg, watch_cfg.clone()).await;
+                }
+            }
             ShredInsertOutcome::Deferred {
                 key,
                 reason,
@@ -1280,7 +1311,7 @@ async fn process_data_shred(
         entry.insert_data_shred(decoded.shred.clone(), metrics.as_ref());
     }
 
-    let segment = {
+    let segments = {
         let mut slots = state.slot_data_buffer.lock().await;
         // fork: 128-slot window (upstream) AND batch_ttl without a new shred (fork memory-leak fix)
         slots.retain(|slot_key, b| {
@@ -1294,8 +1325,8 @@ async fn process_data_shred(
         entry.insert_data_shred(decoded.shred.clone(), metrics.as_ref())
     };
 
-    match segment {
-        Some(shreds) => {
+    match segments {
+        Some((shreds, None)) => {
             let status = {
                 let buf = state.shred_buffer.lock().await;
                 buf.get(&key).map(|b| b.status(key.fec_set))
@@ -1306,6 +1337,26 @@ async fn process_data_shred(
                 status,
                 source: ShredSource::Data,
             })
+        }
+        Some((first, Some(second))) => {
+            let buf = state.shred_buffer.lock().await;
+            let batches = [first, second]
+                .into_iter()
+                .map(|shreds| {
+                    let k = FecKey {
+                        slot: key.slot,
+                        version: key.version,
+                        fec_set: shreds.last().map_or(key.fec_set, Shred::fec_set_index),
+                    };
+                    ShredReadyBatch {
+                        key: k,
+                        status: buf.get(&k).map(|b| b.status(k.fec_set)),
+                        shreds,
+                        source: ShredSource::Data,
+                    }
+                })
+                .collect();
+            ShredInsertOutcome::ReadyMany(batches)
         }
         None => ShredInsertOutcome::Buffered {
             key,
@@ -2209,66 +2260,87 @@ impl SlotDataBatch {
         Self {
             data_shreds: BTreeMap::new(),
             data_complete_indices: BTreeSet::new(),
-            boundary: None,
+            emitted: BTreeMap::new(),
             last_seen: Instant::now(),
         }
     }
 
-    fn insert_data_shred(&mut self, shred: Shred, metrics: &ShredMetrics) -> Option<Vec<Shred>> {
+    fn insert_data_shred(&mut self, shred: Shred, metrics: &ShredMetrics) -> ReadySegments {
         let index = shred.index();
+        // Late copy of a shred already handed out; not stored, `last_seen` not refreshed.
+        if self.is_emitted(index) {
+            return None;
+        }
         if let Some(existing) = self.data_shreds.get(&index) {
             if existing.payload() != shred.payload() {
                 metrics.inc_duplicate_conflict();
             }
-        } else {
-            if shred.data_complete() {
-                self.data_complete_indices.insert(index);
-            }
-            self.last_seen = Instant::now();
-            self.data_shreds.insert(index, shred);
+            // Nothing new: everything that was ready was handed out on an earlier insert.
+            return None;
         }
+        let complete = shred.data_complete();
+        if complete {
+            self.data_complete_indices.insert(index);
+        }
+        self.last_seen = Instant::now();
+        self.data_shreds.insert(index, shred);
 
-        self.ready_segment()
+        let first = self.take_segment_ending_at_or_after(index);
+        let second = if complete {
+            index
+                .checked_add(1)
+                .and_then(|next| self.take_segment_ending_at_or_after(next))
+        } else {
+            None
+        };
+        match (first, second) {
+            (Some(a), b) => Some((a, b)),
+            (None, Some(b)) => Some((b, None)),
+            (None, None) => None,
+        }
     }
 
-    fn ready_segment(&mut self) -> Option<Vec<Shred>> {
-        let base = self.boundary.map_or(0, |index| index.saturating_add(1));
-        let completes: Vec<u32> = self.data_complete_indices.range(base..).copied().collect();
+    fn is_emitted(&self, index: u32) -> bool {
+        self.emitted
+            .range(..=index)
+            .next_back()
+            .is_some_and(|(_, &end)| index <= end)
+    }
 
-        let mut skipped_boundary = self.boundary;
-        for (position, complete) in completes.iter().copied().enumerate() {
-            let start = skipped_boundary.map_or(0, |index| index.saturating_add(1));
-            if self.has_contiguous_range(start, complete) {
-                let shreds: Vec<Shred> = (start..=complete)
-                    .map(|index| self.data_shreds.get(&index).cloned())
-                    .collect::<Option<Vec<_>>>()?;
-                self.boundary = Some(complete);
-                self.remove_through(complete);
-                return Some(shreds);
-            }
+    /// First index of the segment ending at `complete`: one past the nearest known boundary
+    /// below it (a pending DATA_COMPLETE index or the end of an emitted segment), else 0.
+    fn segment_start(&self, complete: u32) -> u32 {
+        let pending = self
+            .data_complete_indices
+            .range(..complete)
+            .next_back()
+            .copied();
+        let emitted = self
+            .emitted
+            .range(..complete)
+            .next_back()
+            .map(|(_, &end)| end);
+        pending.max(emitted).map_or(0, |b| b.saturating_add(1))
+    }
 
-            if position + 1 < completes.len() {
-                skipped_boundary = Some(complete);
-            }
+    /// Hand out the segment ending at the first pending DATA_COMPLETE index >= `from` if every
+    /// shred in it is present.
+    fn take_segment_ending_at_or_after(&mut self, from: u32) -> Option<Vec<Shred>> {
+        let complete = *self.data_complete_indices.range(from..).next()?;
+        let start = self.segment_start(complete);
+        if !self.has_contiguous_range(start, complete) {
+            return None;
         }
-
-        if skipped_boundary != self.boundary {
-            if let Some(complete) = skipped_boundary {
-                self.boundary = Some(complete);
-                self.remove_through(complete);
-            }
-        }
-
-        None
+        let shreds: Vec<Shred> = (start..=complete)
+            .filter_map(|index| self.data_shreds.remove(&index))
+            .collect();
+        self.data_complete_indices.remove(&complete);
+        self.emitted.insert(start, complete);
+        Some(shreds)
     }
 
     fn has_contiguous_range(&self, start: u32, complete: u32) -> bool {
         (start..=complete).all(|index| self.data_shreds.contains_key(&index))
-    }
-
-    fn remove_through(&mut self, complete: u32) {
-        self.data_shreds.retain(|index, _| *index > complete);
-        self.data_complete_indices.retain(|index| *index > complete);
     }
 }
 
@@ -2388,7 +2460,11 @@ mod tests {
             .any(|k| k.slot == slot)
     }
 
-    async fn feed(state: &ShredsUdpState, cfg: &ShredsUdpConfig, shred: &Shred) {
+    async fn feed(
+        state: &ShredsUdpState,
+        cfg: &ShredsUdpConfig,
+        shred: &Shred,
+    ) -> ShredInsertOutcome {
         let dg = UdpDatagram {
             payload: shred.payload().to_vec(),
             received_at: Instant::now(),
@@ -2406,7 +2482,7 @@ mod tests {
                 require_code_match: false,
             },
         )
-        .await;
+        .await
     }
 
     async fn present(state: &ShredsUdpState, slot: u64) -> (bool, bool) {
@@ -2585,7 +2661,7 @@ mod tests {
         let mut batch = SlotDataBatch::new();
         let mut ready = None;
         for shred in data_shreds {
-            ready = batch.insert_data_shred(shred, &metrics);
+            ready = batch.insert_data_shred(shred, &metrics).map(|(seg, _)| seg);
             if ready.is_some() {
                 break;
             }
@@ -2599,12 +2675,13 @@ mod tests {
         assert_eq!(decoded, entries);
     }
 
-    #[test]
-    fn slot_data_batch_skips_incomplete_leading_segment() {
+    /// Two consecutive segments of one slot: (first data shreds, second data shreds,
+    /// first entries, second entries). Built exactly like upstream's skip test.
+    fn two_segments(slot: u64) -> (Vec<Shred>, Vec<Shred>, Vec<Entry>, Vec<Entry>) {
         let keypair = Keypair::new();
         let first_entries = vec![Entry::new(&Hash::default(), 1, vec![]); 256];
         let second_entries = vec![Entry::new(&Hash::default(), 2, vec![]); 256];
-        let shredder = Shredder::new(3, 1, 0, 42).expect("create shredder");
+        let shredder = Shredder::new(slot, slot - 1, 0, 42).expect("create shredder");
         let mut stats = ProcessShredsStats::default();
         let reed_solomon_cache = ReedSolomonCache::default();
         let first_data: Vec<_> = shredder
@@ -2634,26 +2711,190 @@ mod tests {
             )
             .filter(Shred::is_data)
             .collect();
+        assert!(first_data.len() >= 3);
+        (first_data, second_data, first_entries, second_entries)
+    }
+
+    /// Name kept from upstream on purpose. fork: behaviour changed - the incomplete leading
+    /// segment is no longer skipped and erased; it is kept and handed out when it completes
+    /// (out of order). Upstream erased it, losing ~8 % of fully received segments live
+    /// (features/pumpfun_bot/sdk-keep-incomplete-segments).
+    ///
+    /// Mutation observed: commented out `self.data_complete_indices.remove(&complete);` in take_segment_ending_at_or_after - assertion (e) failed.
+    #[test]
+    fn slot_data_batch_skips_incomplete_leading_segment() {
+        let (first_data, second_data, first_entries, second_entries) = two_segments(3);
+        let next_index = first_data.last().map_or(0, |shred| shred.index() + 1);
+        let first0 = first_data[0].clone();
 
         let metrics = ShredMetrics::default();
         let mut batch = SlotDataBatch::new();
-        let mut ready = None;
-        for shred in first_data.into_iter().skip(1).chain(second_data.clone()) {
-            ready = batch.insert_data_shred(shred, &metrics);
-            if ready.is_some() {
-                break;
+        let inserts: Vec<Shred> = first_data
+            .into_iter()
+            .skip(1)
+            .chain(second_data.clone())
+            .collect();
+        let last_pos = inserts.len() - 1;
+        for (pos, shred) in inserts.into_iter().enumerate() {
+            let out = batch.insert_data_shred(shred, &metrics);
+            if pos < last_pos {
+                assert!(out.is_none(), "nothing may be ready at insert {pos}");
+            } else {
+                let (seg, none) = out.expect("second segment ready on its last shred");
+                assert!(none.is_none());
+                assert_eq!(seg.first().map(Shred::index), Some(next_index));
+                assert_eq!(
+                    seg.last().map(Shred::index),
+                    second_data.last().map(Shred::index)
+                );
+                let decoded = deshred_shreds_to_entries(&seg).expect("decode entries");
+                assert_eq!(decoded, second_entries);
             }
         }
 
-        let shreds = ready.expect("second complete segment");
-        assert_eq!(shreds.first().map(Shred::index), Some(next_index));
+        // The incomplete first segment is still held.
+        let held: Vec<u32> = batch.data_shreds.keys().copied().collect();
+        assert_eq!(held, (1..next_index).collect::<Vec<_>>());
+        assert!(batch.data_complete_indices.contains(&(next_index - 1)));
+
+        // Its missing shred arrives late: handed out, in index order.
+        let (seg_n, none) = batch
+            .insert_data_shred(first0, &metrics)
+            .expect("first segment ready after late shred");
+        assert!(none.is_none());
+        let indices: Vec<u32> = seg_n.iter().map(Shred::index).collect();
+        assert_eq!(indices, (0..next_index).collect::<Vec<_>>());
+        let decoded = deshred_shreds_to_entries(&seg_n).expect("decode entries");
+        assert_eq!(decoded, first_entries);
+
+        assert!(batch.data_shreds.is_empty());
+        assert!(batch.data_complete_indices.is_empty());
+    }
+
+    /// Mutation observed: `if !self.has_contiguous_range(start, complete)` -> `if false && ...` (incomplete segments emitted) - test failed.
+    #[tokio::test]
+    async fn out_of_order_segment_is_emitted_when_completed() {
+        let cfg = ShredsUdpConfig::default();
+        let state = ShredsUdpState::new(&cfg);
+        let (first, second, first_entries, _second_entries) = two_segments(1000);
+        let next_index = first.last().map_or(0, |s| s.index() + 1);
+
+        for shred in first.iter().filter(|s| s.index() != 1) {
+            let out = feed(&state, &cfg, shred).await;
+            assert!(
+                matches!(out, ShredInsertOutcome::Buffered { .. }),
+                "{out:?}"
+            );
+        }
+        let last_pos = second.len() - 1;
+        let mut ready = None;
+        for (pos, shred) in second.iter().enumerate() {
+            let out = feed(&state, &cfg, shred).await;
+            if pos < last_pos {
+                assert!(
+                    matches!(out, ShredInsertOutcome::Buffered { .. }),
+                    "{out:?}"
+                );
+            } else {
+                match out {
+                    ShredInsertOutcome::Ready(r) => ready = Some(r),
+                    other => panic!("expected Ready, got {other:?}"),
+                }
+            }
+        }
+        let ready = ready.expect("second segment ready");
+        let indices: Vec<u32> = ready.shreds.iter().map(Shred::index).collect();
         assert_eq!(
-            shreds.last().map(Shred::index),
-            second_data.last().map(Shred::index)
+            indices,
+            (next_index..=second.last().unwrap().index()).collect::<Vec<_>>()
         );
 
-        let decoded = deshred_shreds_to_entries(&shreds).expect("decode entries");
-        assert_eq!(decoded, second_entries);
+        // As the bot does: mark every FEC set of the emitted segment completed.
+        let fec_sets: BTreeSet<u32> = ready.shreds.iter().map(Shred::fec_set_index).collect();
+        for fec_set in fec_sets {
+            let k = FecKey {
+                slot: ready.key.slot,
+                version: ready.key.version,
+                fec_set,
+            };
+            state.remove_batch(&k).await;
+            state.mark_completed(k).await;
+        }
+
+        match feed(&state, &cfg, &first[1]).await {
+            ShredInsertOutcome::Ready(r) => {
+                let indices: Vec<u32> = r.shreds.iter().map(Shred::index).collect();
+                assert_eq!(indices, (0..next_index).collect::<Vec<_>>());
+                let decoded = deshred_shreds_to_entries(&r.shreds).expect("decode entries");
+                assert_eq!(decoded, first_entries);
+            }
+            other => panic!("expected Ready for the held segment, got {other:?}"),
+        }
+    }
+
+    /// Mutation observed: `let second = if complete {` -> `if false && complete {` (second segment never taken) - test failed.
+    #[tokio::test]
+    async fn completing_boundary_shred_emits_both_segments() {
+        let cfg = ShredsUdpConfig::default();
+        let state = ShredsUdpState::new(&cfg);
+        let (first, second, first_entries, second_entries) = two_segments(1000);
+        let next_index = first.last().map_or(0, |s| s.index() + 1);
+
+        for shred in &first[..first.len() - 1] {
+            let out = feed(&state, &cfg, shred).await;
+            assert!(
+                matches!(out, ShredInsertOutcome::Buffered { .. }),
+                "{out:?}"
+            );
+        }
+        for shred in &second {
+            let out = feed(&state, &cfg, shred).await;
+            assert!(
+                matches!(out, ShredInsertOutcome::Buffered { .. }),
+                "{out:?}"
+            );
+        }
+        match feed(&state, &cfg, first.last().unwrap()).await {
+            ShredInsertOutcome::ReadyMany(v) => {
+                assert_eq!(v.len(), 2);
+                let idx0: Vec<u32> = v[0].shreds.iter().map(Shred::index).collect();
+                assert_eq!(idx0, (0..next_index).collect::<Vec<_>>());
+                assert_eq!(
+                    deshred_shreds_to_entries(&v[0].shreds).expect("decode"),
+                    first_entries
+                );
+                assert_eq!(
+                    deshred_shreds_to_entries(&v[1].shreds).expect("decode"),
+                    second_entries
+                );
+                assert_eq!(
+                    v[0].key.fec_set,
+                    v[0].shreds.last().unwrap().fec_set_index()
+                );
+            }
+            other => panic!("expected ReadyMany, got {other:?}"),
+        }
+    }
+
+    /// Mutation observed: `if self.is_emitted(index) {` -> `if false && ...` (late copies stored again) - test failed.
+    #[test]
+    fn emitted_segment_is_never_emitted_again() {
+        let (first, second, _, _) = two_segments(3);
+        let metrics = ShredMetrics::default();
+        let mut batch = SlotDataBatch::new();
+        let all: Vec<Shred> = first.into_iter().chain(second).collect();
+        let mut emitted_segments = 0;
+        for shred in all.iter().cloned() {
+            if let Some((_, second)) = batch.insert_data_shred(shred, &metrics) {
+                emitted_segments += 1 + usize::from(second.is_some());
+            }
+        }
+        assert_eq!(emitted_segments, 2);
+        for shred in all {
+            assert!(batch.insert_data_shred(shred, &metrics).is_none());
+        }
+        assert!(batch.data_shreds.is_empty());
+        assert_eq!(batch.emitted.len(), 2);
     }
 
     fn make_detail(

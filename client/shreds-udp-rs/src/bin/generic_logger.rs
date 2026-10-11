@@ -164,6 +164,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         ShredInsertOutcome::Ready(ready) => {
                             handle_ready_batch(ready, &state, &cfg, &watch_cfg).await;
                         }
+                        ShredInsertOutcome::ReadyMany(batches) => {
+                            for ready in batches {
+                                handle_ready_batch(ready, &state, &cfg, &watch_cfg).await;
+                            }
+                        }
                         ShredInsertOutcome::Deferred { key, reason, .. } => {
                             if cfg.log_deferred {
                                 info!(

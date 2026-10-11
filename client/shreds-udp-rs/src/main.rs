@@ -214,6 +214,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             }
                             handle_ready_batch(ready, &state, &cfg, &watch_cfg).await;
                         }
+                        ShredInsertOutcome::ReadyMany(batches) => {
+                            for ready in batches {
+                                if cfg.log_deshred_attempts {
+                                    if let Some(st) = &ready.status {
+                                        info!(
+                                            "deshred attempt slot={} ver={} fec_set={} {}",
+                                            ready.key.slot,
+                                            ready.key.version,
+                                            ready.key.fec_set,
+                                            describe_status(st)
+                                        );
+                                    }
+                                }
+                                handle_ready_batch(ready, &state, &cfg, &watch_cfg).await;
+                            }
+                        }
                         ShredInsertOutcome::Deferred {
                             key,
                             reason,
