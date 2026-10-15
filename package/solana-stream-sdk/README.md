@@ -216,6 +216,7 @@ Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
 - `CommitmentLevel`: Solana commitment levels (e.g., processed, confirmed, finalized).
 - `SubscribeRequestFilterAccounts`: Filters for account subscriptions.
 - `SubscribeRequestFilterTransactions`: Filters for transaction subscriptions.
+- `SubscribeRequestFilterBlockFooter`: Filters for Alpenglow block footer subscriptions.
 - `SubscribeRequestFilterBlocks`: Filters for block subscriptions.
 - `SubscribeRequestFilterBlocksMeta`: Filters for block metadata subscriptions.
 - `SubscribeRequestFilterSlots`: Filters for slot subscriptions.
