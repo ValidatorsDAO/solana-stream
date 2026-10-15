@@ -176,7 +176,9 @@ pub struct EntryFilter {}
 
 impl From<&EntryFilter> for GeyserSubscribeRequestFilterEntry {
     fn from(_: &EntryFilter) -> Self {
-        Self {}
+        Self {
+            include_update_parent: None,
+        }
     }
 }
 
