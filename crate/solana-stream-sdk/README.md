@@ -1,5 +1,7 @@
 > Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
+> Alpenglow (Solana mainnet-beta epoch 1064, expected around 2026-10-21) adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 adds support — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md).
+
 <p align="center">
   <a href="https://slv.dev/" target="_blank">
     <img src="https://storage.validators.solutions/SolanaStreamSDK.jpg" alt="SolanaStreamSDK" />

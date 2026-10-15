@@ -2447,7 +2447,7 @@ dependencies = [
 
 [[package]]
 name = "geyser-rs"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "backoff",
@@ -5150,7 +5150,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "shreds-rs"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "bincode",
  "chrono",
@@ -5166,7 +5166,7 @@ dependencies = [
 
 [[package]]
 name = "shreds-udp-rs"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "bincode",
  "chrono",
@@ -7338,7 +7338,7 @@ dependencies = [
 
 [[package]]
 name = "solana-stream-sdk"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "bincode",
  "chrono",
@@ -9541,9 +9541,9 @@ dependencies = [
 
 [[package]]
 name = "yellowstone-grpc-client"
-version = "13.5.0"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d877fb5cdbace43ce02017372cbc47d0ce5c916671cd66e8bee8e8b925061d3"
+checksum = "14d2f909d0f39eff9f03fca11c60115660defcf85c3eee5511ebb13c0ebc91d4"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -9562,9 +9562,9 @@ dependencies = [
 
 [[package]]
 name = "yellowstone-grpc-proto"
-version = "12.7.0"
+version = "14.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5c845c3eaa82bf075d1e553826e629eda16a74e9fdbe886ec07bd7434d132af"
+checksum = "8f913b2244559b96aa636abf53188a7df450e14a3f8cb5b3e5d3202822759ff4"
 dependencies = [
  "anyhow",
  "prost",
