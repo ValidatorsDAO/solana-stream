@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.0 - Unreleased — Alpenglow
+
+Release candidate; nothing is published yet. Migration: [docs/alpenglow.md](docs/alpenglow.md).
+
+- Rust SDK 3.0.0 adds the block-marker API for Alpenglow: `classify_block_marker`, `decode_block_component`, `BlockComponentPayload`, `BlockMarkerKind` and `deshred_shreds_to_component`. `deshred_shreds_to_entries` keeps its signature and returns an empty `Vec` for a marker payload.
+- The UDP runner (`run_shreds_udp`) counts markers by kind (`ShredMetrics::block_marker_count`), logs an `UpdateParent` marker with its new parent slot and keeps marker payloads out of the entry path. The sample UDP clients (`shreds-udp-rs`, `generic_logger`) log the marker kind.
+- Update the Rust Yellowstone dependencies to client 15.0.0/protobuf 14.0.1 and re-export `GeyserSubscribeRequestFilterBlockFooter`, `GeyserUpdateBlockFooter`, `GeyserUpdateEntryUpdateParent` and `GeyserSubscribeUpdateDeshredUpdateParent`. The new protobuf fields and `UpdateOneof` variants are breaking for struct literals and exhaustive matches (see the [migration guide](docs/alpenglow.md)).
+- Node.js SDK 3.0.0 moves to `@triton-one/yellowstone-grpc` 9.0.0 and exports `SubscribeRequestFilterBlockFooter`.
+- Unchanged: the Solana crates stay at 4.2.2 (`solana-entry` 4.2.2 already contains `block_component`) and Rust stays at 1.96.1. `@validators-dao/solana-entry-decoder` 2.5.0 and `@validators-dao/solana-shreds-client` 2.0.0 are not republished.
+
 ## 2.0.0 - 2026-09-17 — Transaction v1
 
 Published 2026-09-17: crates.io `solana-stream-sdk` 2.0.0; npm `@validators-dao/solana-stream-sdk` 2.0.0, `@validators-dao/solana-shreds-client` 2.0.0, `@validators-dao/solana-entry-decoder` 2.5.0 (native decoders rebuilt for darwin/linux × x64/arm64). Migration: [docs/transaction-v1.md](docs/transaction-v1.md).
