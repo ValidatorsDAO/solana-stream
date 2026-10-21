@@ -1,6 +1,6 @@
-> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
+> Alpenglow is activated on Solana mainnet-beta at epoch 1064 (expected 2026-10-21 13:00–15:00 UTC). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md).
 
-> Alpenglow (Solana mainnet-beta epoch 1064, expected around 2026-10-21) adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 adds support — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md).
+> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
 <p align="center">
   <a href="https://slv.dev/" target="_blank">
@@ -35,7 +35,8 @@ This SDK provides a simple and efficient way to connect to Shredstream service a
 ## Features
 
 - **Easy-to-use API** - Simple wrapper around the Shredstream protocols and Geyser gRPC
-- **Yellowstone 13.x Geyser API** - Rust exports track `yellowstone-grpc-client` 13.x and expose deshred, token-account expansion, and cuckoo filter helpers
+- **Yellowstone 15.x Geyser API** - Rust exports track `yellowstone-grpc-client` 15.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers
+- **Alpenglow block markers** - `deshred_shreds_to_component` and `classify_block_marker` report `UpdateParent`, `BlockFooter` and the other block markers instead of dropping them (see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md))
 - **Async Support** - Built with tokio for async/await patterns
 - **Type Safety** - Strongly typed Rust interfaces
 - **Error Handling** - Comprehensive error types with proper error propagation
@@ -70,8 +71,9 @@ Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP S
 
 ### UDP deshred decode troubleshooting
 
-Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema
-for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the
+Transaction v1 requires the decoder of SDK 2.0.0 or later (3.0.0 includes it), which
+uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not
+support v1. See the
 [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md)
 before updating. An old decoder can reject valid packets with errors such as
 `entry decode failed: invalid value: integer ...`, `continue signal on byte-three`,
@@ -93,7 +95,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "2.0.0"
+solana-stream-sdk = "3.0.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```
@@ -235,10 +237,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### UDP pipeline helpers (shreds-udp)
 
-- Layered flow (5 layers): 1) UDP receive/prefilter → 2) FEC buffer → 3) deshred → 4) watcher/detailer → 5) sink (log/hook).
+- Layered flow (5 layers): 1) UDP receive/prefilter → 2) FEC buffer → 3) deshred (entry batch or Alpenglow block marker) → 4) watcher/detailer → 5) sink (log/hook).
 - `handle_pumpfun_watcher`: one-call convenience wrapper over these stages (legacy default watcher; set your own watch IDs).
 - `decode_udp_datagram` + `insert_shred`: tap the pipeline before logging; `ShredInsertOutcome` reports ready/gated/buffered shreds.
-- `deshred_shreds_to_entries`: convert a ready batch; `collect_watch_events`: structured watch hits without emitting logs.
+- `deshred_shreds_to_component`: convert a ready batch into a `BlockComponentPayload`, either `Entries` or a `BlockMarker` with its `BlockMarkerKind` (`UpdateParent`, `BlockFooter`, ...); `collect_watch_events`: structured watch hits without emitting logs. Pass it the transactions of the `Entries` only. `deshred_shreds_to_entries` still exists but returns an empty vector for a marker, so it cannot report one.
 - `ShredsUdpConfig::watch_config_no_defaults()`: define your own watch set; pass your own `MintFinder`/`MintDetailer` via `ProgramWatchConfig`.
 - `ShredsUdpState::{remove_batch, mark_completed, mark_suppressed}`: mirror default cleanup.
 - SOL values in shreds-udp are instruction limits; actual fills require event/meta data (e.g., Geyser/RPC).
@@ -251,12 +253,12 @@ Why modular? Many users want to do more than print logs (e.g., push to a queue o
 ```rust
 use solana_stream_sdk::{GeyserGrpcClient, GeyserSubscribeRequest, GeyserCommitmentLevel};
 use std::collections::HashMap;
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = std::env::var("GRPC_ENDPOINT")?;
-    let client = GeyserGrpcClient::build_from_shared(endpoint)?.connect().await?;
+    let mut client = GeyserGrpcClient::build_from_shared(endpoint)?.connect().await?;
 
     let request = GeyserSubscribeRequest {
         commitment: Some(GeyserCommitmentLevel::Processed as i32),
@@ -266,6 +268,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         blocks: HashMap::new(),
         blocks_meta: HashMap::new(),
         entry: HashMap::new(),
+        block_footer: HashMap::new(),
         transactions_status: HashMap::new(),
         accounts_data_slice: vec![],
         from_slot: None,
@@ -327,12 +330,12 @@ use solana_stream_sdk::{
     GeyserGrpcClient,
 };
 use std::collections::HashMap;
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = std::env::var("GRPC_ENDPOINT")?;
-    let client = GeyserGrpcClient::build_from_shared(endpoint)?.connect().await?;
+    let mut client = GeyserGrpcClient::build_from_shared(endpoint)?.connect().await?;
 
     let mut accounts = HashMap::new();
     accounts.insert(
@@ -354,6 +357,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         blocks: HashMap::new(),
         blocks_meta: HashMap::new(),
         entry: HashMap::new(),
+        block_footer: HashMap::new(),
         transactions_status: HashMap::new(),
         accounts_data_slice: vec![],
         from_slot: None,
@@ -432,6 +436,7 @@ For convenience, the following types are re-exported:
 - `GeyserSubscribeRequestFilterDeshredTransactions`
 - `GeyserTokenAccountExpansionControlFlag`
 - `GeyserCompressedAccountFilterSet`
+- `GeyserSubscribeRequestFilterBlockFooter`
 - `GeyserSubscribeRequestFilterBlocks`
 - `GeyserSubscribeRequestFilterBlocksMeta`
 - `GeyserSubscribeRequestFilterEntry`
@@ -439,8 +444,17 @@ For convenience, the following types are re-exported:
 - `GeyserSubscribeRequestFilterTransactions`
 - `GeyserSubscribeUpdate`
 - `GeyserSubscribeUpdateAccountInfo`
+- `GeyserSubscribeUpdateDeshredUpdateParent`
 - `GeyserSubscribeUpdateEntry`
 - `GeyserSubscribeUpdateTransactionInfo`
+- `GeyserUpdateBlockFooter`
+- `GeyserUpdateEntryUpdateParent`
+
+#### Alpenglow block markers
+
+- `BlockComponentPayload`, `BlockMarkerKind`, `classify_block_marker`, `decode_block_component`
+- `deshred_shreds_to_component` (with the default `udp` feature)
+- `solana_entry`, the `solana-entry` crate, for the marker types inside `BlockComponentPayload::BlockMarker`
 
 ## Requirements
 
