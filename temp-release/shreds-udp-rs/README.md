@@ -19,10 +19,10 @@ cargo run
 ```bash
 GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run --bin generic_logger
 ```
-`generic_logger` shows the layered API (5 layers: `decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_entries` → `collect_watch_events` → any sink) with `SplTokenMintFinder` only. Leave `GENERIC_WATCH_*` unset to just log slots/entries without pump.fun defaults.
+`generic_logger` shows the layered API (5 layers: `decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_component` → `collect_watch_events` → any sink) with `SplTokenMintFinder` only. `deshred_shreds_to_component` returns either an entry batch or an Alpenglow block marker: entry batches go to `collect_watch_events`, and a block marker is logged by kind (`block marker slot=… kind=UpdateParent`). Leave `GENERIC_WATCH_*` unset to just log slots/entries without pump.fun defaults.
 
 ## Deshred decode troubleshooting
-- Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md) before updating.
+- Transaction v1 requires the SDK 2.0.0 or later decoder, which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md) before updating.
 - Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `io error: unexpected end of file`, or `alias encoding, expected strict form encoding` usually mean the deshredded entry bytes are being decoded with the wrong codec.
 - UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation. If `tcpdump` shows packets but all deshreds fail with the errors above, update the SDK/example before tuning socket buffers or firewall rules.
 
@@ -47,7 +47,7 @@ GENERIC_WATCH_PROGRAM_IDS=YourProgramIdHere cargo run --bin generic_logger
 
 ### Modular hooks for custom watchers/detailers
 - Use `ShredsUdpConfig::watch_config_no_defaults()` or build `ProgramWatchConfig::new(...)` to avoid pump.fun fallbacks.
-- Pipeline building blocks (5 layers): 1) `decode_udp_datagram` (receive/prefilter) → 2) `insert_shred` (FEC buffer) → 3) `deshred_shreds_to_entries` (deshred) → 4) `collect_watch_events` (watcher/detailer) → 5) any sink (log/queue/custom processing).
+- Pipeline building blocks (5 layers): 1) `decode_udp_datagram` (receive/prefilter) → 2) `insert_shred` (FEC buffer) → 3) `deshred_shreds_to_component` (deshred: entry batch or block marker; pass the entries to the next step) → 4) `collect_watch_events` (watcher/detailer) → 5) any sink (log/queue/custom processing).
 - State helpers: `ShredsUdpState::{remove_batch, mark_completed, mark_suppressed}` mirror the default cleanup performed by the one-call handler.
 - Quick-start convenience: `handle_pumpfun_watcher` runs the full pump.fun-oriented stack in one call before you dive into customizations.
 - Sample custom hook: set `SHREDS_UDP_CUSTOM_HOOK=1` to enable the placeholder hook in `main.rs`, then replace its body to push hits to your own sink (queue, RPC call, etc.). `collect_watch_events` delivers structured hits; `pump_min_lamports` continues to filter buys/sells.

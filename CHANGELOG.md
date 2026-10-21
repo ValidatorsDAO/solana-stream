@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.0.0 - Unreleased — Alpenglow
+## 3.0.0 - 2026-10-21 — Alpenglow
 
-Release candidate; nothing is published yet. Migration: [docs/alpenglow.md](docs/alpenglow.md).
+Published 2026-10-21: crates.io `solana-stream-sdk` 3.0.0; npm `@validators-dao/solana-stream-sdk` 3.0.0. `@validators-dao/solana-shreds-client` 2.0.0 and `@validators-dao/solana-entry-decoder` 2.5.0 are unchanged. Migration: [docs/alpenglow.md](docs/alpenglow.md).
 
 - Rust SDK 3.0.0 adds the block-marker API for Alpenglow: `classify_block_marker`, `decode_block_component`, `BlockComponentPayload`, `BlockMarkerKind` and `deshred_shreds_to_component`. `BlockMarkerKind` is `#[non_exhaustive]`, so a `match` on it needs a wildcard arm. `deshred_shreds_to_entries` keeps its signature and returns an empty `Vec` for a marker payload.
 - Rust: re-export the `solana-entry` crate as `solana_stream_sdk::solana_entry`, so the marker types inside `BlockComponentPayload` need no extra dependency.
@@ -12,7 +12,7 @@ Release candidate; nothing is published yet. Migration: [docs/alpenglow.md](docs
 - Node.js: calling `SubscribeRequest.encode` directly with a request that has no `blockFooter` throws; `stream.write` fills the missing field first and is not affected.
 - Node.js SDK 3.0.0 moves to `@triton-one/yellowstone-grpc` 9.0.0 and exports `SubscribeRequestFilterBlockFooter`.
 - Node.js: add `classifyBlockMarker(payload)` and the `BlockMarkerKind` type, so `entries` bytes can be checked for an Alpenglow block marker before `decodeSolanaEntries` (which decodes a marker as an empty list).
-- Rust: classify and decode a block marker followed by zero padding after its declared length as the same kind, instead of treating it as unknown.
+- Rust and Node.js: a block marker followed by zero padding after its declared length is classified (and, in Rust, decoded) as its kind.
 - Unchanged: the Solana crates stay at 4.2.2 (`solana-entry` 4.2.2 already contains `block_component`) and Rust stays at 1.96.1. `@validators-dao/solana-entry-decoder` 2.5.0 and `@validators-dao/solana-shreds-client` 2.0.0 are not republished.
 
 ## 2.0.0 - 2026-09-17 — Transaction v1

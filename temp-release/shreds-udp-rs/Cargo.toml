@@ -24,6 +24,6 @@ solana-entry = { version = "=4.2.2", features = ["agave-unstable-api"] }
 solana-rpc-client = { version = "=4.2.2", features = ["agave-unstable-api"] }
 solana-ledger = { version = "=4.2.2", features = ["agave-unstable-api"] }
 tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros", "signal"] }
-solana-stream-sdk = "2.0.0"
+solana-stream-sdk = "3.0.0"
 # Explicitly pin `home` to a toolchain-compatible release (rustc 1.86).
 home = "=0.5.11"

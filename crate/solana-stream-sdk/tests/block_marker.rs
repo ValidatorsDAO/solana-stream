@@ -225,3 +225,29 @@ fn zero_padded_block_markers_are_classified_by_kind() {
         }
     );
 }
+
+#[test]
+fn a_declared_length_beyond_the_payload_is_unknown_and_does_not_panic() {
+    let expected = BlockComponentPayload::BlockMarker {
+        kind: BlockMarkerKind::Unknown,
+        marker: None,
+    };
+
+    // A footer cut short: the body is shorter than the declared length.
+    let footer = marker_payload(0, &footer_body());
+    let truncated = &footer[..footer.len() - 1];
+    assert_eq!(
+        classify_block_marker(truncated),
+        Some(BlockMarkerKind::Unknown)
+    );
+    assert_eq!(decode_block_component(truncated).unwrap(), expected);
+
+    // A declared length far beyond the payload.
+    let mut oversized = marker_payload(0, &footer_body());
+    oversized[11..13].copy_from_slice(&u16::MAX.to_le_bytes());
+    assert_eq!(
+        classify_block_marker(&oversized),
+        Some(BlockMarkerKind::Unknown)
+    );
+    assert_eq!(decode_block_component(&oversized).unwrap(), expected);
+}

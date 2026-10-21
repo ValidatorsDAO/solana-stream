@@ -57,9 +57,12 @@ pub enum BlockComponentPayload {
 /// optionally zero-padded). `Some` is a block marker. `Unknown` means a zero
 /// entry count followed by bytes that are not a V1 marker; a caller that guessed
 /// where a segment starts (a mid-batch slice can begin with zero bytes) must
-/// treat `Unknown` as undecodable, not as a marker. `SlotDataBatch` never
-/// guesses: a segment starts at index 0 or right after an observed
-/// DATA_COMPLETE shred.
+/// not rely on the result: no `Some(_)`, including
+/// `Some(BlockMarkerKind::Unknown)`, proves that the slice is a marker, because
+/// zero padding after the declared length is accepted, which widens the range
+/// of guessed slices that look like a marker.
+/// `SlotDataBatch` never guesses: a segment starts at index 0 or right after an
+/// observed DATA_COMPLETE shred.
 pub fn classify_block_marker(payload: &[u8]) -> Option<BlockMarkerKind> {
     if payload.len() < ENTRY_COUNT_LEN || payload[..ENTRY_COUNT_LEN] != [0u8; ENTRY_COUNT_LEN] {
         return None;
@@ -96,9 +99,10 @@ fn marker_end(payload: &[u8]) -> usize {
 /// The kind comes from [`classify_block_marker`]; a marker is never decoded as
 /// entries. `Unknown` means a zero entry count followed by bytes that are not a
 /// V1 marker; a caller that guessed where a segment starts (a mid-batch slice
-/// can begin with zero bytes) must treat `Unknown` as undecodable, not as a
-/// marker. `SlotDataBatch` never guesses: a segment starts at index 0 or right
-/// after an observed DATA_COMPLETE shred.
+/// can begin with zero bytes) must not rely on the result, whether it is
+/// `Unknown` or a marker kind (see [`classify_block_marker`]). `SlotDataBatch`
+/// never guesses: a segment starts at index 0 or right after an observed
+/// DATA_COMPLETE shred.
 pub fn decode_block_component(payload: &[u8]) -> Result<BlockComponentPayload> {
     if let Some(kind) = classify_block_marker(payload) {
         let marker = if kind == BlockMarkerKind::Unknown {
