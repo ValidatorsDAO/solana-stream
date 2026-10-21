@@ -3,11 +3,11 @@ use env_logger;
 use log::{error, info};
 use solana_stream_sdk::{
     shreds_udp::{
-        collect_watch_events, decode_udp_datagram, deshred_shreds_to_entries, insert_shred,
+        collect_watch_events, decode_udp_datagram, deshred_shreds_to_component, insert_shred,
         latency_monitor_task, DeshredPolicy, ShredInsertOutcome, ShredReadyBatch, ShredSource,
         ShredsUdpConfig, ShredsUdpState, WatchEvent, log_watch_events,
     },
-    UdpShredReceiver,
+    BlockComponentPayload, UdpShredReceiver,
 };
 use std::sync::Arc;
 use tokio::signal;
@@ -20,8 +20,8 @@ async fn handle_ready_batch(
     watch_cfg: &Arc<solana_stream_sdk::txn::ProgramWatchConfig>,
 ) {
     let key = ready.key;
-    match deshred_shreds_to_entries(&ready.shreds) {
-        Ok(entries) => {
+    match deshred_shreds_to_component(&ready.shreds) {
+        Ok(BlockComponentPayload::Entries(entries)) => {
             let txs: Vec<&solana_stream_sdk::VersionedTransaction> =
                 entries.iter().flat_map(|e| e.transactions.iter()).collect();
             info!(
@@ -60,6 +60,13 @@ async fn handle_ready_batch(
                 );
             }
 
+            state.remove_batch(&key).await;
+            if matches!(ready.source, ShredSource::Data) {
+                state.mark_completed(key).await;
+            }
+        }
+        Ok(BlockComponentPayload::BlockMarker { kind, .. }) => {
+            info!("block marker slot={} kind={:?}", key.slot, kind);
             state.remove_batch(&key).await;
             if matches!(ready.source, ShredSource::Data) {
                 state.mark_completed(key).await;
