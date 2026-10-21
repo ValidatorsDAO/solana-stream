@@ -1,4 +1,6 @@
-> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
+> Alpenglow is activated on Solana mainnet-beta at epoch 1064 (expected 2026-10-21 13:00–15:00 UTC). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md).
+
+> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
 <p align="center">
   <a href="https://slv.dev/" target="_blank">
@@ -23,7 +25,7 @@
 
 # Shreds-RS
 
-A Rust client for streaming Solana shreds data using `solana-stream-sdk` 2.0.0.
+A Rust client for streaming Solana shreds data using `solana-stream-sdk` 3.0.0.
 
 <a href="https://solana.com/">
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
@@ -82,9 +84,9 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 ## Dependencies
 
-This project targets `solana-stream-sdk` 2.0.0 (published 2026-09-17):
+This project targets `solana-stream-sdk` 3.0.0:
 
-- `solana-stream-sdk = "2.0.0"` - Main SDK for Solana streaming
+- `solana-stream-sdk = "3.0.0"` - Main SDK for Solana streaming
 - `tokio` - Async runtime
 - `dotenvy` - Environment variable loading
 - `solana-entry` - Solana entry types
