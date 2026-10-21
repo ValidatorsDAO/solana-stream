@@ -2,8 +2,9 @@
 
 ## When
 
-Alpenglow is activated on Solana mainnet-beta at epoch 1064 (expected
-2026-10-21 13:00–15:00 UTC). The changes below apply from the first Alpenglow slot.
+Alpenglow is active on Solana mainnet-beta since epoch 1064 (2026-10-21). The changes
+below apply from the first Alpenglow slot. To check a cluster, `getAgGenesisCert` returns
+a non-null value once Alpenglow is active there.
 
 Rust SDK 3.0.0 (crates.io `solana-stream-sdk`) and Node.js SDK 3.0.0
 (`@validators-dao/solana-stream-sdk`) are the releases that handle them.
@@ -63,7 +64,10 @@ fn handle(ready: &ShredReadyBatch) {
   entry count followed by bytes that are not a V1 marker, or a V1 marker with a variant
   this SDK does not know.
   A caller that guessed where a segment starts (a mid-batch slice can begin with zero
-  bytes) must treat `Unknown` as undecodable, not as a marker.
+  bytes) must not rely on the result at all: neither `Unknown` nor `Some(kind)` proves
+  that the slice is a marker, because zero padding after the declared length is accepted
+  and a slice that begins in the middle of a batch can look like a marker. The SDK's own
+  `SlotDataBatch` does not guess where a segment starts.
 - `marker` is `None` when the marker body does not decode, and always for `Unknown`.
 - `classify_block_marker(&[u8]) -> Option<BlockMarkerKind>` and
   `decode_block_component(&[u8])` work on the deshredded bytes directly. `None` from
@@ -197,8 +201,13 @@ A Geyser `bank_id` is a number each node assigns itself. Do not compare it with 
 `ReconnectEvent::DiscardBanks`. Apply a `DiscardBanks` by removing the state you kept for
 the listed banks; the replacement updates follow it. `subscribe` and
 `subscribe_with_request` do not reconnect (see Breaking changes). The request must use
-processed commitment (leave `commitment` unset) and must not set `from_slot`. Configure
-the retry backoff with `GeyserGrpcBuilder::set_reconnect_config` before `connect()`.
+processed commitment (leave `commitment` unset) and must not set `from_slot`, and the
+client must not ask for a startup snapshot (leave `GeyserGrpcBuilder::set_x_request_snapshot`
+at its default `false`). A non-processed commitment or a startup snapshot makes
+`subscribe_with_reconnect` return a `failed_precondition` status ("bank replay requires
+processed commitment without startup snapshots"); `from_slot` is rejected with a
+`failed_precondition` status as well. Configure the retry backoff with
+`GeyserGrpcBuilder::set_reconnect_config` before `connect()`.
 
 ```rust
 use futures::StreamExt;
@@ -248,6 +257,10 @@ async fn run(endpoint: String) -> Result<(), Box<dyn std::error::Error>> {
   `..Default::default()`.
 - `GeyserUpdateOneof` has the new variants `BlockFooter` and `EntryUpdateParent`.
   Exhaustive matches need arms.
+- `use solana_stream_sdk::*` together with a direct dependency on another major version
+  of `solana-entry` (for example 3.x) makes a `use solana_entry::...` declaration
+  ambiguous (error E0659), because the glob now brings the SDK's own `solana_entry` into
+  scope. Use `solana_stream_sdk::solana_entry` or explicit imports instead of the glob.
 - `bank_id` fields on the slot, account, transaction, transaction status, entry, block
   and block meta updates.
 - The re-exported `yellowstone-grpc-client` moves from 13.5.0 to 15.0.0 and
@@ -271,7 +284,10 @@ async fn run(endpoint: String) -> Result<(), Box<dyn std::error::Error>> {
 9.0.0 (it was 7.0.1) and exports `SubscribeRequestFilterBlockFooter`.
 
 - `ReconnectOptions` is `{ backoff? }` only; `enabled`, `slotRetention` and `policy`
-  are removed.
+  are removed. Passing the 7.0.1 style options (for example `{ enabled: true }`) to the
+  `Client` constructor makes `connect()` throw `reconnect.enabled, policy, and
+  slotRetention are unsupported; use subscribeWithReconnect() with backoff options only`
+  instead of ignoring them.
 - `SubscribeRequest.blockFooter` is a required map in the TypeScript type
   (`blockFooter: {}`). Calling `SubscribeRequest.encode(request)` yourself with a request
   that has no `blockFooter` throws (`Cannot convert undefined or null to object`).
