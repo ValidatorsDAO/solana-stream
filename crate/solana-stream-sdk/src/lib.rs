@@ -4,6 +4,7 @@
 //! This crate provides convenient wrappers around the Shreds protobuf definitions
 //! for easier integration with Solana streaming services.
 
+pub mod block_marker;
 pub mod entries;
 pub mod error;
 #[cfg(feature = "udp")]
@@ -24,15 +25,23 @@ pub mod shredstream_proto {
 
 // Re-export commonly used types for convenience
 // Re-export error types
+pub use block_marker::{
+    classify_block_marker, decode_block_component, BlockComponentPayload, BlockMarkerKind,
+};
 pub use entries::decode_entries;
 pub use error::SolanaStreamError;
+// `BlockComponentPayload::BlockMarker` exposes `solana_entry` types such as
+// `VersionedBlockMarker`; re-export the crate so they need no extra dependency.
+pub use solana_entry;
 pub use solana_entry::entry::Entry;
 pub use solana_transaction::versioned::VersionedTransaction;
 // Re-export shredstream client
 pub use shredstream::ShredstreamClient;
 // Re-export UDP receiver
 #[cfg(feature = "udp")]
-pub use shreds_udp::{deshred_shreds_to_entries, UdpDatagram, UdpShredReceiver};
+pub use shreds_udp::{
+    deshred_shreds_to_component, deshred_shreds_to_entries, UdpDatagram, UdpShredReceiver,
+};
 
 // Shredstream protobuf exports
 pub use shredstream_proto::{
@@ -59,10 +68,12 @@ pub use yellowstone_grpc_proto::{
         SubscribeDeshredRequest as GeyserSubscribeDeshredRequest,
         SubscribeRequestFilterDeshredTransactions as GeyserSubscribeRequestFilterDeshredTransactions,
         SubscribeUpdateBlock as GeyserUpdateBlock,
+        SubscribeUpdateBlockFooter as GeyserUpdateBlockFooter,
         SubscribeUpdateBlockMeta as GeyserUpdateBlockMeta,
         SubscribeUpdateDeshred as GeyserSubscribeUpdateDeshred,
         SubscribeUpdateDeshredTransaction as GeyserSubscribeUpdateDeshredTransaction,
         SubscribeUpdateDeshredTransactionInfo as GeyserSubscribeUpdateDeshredTransactionInfo,
+        SubscribeUpdateDeshredUpdateParent as GeyserSubscribeUpdateDeshredUpdateParent,
         SubscribeUpdateSlot as GeyserUpdateSlot,
         TokenAccountExpansionControlFlag as GeyserTokenAccountExpansionControlFlag,
     },
@@ -77,6 +88,7 @@ pub use yellowstone_grpc_proto::{
         SubscribeRequestFilterAccountsFilter as GeyserSubscribeRequestFilterAccountsFilter,
         SubscribeRequestFilterAccountsFilterLamports as GeyserSubscribeRequestFilterAccountsFilterLamports,
         SubscribeRequestFilterAccountsFilterMemcmp as GeyserSubscribeRequestFilterAccountsFilterMemcmp,
+        SubscribeRequestFilterBlockFooter as GeyserSubscribeRequestFilterBlockFooter,
         SubscribeRequestFilterBlocks as GeyserSubscribeRequestFilterBlocks,
         SubscribeRequestFilterBlocksMeta as GeyserSubscribeRequestFilterBlocksMeta,
         SubscribeRequestFilterEntry as GeyserSubscribeRequestFilterEntry,
@@ -86,6 +98,7 @@ pub use yellowstone_grpc_proto::{
         SubscribeUpdate as GeyserSubscribeUpdate,
         SubscribeUpdateAccountInfo as GeyserSubscribeUpdateAccountInfo,
         SubscribeUpdateEntry as GeyserSubscribeUpdateEntry,
+        SubscribeUpdateEntryUpdateParent as GeyserUpdateEntryUpdateParent,
         SubscribeUpdateTransactionInfo as GeyserSubscribeUpdateTransactionInfo,
     },
     prost::Message as GeyserMessage,

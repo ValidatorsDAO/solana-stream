@@ -1,4 +1,7 @@
 use crate::{
+    block_marker::{
+        classify_block_marker, decode_block_component, BlockComponentPayload, BlockMarkerKind,
+    },
     txn::{
         default_token_program_ids, detect_program_hit, first_signatures, parse_pubkeys, MintDetail,
         ProgramHit, ProgramWatchConfig,
@@ -10,6 +13,7 @@ use dashmap::DashMap;
 use futures::future::join_all;
 use log::{error, info, warn};
 use serde::Deserialize;
+use solana_entry::block_component::{VersionedBlockMarker, VersionedUpdateParent};
 use solana_ledger::shred::{
     Shred, Shredder, MAX_CODE_SHREDS_PER_SLOT, MAX_DATA_SHREDS_PER_SLOT, SIZE_OF_NONCE,
 };
@@ -104,15 +108,36 @@ impl UdpShredReceiver {
     }
 }
 
+fn deshred_payload(shreds: &[solana_ledger::shred::Shred]) -> Result<Vec<u8>> {
+    let payloads: Vec<&[u8]> = shreds.iter().map(|s| s.payload().as_ref()).collect();
+    Shredder::deshred(payloads)
+        .map_err(|e| SolanaStreamError::Serialization(format!("deshred failed: {e}")))
+}
+
 /// Attempt to deshred a batch of shreds into `Entry` items.
+///
+/// A block marker payload yields an empty vector; use
+/// [`deshred_shreds_to_component`] to learn the marker kind.
+///
+/// The same empty vector is returned for an empty entry batch, a block marker and an
+/// `Unknown` payload, so the three cannot be told apart here; use
+/// [`deshred_shreds_to_component`] when that matters.
 pub fn deshred_shreds_to_entries(
     shreds: &[solana_ledger::shred::Shred],
 ) -> Result<Vec<solana_entry::entry::Entry>> {
-    let payloads: Vec<&[u8]> = shreds.iter().map(|s| s.payload().as_ref()).collect();
-    let data = Shredder::deshred(payloads)
-        .map_err(|e| SolanaStreamError::Serialization(format!("deshred failed: {e}")))?;
+    let data = deshred_payload(shreds)?;
+    if classify_block_marker(&data).is_some() {
+        return Ok(Vec::new());
+    }
 
     crate::decode_entries(&data)
+}
+
+/// Attempt to deshred a batch of shreds into an entry batch or a block marker.
+pub fn deshred_shreds_to_component(
+    shreds: &[solana_ledger::shred::Shred],
+) -> Result<BlockComponentPayload> {
+    decode_block_component(&deshred_payload(shreds)?)
 }
 
 #[derive(Clone)]
@@ -174,9 +199,31 @@ pub struct ShredMetrics {
     duplicate_conflict: AtomicU64,
     entry_decode_failed: AtomicU64,
     fec_set_evicted_on_decode: AtomicU64,
+    block_marker_footer: AtomicU64,
+    block_marker_header: AtomicU64,
+    block_marker_update_parent: AtomicU64,
+    block_marker_genesis_certificate: AtomicU64,
+    block_marker_unknown: AtomicU64,
 }
 
 impl ShredMetrics {
+    /// Number of block markers of `kind` reported by the receiver so far.
+    pub fn block_marker_count(&self, kind: BlockMarkerKind) -> u64 {
+        self.block_marker_counter(kind).load(Ordering::Relaxed)
+    }
+    fn block_marker_counter(&self, kind: BlockMarkerKind) -> &AtomicU64 {
+        match kind {
+            BlockMarkerKind::BlockFooter => &self.block_marker_footer,
+            BlockMarkerKind::BlockHeader => &self.block_marker_header,
+            BlockMarkerKind::UpdateParent => &self.block_marker_update_parent,
+            BlockMarkerKind::GenesisCertificate => &self.block_marker_genesis_certificate,
+            BlockMarkerKind::Unknown => &self.block_marker_unknown,
+        }
+    }
+    fn inc_block_marker(&self, kind: BlockMarkerKind) {
+        self.block_marker_counter(kind)
+            .fetch_add(1, Ordering::Relaxed);
+    }
     fn inc_payload_size_mismatch(&self) {
         self.payload_size_mismatch.fetch_add(1, Ordering::Relaxed);
     }
@@ -1342,12 +1389,27 @@ async fn process_code_shred(
     }
 }
 
+/// What `process_ready_batch` did with one ready batch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ReadyBatchOutcome {
+    Entries(usize),
+    Marker(BlockMarkerKind),
+    Failed,
+}
+
+fn update_parent_slot(marker: &VersionedBlockMarker) -> Option<u64> {
+    let VersionedBlockMarker::V1(marker) = marker;
+    match marker.as_update_parent()? {
+        VersionedUpdateParent::V1(update) => Some(update.new_parent_slot),
+    }
+}
+
 async fn process_ready_batch(
     ready: ShredReadyBatch,
     state: &ShredsUdpState,
     cfg: &ShredsUdpConfig,
     watch_cfg: Arc<ProgramWatchConfig>,
-) {
+) -> ReadyBatchOutcome {
     let metrics = state.metrics();
     let ShredReadyBatch {
         key,
@@ -1367,8 +1429,8 @@ async fn process_ready_batch(
         })
         .collect();
 
-    match deshred_shreds_to_entries(&shreds) {
-        Ok(entries) => {
+    match deshred_shreds_to_component(&shreds) {
+        Ok(BlockComponentPayload::Entries(entries)) => {
             let txs: Vec<&VersionedTransaction> =
                 entries.iter().flat_map(|e| e.transactions.iter()).collect();
             info!(
@@ -1409,6 +1471,27 @@ async fn process_ready_batch(
                     state.mark_completed(segment_key).await;
                 }
             }
+            ReadyBatchOutcome::Entries(entries.len())
+        }
+        Ok(BlockComponentPayload::BlockMarker { kind, marker }) => {
+            metrics.inc_block_marker(kind);
+            match marker.as_ref().and_then(update_parent_slot) {
+                Some(new_parent_slot) => info!(
+                    "block marker slot={} kind={:?} new_parent_slot={}",
+                    key.slot, kind, new_parent_slot
+                ),
+                None => info!("block marker slot={} kind={:?}", key.slot, kind),
+            }
+
+            for segment_key in &segment_keys {
+                state.remove_batch(segment_key).await;
+            }
+            if matches!(source, ShredSource::Data) {
+                for segment_key in segment_keys {
+                    state.mark_completed(segment_key).await;
+                }
+            }
+            ReadyBatchOutcome::Marker(kind)
         }
         Err(e) => {
             let err_str = e.to_string();
@@ -1434,6 +1517,7 @@ async fn process_ready_batch(
                 state.remove_batch(segment_key).await;
                 state.mark_suppressed(*segment_key).await;
             }
+            ReadyBatchOutcome::Failed
         }
     }
 }
@@ -2500,5 +2584,167 @@ mod tests {
         assert!(details.iter().any(|d| d.mint == mint_buy_large));
         assert!(!details.iter().any(|d| d.mint == mint_buy_small));
         assert!(!details.iter().any(|d| d.mint == mint_trade));
+    }
+    #[tokio::test]
+    async fn udp_receiver_reports_markers_by_kind_and_keeps_following_entry_batches() {
+        use solana_entry::block_component::{BlockComponent, BlockFooterV1, UpdateParentV1};
+
+        let keypair = Keypair::new();
+        let shredder = Shredder::new(2, 1, 0, 42).expect("create shredder");
+        let mut stats = ProcessShredsStats::default();
+        let reed_solomon_cache = ReedSolomonCache::default();
+        let entries_a = vec![Entry::new(&Hash::default(), 1, vec![]); 3];
+        let entries_b = vec![Entry::new(&Hash::default(), 2, vec![]); 5];
+        let header = BlockComponent::new_block_header(1, Hash::new_from_array([0x11; 32]));
+        let update_parent = BlockComponent::new_block_marker(
+            VersionedBlockMarker::from_update_parent(UpdateParentV1 {
+                new_parent_slot: 0,
+                new_parent_block_id: Hash::new_from_array([0x22; 32]),
+            }),
+        );
+        let footer = BlockComponent::new_block_marker(VersionedBlockMarker::from_block_footer(
+            BlockFooterV1 {
+                bank_hash: Hash::new_from_array([0x33; 32]),
+                block_producer_time_nanos: 1_700_000_000_000_000_000,
+                block_user_agent: b"agave".to_vec(),
+                block_final_cert: None,
+                skip_reward_cert: None,
+                notar_reward_cert: None,
+            },
+        ));
+
+        #[derive(Default)]
+        struct SlotShreds {
+            data: Vec<Shred>,
+            next_data_index: u32,
+            next_code_index: u32,
+        }
+        impl SlotShreds {
+            fn push(&mut self, shreds: impl Iterator<Item = Shred>) {
+                for shred in shreds {
+                    if shred.is_data() {
+                        self.next_data_index = self.next_data_index.max(shred.index() + 1);
+                        self.data.push(shred);
+                    } else {
+                        self.next_code_index = self.next_code_index.max(shred.index() + 1);
+                    }
+                }
+            }
+        }
+
+        let mut slot = SlotShreds::default();
+        slot.push(shredder.make_merkle_shreds_from_component(
+            &keypair,
+            &header,
+            false,
+            Hash::default(),
+            slot.next_data_index,
+            slot.next_code_index,
+            &reed_solomon_cache,
+            &mut stats,
+        ));
+        slot.push(
+            shredder
+                .make_shreds_from_data_slice(
+                    &keypair,
+                    &[0u8; 8],
+                    false,
+                    Hash::default(),
+                    slot.next_data_index,
+                    slot.next_code_index,
+                    &reed_solomon_cache,
+                    &mut stats,
+                )
+                .expect("shred the empty entry batch"),
+        );
+        slot.push(shredder.make_merkle_shreds_from_entries(
+            &keypair,
+            &entries_a,
+            false,
+            Hash::default(),
+            slot.next_data_index,
+            slot.next_code_index,
+            &reed_solomon_cache,
+            &mut stats,
+        ));
+        slot.push(shredder.make_merkle_shreds_from_component(
+            &keypair,
+            &update_parent,
+            false,
+            Hash::default(),
+            slot.next_data_index,
+            slot.next_code_index,
+            &reed_solomon_cache,
+            &mut stats,
+        ));
+        slot.push(shredder.make_merkle_shreds_from_entries(
+            &keypair,
+            &entries_b,
+            false,
+            Hash::default(),
+            slot.next_data_index,
+            slot.next_code_index,
+            &reed_solomon_cache,
+            &mut stats,
+        ));
+        slot.push(shredder.make_merkle_shreds_from_component(
+            &keypair,
+            &footer,
+            true,
+            Hash::default(),
+            slot.next_data_index,
+            slot.next_code_index,
+            &reed_solomon_cache,
+            &mut stats,
+        ));
+
+        let cfg = ShredsUdpConfig::default();
+        let state = ShredsUdpState::new(&cfg);
+        let policy = DeshredPolicy {
+            require_code_match: false,
+        };
+        let watch_cfg = Arc::new(cfg.watch_config());
+        let from: std::net::SocketAddr = "127.0.0.1:8001".parse().unwrap();
+
+        let mut outcomes = Vec::new();
+        for shred in slot.data {
+            let datagram = UdpDatagram {
+                payload: shred.payload().as_ref().to_vec(),
+                received_at: Instant::now(),
+                from,
+            };
+            let decoded = decode_udp_datagram(&datagram, &state, &cfg)
+                .await
+                .expect("prefilter accepts the data shred");
+            if let ShredInsertOutcome::Ready(ready) =
+                insert_shred(decoded, &datagram, &state, &cfg, &policy).await
+            {
+                outcomes.push(process_ready_batch(ready, &state, &cfg, watch_cfg.clone()).await);
+            }
+        }
+
+        assert_eq!(
+            outcomes,
+            vec![
+                ReadyBatchOutcome::Marker(BlockMarkerKind::BlockHeader),
+                ReadyBatchOutcome::Entries(0),
+                ReadyBatchOutcome::Entries(entries_a.len()),
+                ReadyBatchOutcome::Marker(BlockMarkerKind::UpdateParent),
+                ReadyBatchOutcome::Entries(entries_b.len()),
+                ReadyBatchOutcome::Marker(BlockMarkerKind::BlockFooter),
+            ]
+        );
+        let metrics = state.metrics();
+        for (kind, expected) in [
+            (BlockMarkerKind::BlockHeader, 1),
+            (BlockMarkerKind::UpdateParent, 1),
+            (BlockMarkerKind::BlockFooter, 1),
+            (BlockMarkerKind::GenesisCertificate, 0),
+            (BlockMarkerKind::Unknown, 0),
+        ] {
+            assert_eq!(metrics.block_marker_count(kind), expected, "{kind:?}");
+        }
+        assert_eq!(metrics.entry_decode_failed.load(Ordering::Relaxed), 0);
+        assert!(state.suppressed.lock().await.is_empty());
     }
 }

@@ -1,4 +1,6 @@
-> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
+> Alpenglow is activated on Solana mainnet-beta at epoch 1064 (expected 2026-10-21 13:00–15:00 UTC). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md).
+
+> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
 <p align="center">
   <a href="https://slv.dev/" target="_blank">
@@ -216,6 +218,7 @@ Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
 - `CommitmentLevel`: Solana commitment levels (e.g., processed, confirmed, finalized).
 - `SubscribeRequestFilterAccounts`: Filters for account subscriptions.
 - `SubscribeRequestFilterTransactions`: Filters for transaction subscriptions.
+- `SubscribeRequestFilterBlockFooter`: Filters for Alpenglow block footer subscriptions.
 - `SubscribeRequestFilterBlocks`: Filters for block subscriptions.
 - `SubscribeRequestFilterBlocksMeta`: Filters for block metadata subscriptions.
 - `SubscribeRequestFilterSlots`: Filters for slot subscriptions.
@@ -231,6 +234,7 @@ Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
 ### Utility Exports
 
 - `decodeSolanaEntries`: Function to decode raw Solana shred entry data into structured, human-readable formats.
+- `classifyBlockMarker(payload)`: Returns the Alpenglow block marker kind (`'BlockFooter'`, `'BlockHeader'`, `'UpdateParent'`, `'GenesisCertificate'`, `'Unknown'`) of a raw `entries` payload, or `null` for an entry batch. Call it before `decodeSolanaEntries`, which decodes a marker as an empty list.
 
 ## Dependencies
 

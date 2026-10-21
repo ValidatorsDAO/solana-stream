@@ -2,6 +2,7 @@ import Client, {
   CommitmentLevel,
   SubscribeRequestAccountsDataSlice,
   SubscribeRequestFilterAccounts,
+  SubscribeRequestFilterBlockFooter,
   SubscribeRequestFilterBlocks,
   SubscribeRequestFilterBlocksMeta,
   SubscribeRequestFilterEntry,
@@ -15,6 +16,7 @@ export {
   CommitmentLevel,
   SubscribeRequestAccountsDataSlice,
   SubscribeRequestFilterAccounts,
+  SubscribeRequestFilterBlockFooter,
   SubscribeRequestFilterBlocks,
   SubscribeRequestFilterBlocksMeta,
   SubscribeRequestFilterEntry,
@@ -35,3 +37,6 @@ enum ShredsClientCommitmentLevel {
 }
 
 export { decodeSolanaEntries, ShredsClient, ShredsClientCommitmentLevel }
+
+export { classifyBlockMarker } from './block-marker'
+export type { BlockMarkerKind } from './block-marker'

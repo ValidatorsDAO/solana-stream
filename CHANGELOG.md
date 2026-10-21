@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.0.0 - Unreleased — Alpenglow
+
+Release candidate; nothing is published yet. Migration: [docs/alpenglow.md](docs/alpenglow.md).
+
+- Rust SDK 3.0.0 adds the block-marker API for Alpenglow: `classify_block_marker`, `decode_block_component`, `BlockComponentPayload`, `BlockMarkerKind` and `deshred_shreds_to_component`. `BlockMarkerKind` is `#[non_exhaustive]`, so a `match` on it needs a wildcard arm. `deshred_shreds_to_entries` keeps its signature and returns an empty `Vec` for a marker payload.
+- Rust: re-export the `solana-entry` crate as `solana_stream_sdk::solana_entry`, so the marker types inside `BlockComponentPayload` need no extra dependency.
+- The UDP runner (`run_shreds_udp`) counts markers by kind (`ShredMetrics::block_marker_count`), logs an `UpdateParent` marker with its new parent slot and keeps marker payloads out of the entry path. The sample UDP clients (`shreds-udp-rs`, `generic_logger`) log the marker kind.
+- Update the Rust Yellowstone dependencies to client 15.0.0/protobuf 14.0.1 and re-export `GeyserSubscribeRequestFilterBlockFooter`, `GeyserUpdateBlockFooter`, `GeyserUpdateEntryUpdateParent` and `GeyserSubscribeUpdateDeshredUpdateParent`. The new protobuf fields and `UpdateOneof` variants are breaking for struct literals and exhaustive matches (see the [migration guide](docs/alpenglow.md)).
+- Rust: `subscribe` and `subscribe_with_request` of `yellowstone-grpc-client` no longer reconnect, even when `GeyserGrpcBuilder::set_reconnect_config` is set (in 13.5.0 that setting made them reconnect). The setting still compiles but the stream ends at the first disconnect. Use `subscribe_with_reconnect` (processed commitment, no `from_slot`; handle `ReconnectEvent::DiscardBanks`) or write your own reconnect loop.
+- Node.js: calling `SubscribeRequest.encode` directly with a request that has no `blockFooter` throws; `stream.write` fills the missing field first and is not affected.
+- Node.js SDK 3.0.0 moves to `@triton-one/yellowstone-grpc` 9.0.0 and exports `SubscribeRequestFilterBlockFooter`.
+- Node.js: add `classifyBlockMarker(payload)` and the `BlockMarkerKind` type, so `entries` bytes can be checked for an Alpenglow block marker before `decodeSolanaEntries` (which decodes a marker as an empty list).
+- Rust: classify and decode a block marker followed by zero padding after its declared length as the same kind, instead of treating it as unknown.
+- Unchanged: the Solana crates stay at 4.2.2 (`solana-entry` 4.2.2 already contains `block_component`) and Rust stays at 1.96.1. `@validators-dao/solana-entry-decoder` 2.5.0 and `@validators-dao/solana-shreds-client` 2.0.0 are not republished.
+
 ## 2.0.0 - 2026-09-17 — Transaction v1
 
 Published 2026-09-17: crates.io `solana-stream-sdk` 2.0.0; npm `@validators-dao/solana-stream-sdk` 2.0.0, `@validators-dao/solana-shreds-client` 2.0.0, `@validators-dao/solana-entry-decoder` 2.5.0 (native decoders rebuilt for darwin/linux × x64/arm64). Migration: [docs/transaction-v1.md](docs/transaction-v1.md).

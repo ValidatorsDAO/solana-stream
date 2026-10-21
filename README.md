@@ -1,4 +1,6 @@
-> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 / entry decoder 2.5.0 decode it — see the [migration guide](docs/transaction-v1.md).
+> Alpenglow is activated on Solana mainnet-beta at epoch 1064 (expected 2026-10-21 13:00–15:00 UTC). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](docs/alpenglow.md).
+
+> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](docs/transaction-v1.md).
 
 <p align="center">
   <a href="https://slv.dev/" target="_blank">
@@ -49,7 +51,7 @@ This project provides libraries and tools for streaming real-time data from the 
 
 ## Production-Ready Geyser Clients (TypeScript + Rust)
 
-- Rust Geyser exports track `yellowstone-grpc-client` 13.x and expose deshred, token-account expansion, and cuckoo filter helpers
+- Rust Geyser exports track `yellowstone-grpc-client` 15.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus gap recovery (`fromSlot` / `from_slot`)
 - Bounded queues/channels with drop logging for backpressure safety
@@ -183,11 +185,11 @@ A 1-day free trial for the Shreds endpoints is available by joining the Validato
 
 #### Usage with solana-stream-sdk
 
-The following example targets SDK 2.0.0 (published 2026-09-17; see the [migration guide](docs/transaction-v1.md)).
+The following example targets SDK 3.0.0 (see the [Alpenglow migration guide](docs/alpenglow.md); Transaction v1 support is covered by the [v1 migration guide](docs/transaction-v1.md)).
 
 ```toml
 [dependencies]
-solana-stream-sdk = { version = "2.0.0", default-features = false }
+solana-stream-sdk = { version = "3.0.0", default-features = false }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"
 ```
@@ -254,7 +256,7 @@ Components from `crate/solana-stream-sdk` (5 layers):
 
 - Config loader (`ShredsUdpConfig`): reads JSONC/env and builds `ProgramWatchConfig`. Use `watch_config_no_defaults()` to define your own watch set (composite mint finder = SPL Token MintTo/Initialize).
 - Receiver (`UdpShredReceiver`): minimal UDP socket reader with timestamps.
-- Pipeline (5 layers): ① receive/prefilter (`decode_udp_datagram`) → ② FEC buffer (`insert_shred` + `ShredsUdpState`) → ③ deshred (`deshred_shreds_to_entries`) → ④ watcher/detail (`collect_watch_events` + detailers) → ⑤ sink (logs/custom hooks).
+- Pipeline (5 layers): ① receive/prefilter (`decode_udp_datagram`) → ② FEC buffer (`insert_shred` + `ShredsUdpState`) → ③ deshred (`deshred_shreds_to_component`: an entry batch or an Alpenglow block marker) → ④ watcher/detail (`collect_watch_events` + detailers, fed with the entries only) → ⑤ sink (logs/custom hooks).
 - One-call convenience: `handle_pumpfun_watcher` wraps the same 5 layers (legacy default watcher; set your own watch IDs).
 - Customize sink/detailer: via `ProgramWatchConfig::with_detailers(...)` or replace the sink with your own hook.
 - Vote filtering: by default `skip_vote_txs=true`, so vote-only shreds/txs are dropped early.
@@ -262,7 +264,7 @@ Components from `crate/solana-stream-sdk` (5 layers):
 
 Troubleshooting:
 
-- Transaction v1 requires the SDK 2.0.0 decoder, which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide](docs/transaction-v1.md) before updating.
+- Transaction v1 requires the decoder of SDK 2.0.0 or later (3.0.0 includes it), which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide](docs/transaction-v1.md) before updating.
 - Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `unexpected end of file`, or `alias encoding` usually indicate a codec mismatch rather than firewall loss.
 - UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation.
 
@@ -278,7 +280,7 @@ Design notes
 Quick choices:
 
 - Want a one-call loop? Use `handle_pumpfun_watcher` in your own binary and set your own watch IDs/env as needed.
-- Need to act on detections (e.g., push to a queue, custom filtering, alternate watchers/detailers)? Use the modular pipeline (`decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_entries` → `collect_watch_events`) and hook your own sink right after detection (see `client/shreds-udp-rs` custom hook example).
+- Need to act on detections (e.g., push to a queue, custom filtering, alternate watchers/detailers)? Use the modular pipeline (`decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_component` → `collect_watch_events`) and hook your own sink right after detection (see `client/shreds-udp-rs` custom hook example). `deshred_shreds_to_component` tells an entry batch from a block marker, so a marker never reaches `collect_watch_events`; `deshred_shreds_to_entries` returns an empty vector for a marker and cannot report it.
 
 Minimal usage example (Rust):
 
@@ -304,11 +306,11 @@ Modular pipeline example (custom watch set):
 
 ```rust
 use solana_stream_sdk::shreds_udp::{
-    collect_watch_events, decode_udp_datagram, deshred_shreds_to_entries, insert_shred,
+    collect_watch_events, decode_udp_datagram, deshred_shreds_to_component, insert_shred,
     DeshredPolicy, ShredInsertOutcome, ShredSource, ShredsUdpConfig, ShredsUdpState,
 };
 use solana_stream_sdk::txn::{ProgramWatchConfig, SplTokenMintFinder};
-use solana_stream_sdk::UdpShredReceiver;
+use solana_stream_sdk::{BlockComponentPayload, UdpShredReceiver};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -329,9 +331,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             if let ShredInsertOutcome::Ready(ready) =
                 insert_shred(decoded, &datagram, &state, &cfg, &policy).await
             {
-                let entries = deshred_shreds_to_entries(&ready.shreds)?;
-                let txs: Vec<_> = entries.iter().flat_map(|e| e.transactions.iter()).collect();
-                let _hits = collect_watch_events(ready.key.slot, &txs, watch_cfg.as_ref(), 0);
+                match deshred_shreds_to_component(&ready.shreds) {
+                    Ok(BlockComponentPayload::Entries(entries)) => {
+                        let txs: Vec<_> =
+                            entries.iter().flat_map(|e| e.transactions.iter()).collect();
+                        let _hits =
+                            collect_watch_events(ready.key.slot, &txs, watch_cfg.as_ref(), 0);
+                    }
+                    Ok(BlockComponentPayload::BlockMarker { kind, .. }) => {
+                        // An Alpenglow block marker (UpdateParent, BlockFooter, ...), not transactions.
+                        println!("slot {} block marker {:?}", ready.key.slot, kind);
+                    }
+                    Err(_) => {
+                        state.remove_batch(&ready.key).await;
+                        state.mark_suppressed(ready.key).await;
+                        continue;
+                    }
+                }
                 state.remove_batch(&ready.key).await;
                 if matches!(ready.source, ShredSource::Data) {
                     state.mark_completed(ready.key).await;

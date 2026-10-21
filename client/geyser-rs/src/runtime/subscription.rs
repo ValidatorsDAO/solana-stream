@@ -40,6 +40,7 @@ pub fn build_subscribe_request(config: &Config) -> GeyserSubscribeRequest {
             .map(|(k, v)| (k.clone(), GeyserSubscribeRequestFilterEntry::from(v)))
             .collect(),
         transactions_status: Default::default(),
+        block_footer: Default::default(),
         accounts_data_slice: vec![],
         from_slot: None,
         ping: None,
