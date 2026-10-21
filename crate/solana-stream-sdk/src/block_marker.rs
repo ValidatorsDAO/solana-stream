@@ -4,7 +4,9 @@
 //! with a little-endian `u64`: the entry count. A marker carries a count of zero
 //! followed by a `VersionedBlockMarker`. The wire layout is
 //! `BlockComponent` / `VersionedBlockMarker` / `BlockMarkerV1` in
-//! `solana-entry` (`block_component.rs`).
+//! `solana-entry` (`block_component.rs`). A marker can be followed by zero
+//! padding (a marker that fills its data shreds to a fixed size); the declared
+//! length bounds the marker and the padding is ignored.
 
 use crate::{decode_entries, Result};
 use solana_entry::{block_component::VersionedBlockMarker, entry::Entry};
@@ -44,6 +46,9 @@ pub enum BlockComponentPayload {
 
 /// Classify a deshredded payload without decoding it.
 ///
+/// A marker may be followed by zero bytes after its declared length; they are
+/// padding and do not change the kind. A non-zero byte there makes it `Unknown`.
+///
 /// `None` is an entry batch, including the all-zero empty batch (`[0u8; 8]`,
 /// optionally zero-padded). `Some` is a block marker. `Unknown` means a zero
 /// entry count followed by bytes that are not a V1 marker; a caller that guessed
@@ -61,8 +66,8 @@ pub fn classify_block_marker(payload: &[u8]) -> Option<BlockMarkerKind> {
 
     let well_formed = payload.len() >= BLOCK_MARKER_HEADER_LEN
         && payload[8..10] == BLOCK_MARKER_VERSION_V1.to_le_bytes()
-        && BLOCK_MARKER_HEADER_LEN + u16::from_le_bytes([payload[11], payload[12]]) as usize
-            == payload.len();
+        && marker_end(payload) <= payload.len()
+        && payload[marker_end(payload)..].iter().all(|byte| *byte == 0);
     if !well_formed {
         return Some(BlockMarkerKind::Unknown);
     }
@@ -75,7 +80,14 @@ pub fn classify_block_marker(payload: &[u8]) -> Option<BlockMarkerKind> {
     })
 }
 
+/// End offset of the marker declared by the header; the caller checks the length first.
+fn marker_end(payload: &[u8]) -> usize {
+    BLOCK_MARKER_HEADER_LEN + u16::from_le_bytes([payload[11], payload[12]]) as usize
+}
+
 /// Decode a deshredded payload into an entry batch or a block marker.
+///
+/// Zero padding after the marker's declared length is ignored.
 ///
 /// The kind comes from [`classify_block_marker`]; a marker is never decoded as
 /// entries. `Unknown` means a zero entry count followed by bytes that are not a
@@ -88,7 +100,10 @@ pub fn decode_block_component(payload: &[u8]) -> Result<BlockComponentPayload> {
         let marker = if kind == BlockMarkerKind::Unknown {
             None
         } else {
-            wincode::deserialize::<VersionedBlockMarker>(&payload[ENTRY_COUNT_LEN..]).ok()
+            wincode::deserialize::<VersionedBlockMarker>(
+                &payload[ENTRY_COUNT_LEN..marker_end(payload)],
+            )
+            .ok()
         };
         return Ok(BlockComponentPayload::BlockMarker { kind, marker });
     }

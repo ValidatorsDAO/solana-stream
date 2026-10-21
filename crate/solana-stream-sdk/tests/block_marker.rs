@@ -144,7 +144,7 @@ fn block_marker_bytes_are_classified_by_kind_and_never_decoded_as_entries() {
     let mut version_two = marker_payload(1, &header_body());
     version_two[8..10].copy_from_slice(&2u16.to_le_bytes());
     let mut trailing = marker_payload(1, &header_body());
-    trailing.push(0);
+    trailing.push(1);
     for payload in [marker_payload(9, &header_body()), version_two, trailing] {
         assert_eq!(
             classify_block_marker(&payload),
@@ -177,4 +177,51 @@ fn entry_batches_and_zero_runs_decode_as_entries() {
             BlockComponentPayload::Entries(Vec::new())
         );
     }
+}
+
+#[test]
+fn zero_padded_block_markers_are_classified_by_kind() {
+    // A marker payload zero-padded to 32 data shreds of 963 bytes.
+    const PADDED_LEN: usize = 32 * 963;
+    let padded = |variant: u8, inner: &[u8]| {
+        let mut bytes = marker_payload(variant, inner);
+        bytes.resize(PADDED_LEN, 0);
+        bytes
+    };
+
+    let footer = padded(0, &footer_body());
+    assert_eq!(footer.len(), 30_816);
+    assert_eq!(
+        classify_block_marker(&footer),
+        Some(BlockMarkerKind::BlockFooter)
+    );
+    let (kind, marker) = decode_marker(&footer);
+    assert_eq!(kind, BlockMarkerKind::BlockFooter);
+    assert!(marker.is_some(), "padded footer body decodes");
+
+    let update_parent = padded(2, &update_parent_body());
+    assert_eq!(
+        classify_block_marker(&update_parent),
+        Some(BlockMarkerKind::UpdateParent)
+    );
+    let (kind, marker) = decode_marker(&update_parent);
+    assert_eq!(kind, BlockMarkerKind::UpdateParent);
+    let VersionedBlockMarker::V1(v1) = marker.expect("padded UpdateParent body decodes");
+    let VersionedUpdateParent::V1(update) = v1.as_update_parent().expect("UpdateParent variant");
+    assert_eq!(update.new_parent_slot, 11111);
+
+    // A non-zero byte after the declared length is not padding.
+    let mut dirty = padded(0, &footer_body());
+    *dirty.last_mut().unwrap() = 1;
+    assert_eq!(
+        classify_block_marker(&dirty),
+        Some(BlockMarkerKind::Unknown)
+    );
+    assert_eq!(
+        decode_block_component(&dirty).unwrap(),
+        BlockComponentPayload::BlockMarker {
+            kind: BlockMarkerKind::Unknown,
+            marker: None,
+        }
+    );
 }
