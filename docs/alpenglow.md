@@ -77,6 +77,25 @@ The gRPC client is unchanged. `decode_entries` (Rust) and `decodeSolanaEntries`
 0 entries as a frame without transactions. `decode_block_component` takes the same byte
 slice as `decode_entries` if you need the marker kind.
 
+In Node.js, `decodeSolanaEntries` still returns `[]` for a marker. When the `entries`
+bytes come from a Shredstream provider, call `classifyBlockMarker` first:
+
+```ts
+import { classifyBlockMarker, decodeSolanaEntries } from '@validators-dao/solana-stream-sdk'
+
+const bytes = new Uint8Array(entries)
+const marker = classifyBlockMarker(bytes) // null for an entry batch
+if (marker === null) {
+  const decoded = decodeSolanaEntries(bytes)
+} else {
+  // 'BlockFooter' | 'BlockHeader' | 'UpdateParent' | 'GenesisCertificate' | 'Unknown'
+}
+```
+
+`classifyBlockMarker` is plain TypeScript (it does not load the native decoder) and
+follows the same rules as Rust's `classify_block_marker`, including zero padding after
+the declared marker length.
+
 ## UpdateParent
 
 An `UpdateParent` marker means the leader restarted the slot on a new parent. Entries of

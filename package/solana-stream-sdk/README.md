@@ -232,6 +232,7 @@ Ensure the environment variable `SHREDS_ENDPOINT` is set correctly.
 ### Utility Exports
 
 - `decodeSolanaEntries`: Function to decode raw Solana shred entry data into structured, human-readable formats.
+- `classifyBlockMarker(payload)`: Returns the Alpenglow block marker kind (`'BlockFooter'`, `'BlockHeader'`, `'UpdateParent'`, `'GenesisCertificate'`, `'Unknown'`) of a raw `entries` payload, or `null` for an entry batch. Call it before `decodeSolanaEntries`, which decodes a marker as an empty list.
 
 ## Dependencies
 

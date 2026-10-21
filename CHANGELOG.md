@@ -8,6 +8,8 @@ Release candidate; nothing is published yet. Migration: [docs/alpenglow.md](docs
 - The UDP runner (`run_shreds_udp`) counts markers by kind (`ShredMetrics::block_marker_count`), logs an `UpdateParent` marker with its new parent slot and keeps marker payloads out of the entry path. The sample UDP clients (`shreds-udp-rs`, `generic_logger`) log the marker kind.
 - Update the Rust Yellowstone dependencies to client 15.0.0/protobuf 14.0.1 and re-export `GeyserSubscribeRequestFilterBlockFooter`, `GeyserUpdateBlockFooter`, `GeyserUpdateEntryUpdateParent` and `GeyserSubscribeUpdateDeshredUpdateParent`. The new protobuf fields and `UpdateOneof` variants are breaking for struct literals and exhaustive matches (see the [migration guide](docs/alpenglow.md)).
 - Node.js SDK 3.0.0 moves to `@triton-one/yellowstone-grpc` 9.0.0 and exports `SubscribeRequestFilterBlockFooter`.
+- Node.js: add `classifyBlockMarker(payload)` and the `BlockMarkerKind` type, so `entries` bytes can be checked for an Alpenglow block marker before `decodeSolanaEntries` (which decodes a marker as an empty list).
+- Rust: classify and decode a block marker followed by zero padding after its declared length as the same kind, instead of treating it as unknown.
 - Unchanged: the Solana crates stay at 4.2.2 (`solana-entry` 4.2.2 already contains `block_component`) and Rust stays at 1.96.1. `@validators-dao/solana-entry-decoder` 2.5.0 and `@validators-dao/solana-shreds-client` 2.0.0 are not republished.
 
 ## 2.0.0 - 2026-09-17 — Transaction v1

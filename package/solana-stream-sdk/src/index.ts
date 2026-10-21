@@ -37,3 +37,6 @@ enum ShredsClientCommitmentLevel {
 }
 
 export { decodeSolanaEntries, ShredsClient, ShredsClientCommitmentLevel }
+
+export { classifyBlockMarker } from './block-marker'
+export type { BlockMarkerKind } from './block-marker'
