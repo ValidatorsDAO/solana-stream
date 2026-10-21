@@ -30,6 +30,9 @@ pub use block_marker::{
 };
 pub use entries::decode_entries;
 pub use error::SolanaStreamError;
+// `BlockComponentPayload::BlockMarker` exposes `solana_entry` types such as
+// `VersionedBlockMarker`; re-export the crate so they need no extra dependency.
+pub use solana_entry;
 pub use solana_entry::entry::Entry;
 pub use solana_transaction::versioned::VersionedTransaction;
 // Re-export shredstream client

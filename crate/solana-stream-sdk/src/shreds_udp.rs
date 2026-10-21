@@ -118,6 +118,10 @@ fn deshred_payload(shreds: &[solana_ledger::shred::Shred]) -> Result<Vec<u8>> {
 ///
 /// A block marker payload yields an empty vector; use
 /// [`deshred_shreds_to_component`] to learn the marker kind.
+///
+/// The same empty vector is returned for an empty entry batch, a block marker and an
+/// `Unknown` payload, so the three cannot be told apart here; use
+/// [`deshred_shreds_to_component`] when that matters.
 pub fn deshred_shreds_to_entries(
     shreds: &[solana_ledger::shred::Shred],
 ) -> Result<Vec<solana_entry::entry::Entry>> {

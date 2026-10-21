@@ -19,7 +19,11 @@ const BLOCK_MARKER_VERSION_V1: u16 = 1;
 const BLOCK_MARKER_HEADER_LEN: usize = 13;
 
 /// Variant of an Alpenglow block marker, numbered as `BlockMarkerV1` in `solana-entry`.
+///
+/// Non-exhaustive: a later release can add a kind (for example a V2 marker)
+/// without a major version, so a `match` needs a wildcard arm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum BlockMarkerKind {
     BlockFooter,
     BlockHeader,
