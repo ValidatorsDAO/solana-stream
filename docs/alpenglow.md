@@ -2,7 +2,7 @@
 
 ## When
 
-Alpenglow is active on Solana mainnet-beta since epoch 1064 (2026-10-21). The changes
+Alpenglow has been active on Solana mainnet-beta since epoch 1064 (2026-10-21). The changes
 below apply from the first Alpenglow slot. To check a cluster, `getAgGenesisCert` returns
 a non-null value once Alpenglow is active there.
 
@@ -197,7 +197,7 @@ A Geyser `bank_id` is a number each node assigns itself. Do not compare it with 
 
 `GeyserGrpcClient::subscribe_with_reconnect` of the re-exported `yellowstone-grpc-client`
 15.0.0 (`solana_stream_sdk::GeyserGrpcClient`) is the Rust counterpart of the Node.js
-`Client.subscribeWithReconnect`. Its stream yields `ReconnectEvent::Update` and
+`GeyserClient.subscribeWithReconnect`. Its stream yields `ReconnectEvent::Update` and
 `ReconnectEvent::DiscardBanks`. Apply a `DiscardBanks` by removing the state you kept for
 the listed banks; the replacement updates follow it. `subscribe` and
 `subscribe_with_request` do not reconnect (see Breaking changes). The request must use
@@ -281,18 +281,19 @@ async fn run(endpoint: String) -> Result<(), Box<dyn std::error::Error>> {
 ### Node.js
 
 `@validators-dao/solana-stream-sdk` 3.0.0 depends on `@triton-one/yellowstone-grpc`
-9.0.0 (it was 7.0.1) and exports `SubscribeRequestFilterBlockFooter`.
+9.0.0 (it was 7.0.1) and exports `SubscribeRequestFilterBlockFooter`. The SDK exports the
+`Client` of that package as `GeyserClient`.
 
 - `ReconnectOptions` is `{ backoff? }` only; `enabled`, `slotRetention` and `policy`
   are removed. Passing the 7.0.1 style options (for example `{ enabled: true }`) to the
-  `Client` constructor makes `connect()` throw `reconnect.enabled, policy, and
+  `GeyserClient` constructor makes `connect()` throw `reconnect.enabled, policy, and
   slotRetention are unsupported; use subscribeWithReconnect() with backoff options only`
   instead of ignoring them.
 - `SubscribeRequest.blockFooter` is a required map in the TypeScript type
   (`blockFooter: {}`). Calling `SubscribeRequest.encode(request)` yourself with a request
   that has no `blockFooter` throws (`Cannot convert undefined or null to object`).
   `stream.write(request)` fills missing fields before it encodes, so it is not affected.
-- New `Client.subscribeWithReconnect`. Its stream emits `ReconnectEvent` values, which
+- New `GeyserClient.subscribeWithReconnect`. Its stream emits `ReconnectEvent` values, which
   are either `{ type: "Update", generation, update }` or
   `{ type: "DiscardBanks", banks, reason, replacement, winners }`. Apply `DiscardBanks`
   before the replacement updates that follow it.

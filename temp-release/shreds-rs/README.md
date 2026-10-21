@@ -1,4 +1,4 @@
-> Alpenglow is active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams. SDK 3.0.0 supports it — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md). Transaction v1 is decoded since SDK 2.0.0.
+> Alpenglow has been active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams. SDK 3.0.0 supports it — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md). Transaction v1 is decoded since SDK 2.0.0.
 
 <p align="center">
   <a href="https://slv.dev/" target="_blank">

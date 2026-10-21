@@ -1,4 +1,4 @@
-> Alpenglow is active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](docs/alpenglow.md).
+> Alpenglow has been active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](docs/alpenglow.md).
 
 > Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](docs/transaction-v1.md).
 
