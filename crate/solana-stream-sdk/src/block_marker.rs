@@ -57,9 +57,10 @@ pub enum BlockComponentPayload {
 /// optionally zero-padded). `Some` is a block marker. `Unknown` means a zero
 /// entry count followed by bytes that are not a V1 marker; a caller that guessed
 /// where a segment starts (a mid-batch slice can begin with zero bytes) must
-/// not rely on the result: neither `Unknown` nor `Some(kind)` proves that the
-/// slice is a marker, because zero padding after the declared length is
-/// accepted, which widens the range of guessed slices that look like a marker.
+/// not rely on the result: no `Some(_)`, including
+/// `Some(BlockMarkerKind::Unknown)`, proves that the slice is a marker, because
+/// zero padding after the declared length is accepted, which widens the range
+/// of guessed slices that look like a marker.
 /// `SlotDataBatch` never guesses: a segment starts at index 0 or right after an
 /// observed DATA_COMPLETE shred.
 pub fn classify_block_marker(payload: &[u8]) -> Option<BlockMarkerKind> {
