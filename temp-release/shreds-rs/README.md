@@ -122,8 +122,7 @@ Your feedback greatly assists our debugging efforts and overall improvement of t
 
 Other reports and suggestions are also highly appreciated.
 
-You can also join discussions or share feedback on Validators DAO's Discord community:
-https://discord.gg/C7ZQSrCkYR
+For ERPC account or endpoint support, use the support section of the [ERPC Web Dashboard](https://dashboard.erpc.global/en).
 
 ## Development
 
