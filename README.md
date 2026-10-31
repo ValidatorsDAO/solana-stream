@@ -120,6 +120,8 @@ This example comes from the SDK sample; clone and run it to see hits with your o
 
 ## Getting Started
 
+For ERPC endpoint access and current plans, use the [ERPC Web Dashboard](https://dashboard.erpc.global/en). Hourly billing lets you test on your own server without a monthly commitment. Use the endpoint shown for your service in the dashboard.
+
 ### Prerequisites
 
 - Node.js 22 or 24 (LTS) for TypeScript packages
@@ -156,10 +158,6 @@ pnpm -F @validators-dao/solana-stream-sdk build
 pnpm -F geyser-ts dev
 ```
 
-- A 1-day free trial for the Geyser gRPC endpoints is available by joining the Validators DAO Discord community. Please try it out:
-
-[https://discord.gg/C7ZQSrCkYR](https://discord.gg/C7ZQSrCkYR)
-
 ### Quick Start Guide for Sample Shreds Client - Rust
 
 **Create a `.env` file** (placed in the project root)
@@ -180,8 +178,6 @@ cargo run -p shreds-rs
 The sample code can be found at:
 
 [https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs](https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs)
-
-A 1-day free trial for the Shreds endpoints is available by joining the Validators DAO Discord community. Please try it out: [https://discord.gg/C7ZQSrCkYR](https://discord.gg/C7ZQSrCkYR)
 
 #### Usage with solana-stream-sdk
 
@@ -368,8 +364,7 @@ Your feedback greatly assists our debugging efforts and overall improvement of t
 
 Other reports and suggestions are also highly appreciated.
 
-You can also join discussions or share feedback on Validators DAO's Discord community:
-https://discord.gg/C7ZQSrCkYR
+For ERPC account or endpoint support, use the support section of the [ERPC Web Dashboard](https://dashboard.erpc.global/en).
 
 ## Development
 
@@ -405,8 +400,6 @@ We welcome contributions from the community! This project is continuously update
 ## About ValidatorsDAO
 
 This project is operated and maintained by ValidatorsDAO, focused on providing robust tools and infrastructure for the Solana ecosystem.
-
-https://discord.gg/pw7kuJNDKq
 
 ## Updates
 

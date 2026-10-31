@@ -129,7 +129,7 @@ This utility is part of the [Solana Stream Monorepo](https://github.com/Validato
 
 ## Support
 
-For support and further questions, please join our [Discord server](https://discord.gg/C7ZQSrCkYR).
+Report SDK bugs and suggestions through [GitHub Issues](https://github.com/ValidatorsDAO/solana-stream/issues). For ERPC account or endpoint support, use the support section of the [ERPC Web Dashboard](https://dashboard.erpc.global/en).
 
 ## License
 

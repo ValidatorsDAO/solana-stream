@@ -18,7 +18,7 @@
     "dist"
   ],
   "bugs": {
-    "url": "https://discord.gg/C7ZQSrCkYR"
+    "url": "https://github.com/ValidatorsDAO/solana-stream/issues"
   },
   "scripts": {
     "build:linux:x64": "node ../../scripts/build-native-linux.mjs x86_64-unknown-linux-gnu",

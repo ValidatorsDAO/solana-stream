@@ -122,9 +122,7 @@ If you encounter issues or have suggestions, please open an issue:
 
 - [GitHub Issues](https://github.com/ValidatorsDAO/solana-stream/issues)
 
-Join discussions on Validators DAO's Discord:
-
-- [Discord Community](https://discord.gg/C7ZQSrCkYR)
+For ERPC account or endpoint support, use the support section of the [ERPC Web Dashboard](https://dashboard.erpc.global/en).
 
 ## License
 
