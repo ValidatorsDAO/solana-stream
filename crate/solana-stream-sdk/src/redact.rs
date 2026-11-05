@@ -119,9 +119,13 @@ mod tests {
             "rpc=https://edge.erpc.global:8443/…, then \"http://grpc-ams1.erpc.global\" and \
              (https://example.com/…)"
         );
-        assert_eq!(redact_url("http://127.0.0.1:10000"), "http://127.0.0.1:10000");
+        assert_eq!(
+            redact_url("http://127.0.0.1:10000"),
+            "http://127.0.0.1:10000"
+        );
         // Commas, parentheses and brackets inside the URL belong to it.
-        let tricky = "(https://h.example/?api-key=abc,SEC(RE)T[1]{2}), then https://h.example/p,TOKEN.";
+        let tricky =
+            "(https://h.example/?api-key=abc,SEC(RE)T[1]{2}), then https://h.example/p,TOKEN.";
         let redacted = redact_urls(tricky);
         for secret in ["SEC", "RE)T", "TOKEN", "[1]", "{2}"] {
             assert!(!redacted.contains(secret), "{secret} leaked: {redacted}");
