@@ -2417,6 +2417,7 @@ mod tests {
                 &reed_solomon_cache,
                 &mut stats,
             )
+            .into_iter()
             .filter(Shred::is_data)
             .collect();
 
@@ -2443,6 +2444,7 @@ mod tests {
                 &reed_solomon_cache,
                 &mut stats,
             )
+            .into_iter()
             .filter(Shred::is_data)
             .collect();
         let fec_sets: BTreeSet<_> = data_shreds.iter().map(Shred::fec_set_index).collect();
@@ -2488,6 +2490,7 @@ mod tests {
                 &reed_solomon_cache,
                 &mut stats,
             )
+            .into_iter()
             .filter(Shred::is_data)
             .collect();
         let next_index = first_data.last().map_or(0, |shred| shred.index() + 1);
@@ -2502,6 +2505,7 @@ mod tests {
                 &reed_solomon_cache,
                 &mut stats,
             )
+            .into_iter()
             .filter(Shred::is_data)
             .collect();
 
@@ -2620,7 +2624,7 @@ mod tests {
             next_code_index: u32,
         }
         impl SlotShreds {
-            fn push(&mut self, shreds: impl Iterator<Item = Shred>) {
+            fn push(&mut self, shreds: impl IntoIterator<Item = Shred>) {
                 for shred in shreds {
                     if shred.is_data() {
                         self.next_data_index = self.next_data_index.max(shred.index() + 1);

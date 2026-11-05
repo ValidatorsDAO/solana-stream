@@ -1,4 +1,5 @@
 > Alpenglow has been active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md).
+> **4.0** moves to the Yellowstone gRPC 17 clients and the Agave 4.4 crates, and makes the reconnecting subscription (`subscribe_with_reconnect` / `subscribeWithReconnect`) the recommended way to stream Geyser updates. See the [4.0 migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/migration-v4.md). Until 4.0.0 is published, crates.io and npm serve 3.0.0.
 
 > Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
@@ -35,7 +36,7 @@ This SDK provides a simple and efficient way to connect to Shredstream service a
 ## Features
 
 - **Easy-to-use API** - Simple wrapper around the Shredstream protocols and Geyser gRPC
-- **Yellowstone 15.x Geyser API** - Rust exports track `yellowstone-grpc-client` 15.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers. Servers on Yellowstone gRPC 17 replay `from_slot` only from the first request of a stream and end an oversized request with `RESOURCE_EXHAUSTED` ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
+- **Yellowstone 17.x Geyser API** - Rust exports track `yellowstone-grpc-client` 17.x (`subscribe_with_reconnect` with `GeyserReconnectEvent`, the recommended path; see `examples/geyser_reconnect.rs`) and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers. Servers on Yellowstone gRPC 17 replay `from_slot` only from the first request of a stream and end an oversized request with `RESOURCE_EXHAUSTED` ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
 - **Alpenglow block markers** - `deshred_shreds_to_component` and `classify_block_marker` report `UpdateParent`, `BlockFooter` and the other block markers instead of dropping them (see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md))
 - **Async Support** - Built with tokio for async/await patterns
 - **Type Safety** - Strongly typed Rust interfaces
@@ -95,9 +96,23 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "3.0.0"
+solana-stream-sdk = "4.0.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
+```
+
+UDP shreds (`UdpShredReceiver`, `deshred_shreds_to_component`, …) are behind the `udp`
+feature, which is off by default since 4.0. It pulls in `solana-ledger`, which builds only
+against Agave's `rust-rocksdb` fork, so the workspace that enables it needs the same
+`[patch.crates-io]` lines as this repository's `Cargo.toml`:
+
+```toml
+[dependencies]
+solana-stream-sdk = { version = "4.0.0", features = ["udp"] }
+
+[patch.crates-io]
+librocksdb-sys = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
+rocksdb = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
 ```
 
 ## Usage
@@ -453,7 +468,7 @@ For convenience, the following types are re-exported:
 #### Alpenglow block markers
 
 - `BlockComponentPayload`, `BlockMarkerKind`, `classify_block_marker`, `decode_block_component`
-- `deshred_shreds_to_component` (with the default `udp` feature)
+- `deshred_shreds_to_component` (with the `udp` feature)
 - `solana_entry`, the `solana-entry` crate, for the marker types inside `BlockComponentPayload::BlockMarker`
 
 ## Requirements

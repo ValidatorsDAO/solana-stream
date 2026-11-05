@@ -28,21 +28,23 @@ jobs:
       - run: node scripts/check-erpc-endpoints.mjs
 
   node:
-    name: TypeScript SDK and Geyser templates
+    name: TypeScript SDK and Geyser templates (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # The maintained LTS lines: 22 and 24 (maintenance), 26 (active).
+        node: [22, 24, 26]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      # Reads the pnpm version from packageManager. Node 25+ no longer ships corepack.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 24
-      - name: Install the pnpm version from packageManager
-        run: |
-          corepack enable
-          corepack prepare --activate
-          pnpm --version
+          node-version: ${{ matrix.node }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @validators-dao/solana-stream-sdk build
       - run: pnpm --filter @validators-dao/solana-stream-sdk test
@@ -73,3 +75,5 @@ jobs:
           cargo --version
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo test --workspace --locked
+      - name: Build the SDK without the udp feature (no solana-ledger, no RocksDB)
+        run: cargo check -p solana-stream-sdk --no-default-features --locked

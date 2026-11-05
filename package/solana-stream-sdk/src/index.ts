@@ -1,5 +1,7 @@
 import Client, {
+  ClientReconnectDuplexStream,
   CommitmentLevel,
+  RECONNECT_FILTER_KEY,
   SubscribeRequestAccountsDataSlice,
   SubscribeRequestFilterAccounts,
   SubscribeRequestFilterBlockFooter,
@@ -10,10 +12,20 @@ import Client, {
   SubscribeRequestFilterTransactions,
 } from '@triton-one/yellowstone-grpc'
 import bs58 from 'bs58'
+export type {
+  BankRef,
+  ChannelOptions,
+  ReconnectEvent,
+  ReconnectOptions,
+  SubscribeRequest,
+  SubscribeUpdate,
+} from '@triton-one/yellowstone-grpc'
 export {
   bs58,
   Client as GeyserClient,
+  ClientReconnectDuplexStream,
   CommitmentLevel,
+  RECONNECT_FILTER_KEY,
   SubscribeRequestAccountsDataSlice,
   SubscribeRequestFilterAccounts,
   SubscribeRequestFilterBlockFooter,
