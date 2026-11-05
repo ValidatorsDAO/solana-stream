@@ -15,6 +15,12 @@ Migration: [docs/migration-v4.md](docs/migration-v4.md).
 - `temp-release/` (served by `slv bot init`) stays on the published 3.x until 4.0.0 is on crates.io and npm.
 - macOS: the `client/geyser-rs` README no longer recommends `DYLD_LIBRARY_PATH=/opt/homebrew/opt/llvm/lib`, which makes Rust 1.99 fail with `LLVM version mismatch`.
 
+### Performance (measured)
+
+- UDP shreds: `insert_shred` pruned the `completed` and `suppressed` TTL maps on every datagram, reading the clock once per entry; `completed` keeps every FEC set finished in the last 30 s. The maps are now pruned at most every 250 ms, and a lookup checks the entry's own age, so TTLs are unchanged. Pipeline bench (`bench_udp_pipeline`: 300 slots of 20 FEC sets, 403,200 datagrams, decode → insert → deshred, median of 5 runs): 94,236 → 855–881 ns per datagram (11k → ~1.15M datagrams/s), same output.
+- TypeScript runner: the consumer takes queued events synchronously instead of awaiting `next()` per event, and yields to the event loop every 1024 events. `bench/queue.bench.ts` (2M events, Node 24): 5.7–7.4 → 24.8–29.4 M events/s.
+- Measured without a code change: reconnect resume time after a dropped connection (`bench_reconnect_gap`) is a median 103 ms with the 4.0 runner against 552 ms with the 3.0 runner. Requesting zstd/gzip responses from `grpc-ams1.erpc.global` changes nothing on the wire (the server sends uncompressed); `examples/geyser_wire_bench.rs` measures that the template's filter would shrink by 60% with per-message zstd.
+
 ### Security
 
 - Credentials stay out of logs: `solana_stream_sdk::redact` (`redact_url`, `redact_urls`) strips credentials, path and query from URLs. `ShredsUdpConfig::describe()` logged `rpc=<endpoint>` as it was and the UDP block-time lookup logged RPC errors with the request URL, both including any `?api-key=`; they now log the redacted form. The sample clients log the endpoint and RPC errors the same way (`src/utils/redact.ts` in the TypeScript clients) and warn when `X_TOKEN` would go unencrypted over `http://` to another host.
