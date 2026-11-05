@@ -42,9 +42,10 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 ## Production-Ready Geyser Client (TypeScript Best Practices)
 
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
-- Exponential reconnect backoff plus `fromSlot` gap recovery
+- Exponential reconnect backoff plus `fromSlot` gap recovery, sent as the first request of each new stream
+- Stops with the server's message when a request is rejected with `RESOURCE_EXHAUSTED` (larger than the server accepts) instead of reconnecting
 - Bounded in-memory queue with drop logging for backpressure safety
-- Update subscriptions by writing a new request to the stream (no reconnect)
+- Update subscriptions by writing a new request to the stream (no reconnect). From Yellowstone gRPC 17 the server ignores `fromSlot` in such a request: only the first request of a stream replays, so open a new stream to replay ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
 - Optional runtime metrics logging (rates, queue size, drops)
 - Default filters drop vote/failed transactions to reduce traffic
 

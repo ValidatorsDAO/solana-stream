@@ -46,8 +46,9 @@ RUST_LOG=info cargo run
 ## What this sample includes (best-practice defaults)
 - Config-driven filters for transactions/accounts/slots/blocks; sample tx filter removes vote/failed tx (bandwidth savings)
 - Ping/Pong handling to keep Yellowstone gRPC connections alive
-- Gap recovery with `from_slot` based on the last seen slot (resumes from `slot-1`)
+- Gap recovery with `from_slot` based on the last seen slot (resumes from `slot-1`), sent as the first request of each new stream: Yellowstone gRPC 17 replays only that request ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
 - Exponential reconnect backoff that resets after successful traffic
+- Stops when the server rejects the request with `RESOURCE_EXHAUSTED` (larger than the server's `max_decoding_message_size`): reconnecting would send it again, so the binary exits with status 1 and the server's message. Send a smaller request (fewer accounts, owners or filters)
 - Ingress/processing split via a bounded channel (10_000); slow consumers are warned and updates may be dropped when full
 - Latency monitor using `SOLANA_RPC_ENDPOINT` for blocktime lookups
 

@@ -42,7 +42,9 @@ const main = async () => {
       ...loadRuntimeConfig(),
     })
   } catch (error) {
-    console.log(error)
+    // runGeyser throws only on an error that reconnecting cannot fix.
+    console.error(error)
+    process.exit(1)
   }
 }
 

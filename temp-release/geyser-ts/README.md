@@ -43,7 +43,7 @@ Create a `.env` file with the following configuration:
 ```env
 # Optional: required only if your endpoint enforces auth
 X_TOKEN=your_token_here
-GEYSER_ENDPOINT=https://grpc-ams.erpc.global
+GEYSER_ENDPOINT=http://grpc-ams1.erpc.global
 SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 ```
 
@@ -67,7 +67,8 @@ GEYSER_LOG_SUBSCRIBE=1
 ## Production-Ready Best Practices
 
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
-- Exponential reconnect backoff plus `fromSlot` gap recovery
+- Exponential reconnect backoff plus `fromSlot` gap recovery, sent as the first request of each new stream: Yellowstone gRPC 17 replays only that request ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
+- Stops when the server rejects the request with `RESOURCE_EXHAUSTED` (larger than the server's `max_decoding_message_size`): reconnecting would send it again, so `runGeyser` throws and the process exits with status 1 and the server's message. Send a smaller request (fewer accounts, owners or filters)
 - Bounded in-memory queue with drop logging for backpressure safety
 - Code-based subscription filters in TypeScript (`src/utils/filter.ts`)
 - Optional runtime metrics logging (rates, queue size, drops)

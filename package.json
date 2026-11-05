@@ -7,6 +7,9 @@
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "check:endpoints": "node scripts/check-erpc-endpoints.mjs"
+  },
   "engines": {
     "node": ">=22 <23 || >=24 <25"
   },

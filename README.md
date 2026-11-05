@@ -53,7 +53,9 @@ This project provides libraries and tools for streaming real-time data from the 
 
 - Rust Geyser exports track `yellowstone-grpc-client` 15.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
-- Exponential reconnect backoff plus gap recovery (`fromSlot` / `from_slot`)
+- Exponential reconnect backoff plus gap recovery (`fromSlot` / `from_slot`), sent as the first request of each new stream
+- Stops with the server's message when a request is rejected with `RESOURCE_EXHAUSTED` (larger than the server accepts) instead of reconnecting
+- Works with Yellowstone gRPC 17 (Agave 4.4); see [what changes](docs/alpenglow.md#yellowstone-grpc-17-agave-44)
 - Bounded queues/channels with drop logging for backpressure safety
 - Code-based subscription filters in TypeScript
 - Optional runtime metrics logging (TypeScript)
@@ -145,7 +147,7 @@ Create a `.env` file at `client/geyser-ts/.env` with your environment variables:
 ```env
 # Optional: required only if your endpoint enforces auth
 X_TOKEN=YOUR_X_TOKEN
-GEYSER_ENDPOINT=https://grpc-ams.erpc.global
+GEYSER_ENDPOINT=http://grpc-ams1.erpc.global
 SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 ```
 
@@ -163,7 +165,7 @@ pnpm -F geyser-ts dev
 **Create a `.env` file** (placed in the project root)
 
 ```env
-SHREDS_ENDPOINT=https://shreds-ams.erpc.global
+SHREDS_ENDPOINT=http://shreds-ams6-1.erpc.global
 SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 ```
 
@@ -201,7 +203,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Connect to shreds endpoint
     let endpoint = env::var("SHREDS_ENDPOINT")
-        .unwrap_or_else(|_| "https://shreds-ams.erpc.global".to_string());
+        .unwrap_or_else(|_| "http://shreds-ams6-1.erpc.global".to_string());
     let mut client = ShredstreamClient::connect(&endpoint).await?;
 
     // Create subscription for specific account

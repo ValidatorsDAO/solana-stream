@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Yellowstone gRPC 17 (Agave 4.4): document what changes for clients — `from_slot` replays only from the first request of a stream, commitment statuses and `CreatedBank` follow the content at confirmed/finalized, and an oversized request ends the stream with `RESOURCE_EXHAUSTED` ([docs/alpenglow.md](docs/alpenglow.md#yellowstone-grpc-17-agave-44)). No SDK package changes: `geyser.proto` is unchanged.
+- Geyser sample runners (`client/geyser-rs`, `client/geyser-ts` and their `temp-release/` copies, including `trade-app`): stop with the server's message when the server ends the stream with `RESOURCE_EXHAUSTED`, instead of reconnecting forever (Rust) or up to `maxRetries` (TypeScript). The binaries exit with status 1.
+- Templates and docs: replace the Shreds and Geyser gRPC hosts that no longer resolve (`shreds-ams`, `shreds-ams-9`, `grpc-ams`, `grpc`) with `http://shreds-ams6-1.erpc.global` and `http://grpc-ams1.erpc.global`. `scripts/check-erpc-endpoints.mjs` fails CI on a host that is not in service.
+- Add CI (GitHub Actions): endpoint check, TypeScript SDK and Geyser template tests, Rust workspace tests.
+
 ## 3.0.0 - 2026-10-21 — Alpenglow
 
 Published 2026-10-21: crates.io `solana-stream-sdk` 3.0.0; npm `@validators-dao/solana-stream-sdk` 3.0.0. `@validators-dao/solana-shreds-client` 2.0.0 and `@validators-dao/solana-entry-decoder` 2.5.0 are unchanged. Migration: [docs/alpenglow.md](docs/alpenglow.md).
