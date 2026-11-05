@@ -506,7 +506,7 @@ impl ShredsUdpConfig {
         format!(
             "bind_addr={} rpc={} slot_window_root={:?} max_future={} strict_fec={} num_data={} num_coding={} require_code_match={} log_raw={} log_shreds={} log_entries={} log_deshred_attempts={} evict_cooldown_ms={} completed_ttl_ms={} warn_once_per_fec={} pump_min_lamports={}",
             self.bind_addr,
-            self.rpc_endpoint,
+            crate::redact::redact_url(&self.rpc_endpoint),
             self.slot_window_root,
             self.slot_window_max_future,
             self.strict_fec,
@@ -796,7 +796,11 @@ impl BlockTimeCache {
                 if format!("{:?}", err).contains("Block not available") {
                     None
                 } else {
-                    error!("Error fetching block time for slot {}: {:?}", slot, err);
+                    error!(
+                        "Error fetching block time for slot {}: {}",
+                        slot,
+                        crate::redact::redact_urls(&format!("{err:?}"))
+                    );
                     None
                 }
             }
@@ -2750,5 +2754,19 @@ mod tests {
         }
         assert_eq!(metrics.entry_decode_failed.load(Ordering::Relaxed), 0);
         assert!(state.suppressed.lock().await.is_empty());
+    }
+
+    #[test]
+    fn describe_does_not_log_the_rpc_credential() {
+        let cfg = ShredsUdpConfig {
+            rpc_endpoint: "https://edge.erpc.global?api-key=SECRET".to_string(),
+            ..ShredsUdpConfig::default()
+        };
+        let described = cfg.describe();
+        assert!(
+            !described.contains("SECRET"),
+            "the RPC credential reached the log line: {described}"
+        );
+        assert!(described.contains("rpc=https://edge.erpc.global/…"), "{described}");
     }
 }

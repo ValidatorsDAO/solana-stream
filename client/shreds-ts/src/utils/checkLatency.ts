@@ -1,6 +1,8 @@
 import { createSolanaRpc, mainnet, type Slot } from '@solana/kit'
 import 'dotenv/config'
 
+import { redactError } from '@/utils/redact'
+
 export const MAX_CACHE_SIZE = 20
 export const slotTimestampCache = new Map<number, number>()
 
@@ -48,7 +50,10 @@ async function getCachedSlotTimestamp(slot: number): Promise<number | null> {
     if (error.message.includes('Block not available')) {
       return null
     } else {
-      console.error(`🚨 Error fetching blockTime for slot ${slot}:`, error)
+      // The error text holds the request URL, and with it any API key.
+      console.error(
+        `🚨 Error fetching blockTime for slot ${slot}: ${redactError(error)}`,
+      )
       return null
     }
   } finally {

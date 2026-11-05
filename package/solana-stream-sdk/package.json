@@ -18,6 +18,10 @@
   "bugs": {
     "url": "https://github.com/ValidatorsDAO/solana-stream/issues"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "files": [
     "dist/**/*",
     "README.md",
@@ -37,7 +41,7 @@
   "devDependencies": {
     "@types/node": "24.13.2",
     "prettier": "3.8.4",
-    "tsup": "8.5.1",
+    "tsup": "9.0.0",
     "typescript": "6.0.3"
   }
 }

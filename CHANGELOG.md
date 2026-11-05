@@ -15,6 +15,15 @@ Migration: [docs/migration-v4.md](docs/migration-v4.md).
 - `temp-release/` (served by `slv bot init`) stays on the published 3.x until 4.0.0 is on crates.io and npm.
 - macOS: the `client/geyser-rs` README no longer recommends `DYLD_LIBRARY_PATH=/opt/homebrew/opt/llvm/lib`, which makes Rust 1.99 fail with `LLVM version mismatch`.
 
+### Security
+
+- Credentials stay out of logs: `solana_stream_sdk::redact` (`redact_url`, `redact_urls`) strips credentials, path and query from URLs. `ShredsUdpConfig::describe()` logged `rpc=<endpoint>` as it was and the UDP block-time lookup logged RPC errors with the request URL, both including any `?api-key=`; they now log the redacted form. The sample clients log the endpoint and RPC errors the same way (`src/utils/redact.ts` in the TypeScript clients) and warn when `X_TOKEN` would go unencrypted over `http://` to another host.
+- CI: gitleaks over the whole history and the tracked-file hygiene gate from elsoul/erpc-sdk (`scripts/run-gitleaks.sh`, `scripts/check-oss-hygiene.sh`, with a self-test), `cargo deny check` (`deny.toml`: advisories, licenses, bans, and sources limited to crates.io plus Agave's rust-rocksdb fork) and `pnpm audit`.
+- Dependencies: RustSec vulnerabilities in `Cargo.lock` 25 → 2 (with the 4.0 update), and the remaining two (`ed25519-dalek` 1.0.1, `curve25519-dalek` 3.2.0) come only through Agave's `agave-precompiles` in the opt-in `udp` build; `deny.toml` records why each accepted advisory is accepted. `dotenv` (unmaintained) → `dotenvy`. `pnpm audit` 16 → 0: `tsup` 8.5.1 → 9.0.0, `npm-run-all` (unmaintained) → `npm-run-all2`.
+- Release: `.github/workflows/release.yml` publishes with OIDC trusted publishing (no stored registry token) and npm provenance; manual dispatch, dry run by default. `@validators-dao/solana-stream-sdk` sets `publishConfig.provenance`.
+- `SECURITY.md` and `CONTRIBUTING.md`.
+- Removed `temp-release/geyser-ts3.tar.gz`, `shreds-rs3.tar.gz` and `shreds-ts.tar.gz`: no longer served (`slv` ≥ 0.13.14 copies `temp-release/<dir>/`; the old download location returns 404) and they still named Shreds and gRPC hosts that do not resolve.
+
 ### Since 3.0.0
 
 - Yellowstone gRPC 17 (Agave 4.4): document what changes for clients — `from_slot` replays only from the first request of a stream, commitment statuses and `CreatedBank` follow the content at confirmed/finalized, and an oversized request ends the stream with `RESOURCE_EXHAUSTED` ([docs/alpenglow.md](docs/alpenglow.md#yellowstone-grpc-17-agave-44)). No SDK package changes: `geyser.proto` is unchanged.

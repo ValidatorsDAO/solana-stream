@@ -16,7 +16,7 @@ anyhow = { workspace = true }
 bs58 = { workspace = true }
 chrono = { workspace = true }
 dashmap = { workspace = true }
-dotenv = { workspace = true }
+dotenvy = { workspace = true }
 env_logger = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }

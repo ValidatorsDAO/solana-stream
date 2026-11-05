@@ -33,7 +33,6 @@ bs58 = "0.5.1"
 chrono = "0.4.42"
 clap = { version = "4.5.51", features = ["derive", "env"] }
 dashmap = "6"
-dotenv = "0.15"
 dotenvy = "0.15"
 env_logger = "0.11.8"
 futures = "0.3.31"

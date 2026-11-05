@@ -336,7 +336,7 @@ pub async fn upload_compiled_binary_to_r2(
 
 #[tokio::main]
 async fn main() {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
 
     // Parse command line arguments
     let cli = Cli::parse();

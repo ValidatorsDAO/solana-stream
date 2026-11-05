@@ -7,6 +7,7 @@
 pub mod block_marker;
 pub mod entries;
 pub mod error;
+pub mod redact;
 #[cfg(feature = "udp")]
 pub mod shreds_udp;
 pub mod shredstream;
