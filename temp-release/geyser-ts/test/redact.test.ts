@@ -19,6 +19,14 @@ test('URLs in log text lose credentials, path and query', () => {
     redacted,
     'rpc=https://edge.erpc.global:8443/…, then "http://grpc-ams1.erpc.global" and (https://example.com/…)',
   )
+  // Commas, parentheses and brackets inside the URL belong to it.
+  const tricky = redactUrls(
+    '(https://h.example/?api-key=abc,SEC(RE)T[1]{2}), then https://h.example/p,TOKEN.',
+  )
+  for (const secret of ['SEC', 'RE)T', 'TOKEN', '[1]', '{2}']) {
+    assert.ok(!tricky.includes(secret), `${secret} leaked: ${tricky}`)
+  }
+  assert.equal(tricky, '(https://h.example/…), then https://h.example/….')
   // An RPC error whose cause carries the request URL, as fetch-based clients report it.
   const error = new Error('HTTP error (401)', {
     cause: new Error('request to https://edge.erpc.global/?api-key=SECRET failed'),

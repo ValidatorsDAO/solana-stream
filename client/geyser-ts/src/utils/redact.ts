@@ -2,7 +2,33 @@
 // parameter, a token path segment or `user:password@`), and HTTP client errors print the
 // request URL, so log endpoints and such errors through these helpers.
 
-const URL_IN_TEXT = /https?:\/\/[^\s"'`<>()[\]{},]+/gi
+// A URL runs to the next whitespace, quote or angle bracket: commas, parentheses and
+// brackets are legal inside a URL (and so inside a credential in it). A trailing run of
+// prose punctuation stays outside.
+const URL_IN_TEXT = /https?:\/\/[^\s"'`<>]+/gi
+const PAIRS: Record<string, string> = { ')': '(', ']': '[', '}': '{' }
+
+const count = (text: string, char: string) => text.split(char).length - 1
+
+/**
+ * Length of `token` without the punctuation that follows a URL in prose: a trailing run
+ * of `.,;:`, and closing brackets that have no opening one in the URL (the `)` of
+ * "(see https://…)"). A balanced bracket belongs to the URL.
+ */
+const urlLength = (token: string): number => {
+  let end = token.length
+  while (end > 0) {
+    const char = token[end - 1]
+    const url = token.slice(0, end)
+    const open = PAIRS[char]
+    const trailing = '.,;:'.includes(char)
+      ? true
+      : open !== undefined && count(url, char) > count(url, open)
+    if (!trailing) break
+    end -= 1
+  }
+  return end
+}
 
 /** `scheme://host[:port]`, followed by `/…` when anything after the host was removed. */
 export const redactUrl = (url: string): string => {
@@ -23,7 +49,10 @@ export const redactUrl = (url: string): string => {
 
 /** `text` with every http(s) URL in it passed through `redactUrl`. */
 export const redactUrls = (text: string): string =>
-  text.replace(URL_IN_TEXT, (url) => redactUrl(url))
+  text.replace(URL_IN_TEXT, (match) => {
+    const end = urlLength(match)
+    return redactUrl(match.slice(0, end)) + match.slice(end)
+  })
 
 /** An error's message (and its causes') with URLs redacted, for logging. */
 export const redactError = (error: unknown): string => {
