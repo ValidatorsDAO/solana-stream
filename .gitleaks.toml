@@ -1,0 +1,148 @@
+# SPDX-FileCopyrightText: 2026 ELSOUL LABO B.V.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Modified for the SDK: exact fixture exemptions and repository title.
+# gitleaks configuration: the default ruleset (AWS, GCP, GitHub, Stripe, Slack,
+# generic private-key blocks, ...) plus rules for the credential shapes this
+# project actually handles: blockchain key material, Cloudflare tokens,
+# 1Password and ERPC credentials.
+#
+# Regexes are Go RE2: no lookaround, no backreferences.
+# Run locally:  gitleaks git --redact --config .gitleaks.toml .
+
+title = "solana-stream"
+
+[extend]
+useDefault = true
+
+# --- Blockchain key material ------------------------------------------------
+
+[[rules]]
+id = "solana-keypair-json"
+description = "Solana keypair as a 64-byte JSON array"
+regex = '''\[(?:[[:space:]]*(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])[[:space:]]*,){63}[[:space:]]*(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])[[:space:]]*\]'''
+keywords = ["["]
+
+# Public collection progress, exactly indices 0 through 63 in this receipt.
+# Both the exact path and the complete array must match; other key arrays scan.
+
+[[rules]]
+id = "blockchain-private-key-hex"
+description = "Ed25519/secp256k1 private key in hex, with a key-ish label"
+regex = '''(?i)(?:priv(?:ate)?[_-]?key|secret[_-]?key|signing[_-]?key|keypair)["'[:space:]]{0,10}[:=][[:space:]]*["']?(?:0x)?[0-9a-f]{64}'''
+keywords = ["key"]
+
+[[rules]]
+id = "blockchain-private-key-base58"
+description = "Solana/Sui private key in base58 (87-88 chars), with a key-ish label"
+regex = '''(?i)(?:priv(?:ate)?[_-]?key|secret[_-]?key|keypair)["'[:space:]]{0,10}[:=][[:space:]]*["']?[1-9A-HJ-NP-Za-km-z]{87,88}'''
+keywords = ["key"]
+
+[[rules]]
+id = "bip39-mnemonic"
+description = "BIP-39 mnemonic / seed phrase"
+regex = '''(?i)(?:mnemonic|seed[_-]?phrase|recovery[_-]?phrase|secret[_-]?recovery)["'[:space:]]{0,10}[:=][[:space:]]*["']?(?:[a-z]{3,8}[[:space:]]+){11,23}[a-z]{3,8}'''
+keywords = ["mnemonic", "seed", "recovery"]
+
+[[rules]]
+id = "ethereum-keystore-json"
+description = "Web3 Secret Storage (keystore) JSON"
+regex = '''"crypto"[[:space:]]*:[[:space:]]*\{[^}]{0,200}"ciphertext"'''
+keywords = ["ciphertext"]
+
+# --- Cloud and platform credentials ----------------------------------------
+
+[[rules]]
+id = "cloudflare-api-token"
+description = "Cloudflare API token"
+regex = '''(?i)cloudflare[^\n]{0,40}["'][A-Za-z0-9_-]{40}["']'''
+keywords = ["cloudflare"]
+
+[[rules]]
+id = "cloudflare-global-api-key"
+description = "Cloudflare global API key"
+regex = '''(?i)cloudflare[^\n]{0,40}["'][0-9a-f]{37}["']'''
+keywords = ["cloudflare"]
+
+[[rules]]
+id = "r2-s3-secret-access-key"
+description = "R2/S3 secret access key assignment"
+regex = '''(?i)(?:r2|aws)?_?secret_access_key["'[:space:]]{0,10}[:=][[:space:]]*["']?[A-Za-z0-9/+=]{40,}'''
+keywords = ["secret_access_key"]
+
+[[rules]]
+id = "gcp-service-account-json"
+description = "GCP service account key file"
+regex = '''"type"[[:space:]]*:[[:space:]]*"service_account"'''
+keywords = ["service_account"]
+
+# --- Project credentials ----------------------------------------------------
+
+[[rules]]
+id = "onepassword-service-account-token"
+description = "1Password service account token"
+regex = '''\bops_[A-Za-z0-9_-]{40,}\b'''
+keywords = ["ops_"]
+
+[[rules]]
+id = "minisign-secret-key"
+description = "minisign secret key block"
+regex = '''untrusted comment: minisign encrypted secret key'''
+keywords = ["minisign encrypted secret key"]
+
+[[rules]]
+id = "erpc-storage-access-key"
+description = "ERPC storage access key id"
+regex = '''erpcsk_[a-z2-7]{16}'''
+keywords = ["erpcsk_"]
+
+[[rules]]
+id = "crates-io-token"
+description = "crates.io API token"
+regex = '''cio[A-Za-z0-9]{32,}'''
+keywords = ["cio"]
+
+[allowlist]
+description = "Public material, pointers and the detection patterns themselves"
+paths = [
+  # Exact detection sources/fixtures only; nearby files remain scanned.
+  '''^\.gitleaks\.toml$''',
+  '''^scripts/check-oss-hygiene\.sh$''',
+  '''^scripts/tests/check-oss-hygiene\.test\.sh$''',
+]
+
+regexes = [
+  # op:// secret references are pointers, not secrets.
+  '''op://[A-Za-z0-9]{26}/[A-Za-z0-9]{26}/[A-Za-z0-9_-]+''',
+]
+
+# Token addresses and a catalog content digest are public blockchain metadata.
+# Extend only this default rule; never exempt a whole file or another rule.
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+regexTarget = "match"
+regexes = [
+  '''(?i)^(?:(?:source|destination|intermediate|wrappedNative)?TokenAddress|token[01]_?Address)["']?[[:space:]]*[:=][[:space:]]*["']?(?:0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})["']?$''',
+  '''(?i)^tokenCatalogDigest["']?[[:space:]]*[:=][[:space:]]*["']?[0-9a-f]{64}["']?$''',
+]
+
+# Historical public catalog examples and code-digest evidence. Exact paths plus
+# match shapes, scoped to the generic rule; unrelated secrets remain scanned.
+[[rules.allowlists]]
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''^registry/(?:evidence/dex-catalog-2026-09-15\.json|discovery\.test\.mjs|pool-observer\.test\.mjs|bridge-capabilities\.test\.mjs|verify-bridge-parity\.test\.mjs|token-catalog\.test\.mjs)$''',
+]
+regexes = [
+  '''(?i)^(?:token[01]|knownToken|(?:usdcBuild\.expected|build\.outcome)\.value\.allowance\.tokenAddress|TOKEN_CHAIN_IDS\.base)["']?[[:space:]]*[:=,][[:space:]]*["']?0x[0-9a-f]{40}["']?$''',
+]
+
+# Numeric lexeme digests in the reviewed RPC fixture are public integrity
+# metadata. Keep this exception local to the exact field match and exact path.
+[[rules.allowlists]]
+condition = "AND"
+regexTarget = "match"
+paths = ['''^registry/fixtures/rpc-chain-contract-cases\.json$''']
+regexes = ['''^rawTokenSha256": "[0-9a-f]{64}"$''']

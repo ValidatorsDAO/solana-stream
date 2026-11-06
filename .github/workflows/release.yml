@@ -1,0 +1,103 @@
+name: Release
+
+# Publishes the SDK from GitHub Actions with OIDC trusted publishing, so no long-lived
+# registry token exists, and the npm package carries a provenance attestation that ties
+# it to this repository, workflow and commit.
+#
+# Run by hand only (Actions → Release → Run workflow), dry run by default. Nothing can be
+# published until a maintainer registers this workflow as a trusted publisher:
+#   npm:       npmjs.com → @validators-dao/solana-stream-sdk → Settings → Trusted publisher
+#              (GitHub Actions, ValidatorsDAO/solana-stream, workflow release.yml,
+#              environment release)
+#   crates.io: crates.io → solana-stream-sdk → Settings → Trusted Publishing
+#              (ValidatorsDAO/solana-stream, workflow release.yml, environment release)
+# and protects the `release` environment with required reviewers.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: What to publish
+        type: choice
+        options:
+          - npm @validators-dao/solana-stream-sdk
+          - crates.io solana-stream-sdk
+      dry-run:
+        description: Build and pack only; publish nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  npm:
+    if: inputs.package == 'npm @validators-dao/solana-stream-sdk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @validators-dao/solana-stream-sdk build
+      - run: pnpm --filter @validators-dao/solana-stream-sdk test
+      # pnpm pack turns workspace: ranges into the published versions; npm publishes the
+      # tarball with trusted publishing (npm 11.5.1 or later) and a provenance statement.
+      - name: Pack
+        working-directory: package/solana-stream-sdk
+        run: |
+          set -euo pipefail
+          pnpm pack --pack-destination "$RUNNER_TEMP"
+          ls -l "$RUNNER_TEMP"/*.tgz
+      - name: Publish
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          set -euo pipefail
+          npm install --global npm@11
+          tarball="$(ls "$RUNNER_TEMP"/validators-dao-solana-stream-sdk-*.tgz)"
+          if [ "$DRY_RUN" = true ]; then
+            npm publish "$tarball" --access public --provenance --dry-run
+          else
+            npm publish "$tarball" --access public --provenance
+          fi
+
+  crate:
+    if: inputs.package == 'crates.io solana-stream-sdk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Package and verify
+        run: cargo publish -p solana-stream-sdk --locked --dry-run
+      - name: Get a short-lived crates.io token (trusted publishing)
+        if: ${{ !inputs.dry-run }}
+        id: auth
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+      - name: Publish
+        if: ${{ !inputs.dry-run }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish -p solana-stream-sdk --locked

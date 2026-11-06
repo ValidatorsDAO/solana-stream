@@ -4,7 +4,7 @@ use crate::runtime::settings::Settings;
 use crate::runtime::subscription::build_subscribe_request;
 use crate::utils::blocktime::{create_transactions_by_slot, latency_monitor_task, BlockTimeCache};
 use crate::utils::config::Config;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use env_logger;
 use serde_jsonc;
 use solana_stream_sdk::GeyserReconnectEvent;
@@ -24,6 +24,9 @@ async fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
 
     let settings = Settings::from_env()?;
+    if let Some(warning) = settings.plaintext_token_warning() {
+        log::warn!("{warning}");
+    }
     let config_content = fs::read_to_string(&settings.config_path)?;
     let config: Config = serde_jsonc::from_str(&config_content)?;
     let request = build_subscribe_request(&config);

@@ -1,0 +1,14 @@
+dashboard.erpc.global
+edge.erpc.global
+shreds-ams6-1.erpc.global
+shreds-ny6-1.erpc.global
+shreds-fra6-1.erpc.global
+shreds-ty6-1.erpc.global
+shreds-sgp6-1.erpc.global
+shreds-lon6-1.erpc.global
+grpc-ams1.erpc.global
+grpc-ny6-1.erpc.global
+grpc-fra1-1.erpc.global
+grpc-lon6-1.erpc.global
+grpc-tokyo-6.erpc.global
+grpc-sgp6-1.erpc.global

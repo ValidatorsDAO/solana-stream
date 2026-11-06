@@ -7,6 +7,7 @@ import 'dotenv/config'
 // import { logDecodedEntries } from '@/utils/logDecodedEntries'
 
 import { receivedSlots, startLatencyCheck } from '@/utils/checkLatency'
+import { redactUrl } from '@/utils/redact'
 
 const endpoint = process.env.SHREDS_ENDPOINT!
 
@@ -21,7 +22,7 @@ const request = {
 }
 
 const connect = () => {
-  console.log('Connecting to:', endpoint)
+  console.log('Connecting to:', redactUrl(endpoint))
 
   client.subscribeEntries(
     JSON.stringify(request),

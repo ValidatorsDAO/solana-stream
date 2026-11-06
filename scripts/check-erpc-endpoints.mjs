@@ -2,13 +2,13 @@
 // Fails when a tracked text file names an ERPC host that is not in service, or a
 // Shreds / gRPC host with the retired https:// scheme. The starter templates are
 // copied as they are (`slv bot init` downloads temp-release/ from main), so a dead
-// host here is the customer's first failed run (elsoul/vs2-app#9232).
+// host here is the customer's first failed run.
 //
 //   node scripts/check-erpc-endpoints.mjs            # static check (CI)
 //   node scripts/check-erpc-endpoints.mjs --resolve  # also resolve every host found
 //
-// When ERPC adds or retires an endpoint, update HOSTS. Source of truth:
-// SHREDS_URL / GRPC_URL in elsoul/vs2-app deno/cmn/ip/ip.ts.
+// When ERPC adds or retires an endpoint, update HOSTS and scripts/oss-public-hosts.txt.
+// The current hosts are the ones the ERPC dashboard and the slv.dev quickstarts give out.
 import { execFileSync } from 'node:child_process'
 import { resolve4 } from 'node:dns/promises'
 import { readFileSync } from 'node:fs'
@@ -37,9 +37,12 @@ const HOSTS = new Map([
 
 const HOST_PATTERN = /(?:(https?):\/\/)?((?:[a-z0-9-]+\.)*erpc\.global)\b/gi
 
+// Files that quote a bad host on purpose.
+const SKIP = new Set(['scripts/tests/check-oss-hygiene.test.sh'])
+
 const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
   .split('\0')
-  .filter(Boolean)
+  .filter((file) => file && !SKIP.has(file))
 
 const problems = []
 const seen = new Set()
@@ -83,7 +86,7 @@ if (process.argv.includes('--resolve')) {
 if (problems.length > 0) {
   console.error(problems.join('\n'))
   console.error(
-    `\n${problems.length} ERPC endpoint problem(s). Current hosts: SHREDS_URL / GRPC_URL in elsoul/vs2-app deno/cmn/ip/ip.ts.`,
+    `\n${problems.length} ERPC endpoint problem(s). Current hosts: the ERPC dashboard and the slv.dev quickstarts.`,
   )
   process.exit(1)
 }
