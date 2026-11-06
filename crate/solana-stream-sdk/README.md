@@ -473,7 +473,7 @@ For convenience, the following types are re-exported:
 
 ## Requirements
 
-- Rust 1.96.1 or later
+- Rust 1.98.1 or later
 - Tokio runtime for async operations
 
 ## ⚠️ Experimental Filtering Feature Notice

@@ -1,38 +1,25 @@
-import { SubscribeRequest } from '@/utils/geyser'
+import type { SubscribeRequest } from '@/utils/geyser'
 
-export const buildSubscribeRequest = (
-  baseRequest: SubscribeRequest,
+/**
+ * `request` with `fromSlot` one slot before `lastSeenSlot`, so a new subscription resumes
+ * where the last one stopped. A `fromSlot` set in `request` is kept.
+ */
+export const withResumeSlot = (
+  request: SubscribeRequest,
   lastSeenSlot: number,
-  includeFromSlot: boolean,
 ): SubscribeRequest => {
-  const nextRequest: SubscribeRequest = { ...baseRequest }
-  const hasFromSlot =
-    nextRequest.fromSlot !== undefined && nextRequest.fromSlot !== ''
-  if (includeFromSlot && lastSeenSlot > 0 && !hasFromSlot) {
-    nextRequest.fromSlot = String(Math.max(lastSeenSlot - 1, 0))
+  const hasFromSlot = request.fromSlot !== undefined && request.fromSlot !== ''
+  if (lastSeenSlot <= 0 || hasFromSlot) {
+    return request
   }
-  return nextRequest
+  return { ...request, fromSlot: String(Math.max(lastSeenSlot - 1, 0)) }
 }
 
-export const writeSubscription = async (
-  stream: any,
-  baseRequest: SubscribeRequest,
-  lastSeenSlot: number,
-  includeFromSlot: boolean,
-): Promise<void> => {
-  const subscribeRequest = buildSubscribeRequest(
-    baseRequest,
-    lastSeenSlot,
-    includeFromSlot,
-  )
-  await new Promise<void>((resolve, reject) => {
-    stream.write(subscribeRequest, (err: any) => {
-      if (!err) {
-        resolve()
-      } else {
-        console.error('Request error:', err)
-        reject(err)
-      }
-    })
+/** Writes a request (a filter change or a ping) to an open stream. */
+export const writeRequest = (
+  stream: { write: (chunk: unknown, callback: (error?: unknown) => void) => unknown },
+  request: Partial<SubscribeRequest>,
+): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
+    stream.write(request, (error) => (error ? reject(error) : resolve()))
   })
-}

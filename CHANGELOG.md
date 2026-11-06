@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Starters (`temp-release/`, which `slv bot init` copies from `main`) move to the published 4.0.0:
+  - `geyser-rs` and `geyser-ts` are now the same code as `client/geyser-rs` and `client/geyser-ts`: the reconnecting subscription with `Disconnected` handling, redacted logs, the plaintext-token warning, and the faster TypeScript queue.
+  - `shreds-rs`, `shreds-ts` and `shreds-udp-rs` move to SDK 4.0. `shreds-udp-rs` enables the `udp` feature and carries the rust-rocksdb `[patch.crates-io]` lines it needs.
+  - The Rust starters declare `rust-version = "1.98.1"`.
+- `trade-app` builds again. `ultima-swap-pumpfun` is pinned to `dbbe5f6e` (later commits add a required field to `SellParams` / `BuyParams`, so `cargo build` failed). It moves to SDK 4.0 and `dotenvy`, and keeps its own runner: it trades at processed commitment without de-duplication, and the 4.0 runner replays from the last confirmed slot after each reconnect, which would resend recent pool creations.
+- TypeScript starters are standalone pnpm projects, as users get them. Each has a `pnpm-workspace.yaml` that decides esbuild's install script: without one, pnpm 11 stops `pnpm install` with `ERR_PNPM_IGNORED_BUILDS`. They are no longer packages of the repository's workspace.
+- CI installs, type-checks, tests and builds the TypeScript starters on their own, and runs `cargo check --all-targets` on the four Rust starters against the published SDK.
+- Docs: `client/shreds-rs` and the crate README named SDK 3.0.0 and Rust 1.96.1; now SDK 4.0 and Rust 1.98.1.
+
 ## 4.0.0 - 2026-11-06 — Yellowstone gRPC 17 clients, Agave 4.4
 
 Published 2026-11-06: crates.io `solana-stream-sdk` 4.0.0; npm `@validators-dao/solana-stream-sdk` 4.0.0 (published from a workstation, so without a provenance statement; later releases go through `.github/workflows/release.yml`). `@validators-dao/solana-shreds-client` 2.0.0 and `@validators-dao/solana-entry-decoder` 2.5.0 are unchanged and not republished. Migration: [docs/migration-v4.md](docs/migration-v4.md).

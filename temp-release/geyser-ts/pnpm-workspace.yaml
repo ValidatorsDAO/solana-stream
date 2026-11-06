@@ -1,0 +1,8 @@
+# This starter is its own pnpm project: `slv bot init` copies it out of the
+# solana-stream repository. pnpm 11 stops `pnpm install` on a dependency build script
+# that nobody has allowed or denied. esbuild (used by tsup and tsx) works from its
+# platform package without its install script, so the script stays off.
+allowBuilds:
+  esbuild: false
+minimumReleaseAgeExclude:
+  - '@validators-dao/solana-stream-sdk@4.0.0'

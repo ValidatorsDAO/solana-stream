@@ -57,7 +57,12 @@ impl BlockTimeCache {
                 if format!("{:?}", err).contains("Block not available") {
                     None
                 } else {
-                    log::error!("Error fetching block time for slot {}: {:?}", slot, err);
+                    // The error text holds the request URL, and with it any API key.
+                    log::error!(
+                        "Error fetching block time for slot {}: {}",
+                        slot,
+                        solana_stream_sdk::redact::redact_urls(&format!("{err:?}"))
+                    );
                     None
                 }
             }

@@ -30,7 +30,7 @@ impl Settings {
         // Load .env.erpc if it exists (contains ERPC_API_KEY).
         let erpc_env_path = Path::new(".env.erpc");
         if erpc_env_path.exists() {
-            dotenv::from_path(erpc_env_path).ok();
+            dotenvy::from_path(erpc_env_path).ok();
         }
 
         let config_path =

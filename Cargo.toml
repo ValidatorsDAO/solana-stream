@@ -13,6 +13,7 @@ exclude = [
     "temp-release/shreds-rs",
     "temp-release/geyser-rs",
     "temp-release/shreds-udp-rs",
+    "temp-release/trade-app",
 ]
 
 [workspace.package]

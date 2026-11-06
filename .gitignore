@@ -49,6 +49,9 @@ node_modules/
 # Rust
 target/
 Cargo.lock
+
+# Lockfiles from installing a starter in temp-release/ on its own
+temp-release/*/pnpm-lock.yaml
 **/*.rs.bk
 *.pdb
 

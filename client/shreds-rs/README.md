@@ -25,7 +25,7 @@
 
 # Shreds-RS
 
-A Rust client for streaming Solana shreds data using `solana-stream-sdk` 3.0.0.
+A Rust client for streaming Solana shreds data using `solana-stream-sdk` 4.0.
 
 <a href="https://solana.com/">
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
@@ -35,7 +35,7 @@ A Rust client for streaming Solana shreds data using `solana-stream-sdk` 3.0.0.
 
 ### Prerequisites
 
-- Rust 1.96.1 or later
+- Rust 1.98.1 or later
 - Access to a Solana shreds streaming endpoint
 
 ### Installation
