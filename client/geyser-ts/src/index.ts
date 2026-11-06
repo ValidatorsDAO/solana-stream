@@ -6,9 +6,9 @@ import {
   logTransactionSignature,
 } from '@/handlers/logUpdate'
 import { createEnvClient } from '@/lib/createClient'
-import { runGeyser } from '@/lib/geyserRunner'
+import { DisconnectedEvent, runGeyser } from '@/lib/geyserRunner'
 import { loadRuntimeConfig } from '@/lib/runtimeConfig'
-import { startLatencyCheck } from '@/utils/checkLatency'
+import { receivedTransactions, startLatencyCheck } from '@/utils/checkLatency'
 import { getSubscribeRequest } from '@/utils/filter'
 
 const onTransaction = (transactionUpdate: any) => {
@@ -33,10 +33,20 @@ const onUpdate = (update: any) => {
   }
 }
 
+// The connection dropped while these banks were in flight: you hold part of their content.
+// Drop what you derived from them; the replay resends them whole. A replay also resends
+// banks you already hold whole, so keep your handling idempotent.
+const onDisconnected = ({ partialBanks }: DisconnectedEvent) => {
+  for (const bank of partialBanks) {
+    receivedTransactions.delete(Number(bank.slot))
+  }
+}
+
 const main = async () => {
   try {
     await runGeyser({
       onUpdate,
+      onDisconnected,
       createClient: createEnvClient,
       request: getSubscribeRequest(),
       ...loadRuntimeConfig(),

@@ -228,6 +228,11 @@ without changes. Four behaviours change (16.2.0 and 17.0.0 in the
 
 ## Reconnecting with bank recovery (Rust)
 
+> SDK 4.0 moves to `yellowstone-grpc-client` 17.0.0, which replaces this API:
+> `ReconnectEvent::Disconnected` with the banks to discard instead of `DiscardBanks`, at
+> any commitment and with `from_slot` allowed. See the
+> [4.0 migration guide](migration-v4.md). This section describes SDK 3.0 (client 15.0.0).
+
 `GeyserGrpcClient::subscribe_with_reconnect` of the re-exported `yellowstone-grpc-client`
 15.0.0 (`solana_stream_sdk::GeyserGrpcClient`) is the Rust counterpart of the Node.js
 `GeyserClient.subscribeWithReconnect`. Its stream yields `ReconnectEvent::Update` and

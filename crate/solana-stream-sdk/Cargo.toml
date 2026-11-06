@@ -1,18 +1,21 @@
 [package]
 name = "solana-stream-sdk"
-version = "3.0.0"
+version = "4.0.0"
 description = "Rust SDK for Solana streaming data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
 edition = "2021"
-rust-version = "1.96.1"
+rust-version = "1.98.1"
 license = "Apache-2.0"
 repository = "https://github.com/ValidatorsDAO/solana-stream"
 keywords = ["solana", "blockchain", "streaming", "grpc", "shreds"]
 categories = ["api-bindings", "network-programming"]
 
 [features]
-default = ["udp"]
+default = []
+# UDP shred reception and deshredding. It pulls in solana-ledger (RocksDB), which builds
+# only with the rust-rocksdb patch in this repository's Cargo.toml: copy that
+# [patch.crates-io] section into the workspace that enables this feature.
 udp = ["dep:solana-ledger", "dep:solana-rpc-client"]
 
 [dependencies]
@@ -27,7 +30,7 @@ prost-types = { workspace = true }
 serde_jsonc = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 solana-packet = { workspace = true }
-toml = "0.8"
+toml = "0.9"
 url = { workspace = true }
 yellowstone-grpc-client = { workspace = true }
 yellowstone-grpc-proto = { workspace = true }
@@ -48,8 +51,11 @@ wincode = { workspace = true }
 solana-hash = { workspace = true }
 solana-keypair = { workspace = true }
 solana-signer = { workspace = true }
-bincode = { workspace = true }
 
+
+[[test]]
+name = "entries_wire"
+required-features = ["udp"]
 
 [build-dependencies]
 protobuf-src = { workspace = true }

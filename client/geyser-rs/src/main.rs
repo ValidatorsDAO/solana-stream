@@ -2,16 +2,14 @@ use crate::handlers::processor::process_updates;
 use crate::runtime::runner::run_geyser_stream;
 use crate::runtime::settings::Settings;
 use crate::runtime::subscription::build_subscribe_request;
-use crate::utils::blocktime::{
-    create_transactions_by_slot, latency_monitor_task, BlockTimeCache,
-};
+use crate::utils::blocktime::{create_transactions_by_slot, latency_monitor_task, BlockTimeCache};
 use crate::utils::config::Config;
 use dotenv::dotenv;
 use env_logger;
 use serde_jsonc;
-use solana_stream_sdk::GeyserSubscribeUpdate;
-use std::{fs, sync::Arc};
+use solana_stream_sdk::GeyserReconnectEvent;
 use std::sync::atomic::AtomicU64;
+use std::{fs, sync::Arc};
 use tokio::sync::mpsc;
 
 mod handlers;
@@ -33,7 +31,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transactions_by_slot = create_transactions_by_slot();
     let block_time_cache = BlockTimeCache::new(&settings.rpc_endpoint);
     let tracked_slot = Arc::new(AtomicU64::new(0));
-    let (updates_tx, updates_rx) = mpsc::channel::<GeyserSubscribeUpdate>(UPDATE_CHANNEL_CAPACITY);
+    let (events_tx, events_rx) = mpsc::channel::<GeyserReconnectEvent>(UPDATE_CHANNEL_CAPACITY);
 
     let latency_handle = {
         let block_time_cache = block_time_cache.clone();
@@ -47,19 +45,19 @@ async fn main() -> Result<(), anyhow::Error> {
         // Add your detection/trade logic in src/handlers/processor.rs.
         let transactions_by_slot = transactions_by_slot.clone();
         tokio::spawn(async move {
-            process_updates(updates_rx, transactions_by_slot).await;
+            process_updates(events_rx, transactions_by_slot).await;
         })
     };
 
     let geyser_handle = {
         let tracked_slot = tracked_slot.clone();
-        let updates_tx = updates_tx.clone();
+        let events_tx = events_tx.clone();
         tokio::spawn(run_geyser_stream(
             settings.grpc_endpoint.clone(),
             settings.x_token.clone(),
             request,
             tracked_slot,
-            updates_tx,
+            events_tx,
         ))
     };
 

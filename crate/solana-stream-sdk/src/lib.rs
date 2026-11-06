@@ -52,6 +52,13 @@ pub use shredstream_proto::{
 };
 
 pub use yellowstone_grpc_client::{GeyserGrpcClient, GeyserGrpcClientError, Interceptor};
+// `subscribe_with_reconnect`, the recommended way to stream Geyser updates.
+pub use yellowstone_grpc_client::{
+    Backoff as GeyserBackoff, BankRef as GeyserBankRef, Disconnected as GeyserDisconnected,
+    ReconnectConfig as GeyserReconnectConfig, ReconnectEvent as GeyserReconnectEvent,
+    ReconnectPolicy as GeyserReconnectPolicy, ReconnectStream as GeyserReconnectStream,
+    RECONNECT_FILTER_KEY as GEYSER_RECONNECT_FILTER_KEY,
+};
 
 // Geyser protobuf exports with clear prefixes
 pub use yellowstone_grpc_proto::cuckoo::{

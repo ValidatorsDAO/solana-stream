@@ -1,4 +1,5 @@
 > Alpenglow has been active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](docs/alpenglow.md).
+> **4.0** moves to the Yellowstone gRPC 17 clients and the Agave 4.4 crates, and makes the reconnecting subscription (`subscribe_with_reconnect` / `subscribeWithReconnect`) the recommended way to stream Geyser updates. See the [4.0 migration guide](docs/migration-v4.md). Until 4.0.0 is published, crates.io and npm serve 3.0.0.
 
 > Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](docs/transaction-v1.md).
 
@@ -51,7 +52,8 @@ This project provides libraries and tools for streaming real-time data from the 
 
 ## Production-Ready Geyser Clients (TypeScript + Rust)
 
-- Rust Geyser exports track `yellowstone-grpc-client` 15.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers
+- Rust Geyser exports track `yellowstone-grpc-client` 17.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers
+- Reconnecting subscriptions (`subscribe_with_reconnect` / `subscribeWithReconnect`) replay from the last confirmed slot and report each dropped connection with the banks to discard
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus gap recovery (`fromSlot` / `from_slot`), sent as the first request of each new stream
 - Stops with the server's message when a request is rejected with `RESOURCE_EXHAUSTED` (larger than the server accepts) instead of reconnecting
@@ -183,11 +185,11 @@ The sample code can be found at:
 
 #### Usage with solana-stream-sdk
 
-The following example targets SDK 3.0.0 (see the [Alpenglow migration guide](docs/alpenglow.md); Transaction v1 support is covered by the [v1 migration guide](docs/transaction-v1.md)).
+The following example targets SDK 4.0 (see the [4.0 migration guide](docs/migration-v4.md) and the [Alpenglow migration guide](docs/alpenglow.md); Transaction v1 support is covered by the [v1 migration guide](docs/transaction-v1.md)).
 
 ```toml
 [dependencies]
-solana-stream-sdk = { version = "3.0.0", default-features = false }
+solana-stream-sdk = { version = "4.0.0", default-features = false }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"
 ```

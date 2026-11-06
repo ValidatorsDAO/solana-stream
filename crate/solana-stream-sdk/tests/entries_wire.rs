@@ -113,6 +113,7 @@ fn udp_reassembly_preserves_mixed_transactions_across_fec_sets() {
             &cache,
             &mut stats,
         )
+        .into_iter()
         .filter(Shred::is_data)
         .collect();
     assert!(shreds.len() > 32, "fixture must cross an FEC boundary");

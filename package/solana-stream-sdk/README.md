@@ -1,4 +1,5 @@
 > Alpenglow has been active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md).
+> **4.0** moves to the Yellowstone gRPC 17 clients and the Agave 4.4 crates, and makes the reconnecting subscription (`subscribe_with_reconnect` / `subscribeWithReconnect`) the recommended way to stream Geyser updates. See the [4.0 migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/migration-v4.md). Until 4.0.0 is published, crates.io and npm serve 3.0.0.
 
 > Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
@@ -41,6 +42,7 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 
 ## Production-Ready Geyser Client (TypeScript Best Practices)
 
+- Reconnecting subscription `subscribeWithReconnect()` (`@triton-one/yellowstone-grpc` 10): replays from the last confirmed slot and emits `{ type: 'Disconnected', partialBanks, replayFromSlot }` for each dropped connection
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
 - Exponential reconnect backoff plus `fromSlot` gap recovery, sent as the first request of each new stream
 - Stops with the server's message when a request is rejected with `RESOURCE_EXHAUSTED` (larger than the server accepts) instead of reconnecting
