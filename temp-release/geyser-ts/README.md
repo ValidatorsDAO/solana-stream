@@ -67,7 +67,8 @@ GEYSER_LOG_SUBSCRIBE=1
 ## Production-Ready Best Practices
 
 - Ping/Pong handling to keep Yellowstone gRPC streams alive
-- Exponential reconnect backoff plus `fromSlot` gap recovery, sent as the first request of each new stream: Yellowstone gRPC 17 replays only that request ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
+- Streams with `subscribeWithReconnect()`: the stream reconnects by itself, replays from the last confirmed slot and emits `Disconnected` with the banks to discard (`onDisconnected` in `src/index.ts`; never dropped by the bounded queue)
+- When the stream gives up, subscribes again with exponential backoff and `fromSlot` gap recovery, sent as the first request of the new stream: Yellowstone gRPC 17 replays only that request ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
 - Stops when the server rejects the request with `RESOURCE_EXHAUSTED` (larger than the server's `max_decoding_message_size`): reconnecting would send it again, so `runGeyser` throws and the process exits with status 1 and the server's message. Send a smaller request (fewer accounts, owners or filters)
 - Bounded in-memory queue with drop logging for backpressure safety
 - Code-based subscription filters in TypeScript (`src/utils/filter.ts`)

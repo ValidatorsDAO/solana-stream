@@ -3,7 +3,6 @@ linkWorkspacePackages: true
 packages:
   - client/*-ts
   - package/*
-  - temp-release/*-ts
 
 allowBuilds:
   bufferutil: false

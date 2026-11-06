@@ -7,7 +7,7 @@ use crate::state::AppState;
 use crate::utils::blocktime::{create_transactions_by_slot, latency_monitor_task, BlockTimeCache};
 use crate::utils::config::Config;
 use crate::wallet::load_or_create_wallet;
-use dotenv;
+use dotenvy;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_stream_sdk::GeyserSubscribeUpdate;
 use std::sync::atomic::AtomicU64;
@@ -28,7 +28,7 @@ const UPDATE_CHANNEL_CAPACITY: usize = 10_000;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
     env_logger::init();
     i18n::init_from_env();
 

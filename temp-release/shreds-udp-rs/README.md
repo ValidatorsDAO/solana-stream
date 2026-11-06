@@ -4,6 +4,11 @@ Minimal Rust client that listens for Shredstream over **UDP** and prints signal-
 
 ## Quick start
 
+This template uses `solana-stream-sdk` 4.0 with its `udp` feature. That feature builds
+`solana-ledger`, which needs Agave's rust-rocksdb fork: the `[patch.crates-io]` lines at
+the end of `Cargo.toml` provide it. Keep them if you move this crate into another
+workspace (a patch applies only in the workspace that declares it). Rust 1.98.1 or later.
+
 1) Edit `settings.jsonc` (jsonc comments allowed). It is embedded into the binary at build time, so no runtime `SHREDS_UDP_CONFIG` is needed.
 2) Provide secrets (e.g., RPC) via env:
 ```env

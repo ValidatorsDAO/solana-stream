@@ -46,7 +46,8 @@ RUST_LOG=info cargo run
 ## What this sample includes (best-practice defaults)
 - Config-driven filters for transactions/accounts/slots/blocks; sample tx filter removes vote/failed tx (bandwidth savings)
 - Ping/Pong handling to keep Yellowstone gRPC connections alive
-- Gap recovery with `from_slot` based on the last seen slot (resumes from `slot-1`), sent as the first request of each new stream: Yellowstone gRPC 17 replays only that request ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
+- Streams with `subscribe_with_reconnect`: the stream reconnects by itself, replays from the last confirmed slot and sends `GeyserReconnectEvent::Disconnected` with the banks to discard (handled in `src/handlers/processor.rs`)
+- When the stream gives up, subscribes again with `from_slot` based on the last seen slot (resumes from `slot-1`), sent as the first request of the new stream: Yellowstone gRPC 17 replays only that request ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
 - Exponential reconnect backoff that resets after successful traffic
 - Stops when the server rejects the request with `RESOURCE_EXHAUSTED` (larger than the server's `max_decoding_message_size`): reconnecting would send it again, so the binary exits with status 1 and the server's message. Send a smaller request (fewer accounts, owners or filters)
 - Ingress/processing split via a bounded channel (10_000); slow consumers are warned and updates may be dropped when full
@@ -58,12 +59,12 @@ RUST_LOG=info cargo run
 - Runtime wiring: `src/main.rs` (helpers live under `src/runtime` and `src/utils`)
 
 ### macOS libclang note
-If you hit `@rpath/libclang.dylib` errors (common on Apple Silicon), point to Homebrew LLVM:
+If you hit `@rpath/libclang.dylib` errors (common on Apple Silicon), point bindgen at Homebrew LLVM:
 ```bash
 export LIBCLANG_PATH=/opt/homebrew/opt/llvm/lib
-export DYLD_LIBRARY_PATH=/opt/homebrew/opt/llvm/lib
-export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 ```
+Do not set `DYLD_LIBRARY_PATH` to it: Rust 1.99 is built on LLVM 23 and stops with
+`LLVM version mismatch` when it loads an older Homebrew `libLLVM.dylib`.
 Then run `cargo run` as usual.
 
 ## Sample `config.jsonc`

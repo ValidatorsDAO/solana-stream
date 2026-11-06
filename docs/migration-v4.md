@@ -177,9 +177,19 @@ was built for LLVM 23, but LLVM 21.1.8 was found at /opt/homebrew/.../libLLVM.dy
 versions of the `client/geyser-rs` README recommended setting it. `LIBCLANG_PATH` alone is
 enough for bindgen (only the `udp` feature needs it).
 
-## For maintainers: templates
+## Starters (`temp-release/`)
 
 `slv bot init` copies `temp-release/<template>/` from the `main` branch, and those
-templates depend on the published packages. 4.0.0 was published on 2026-11-06
-(crates.io `solana-stream-sdk`, npm `@validators-dao/solana-stream-sdk`); the templates
-still use 3.x until they are moved to 4.0 in a follow-up.
+starters install the published packages. They use 4.0.0 (published on 2026-11-06), and
+CI checks them against it.
+
+- `geyser-rs`, `geyser-ts`: the same code as `client/geyser-rs` and `client/geyser-ts`.
+- `shreds-udp-rs`: enables `udp` and carries the rust-rocksdb `[patch.crates-io]`
+  lines. Keep them if you move the crate into another workspace.
+- `trade-app`: SDK 4.0, but its own runner. It trades at processed commitment without
+  de-duplication, and the 4.0 runner replays from the last confirmed slot after each
+  reconnect, which would resend recent pool creations. Add de-duplication before you
+  switch it to `subscribe_with_reconnect`.
+- `geyser-ts`, `shreds-ts`: standalone pnpm projects. Their `pnpm-workspace.yaml` turns
+  esbuild's install script off; without a decision, pnpm 11 stops `pnpm install`
+  (`ERR_PNPM_IGNORED_BUILDS`).

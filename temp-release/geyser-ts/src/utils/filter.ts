@@ -3,7 +3,7 @@ import {
   SubscribeRequestFilterTransactions,
 } from '@validators-dao/solana-stream-sdk'
 
-import { SubscribeRequest } from '@/utils/geyser'
+import type { SubscribeRequest } from '@/utils/geyser'
 
 const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
 
@@ -23,6 +23,7 @@ export const getSubscribeRequest = (): SubscribeRequest => ({
   blocks: {},
   blocksMeta: {},
   entry: {},
+  blockFooter: {},
   accountsDataSlice: [],
   commitment: CommitmentLevel.PROCESSED,
 })
