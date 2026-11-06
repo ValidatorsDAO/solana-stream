@@ -7,6 +7,10 @@ export interface UpdateQueue<T> {
    */
   enqueueReserved: (item: T) => boolean
   next: () => Promise<T | undefined>
+  /** Takes the oldest item without waiting; undefined when the queue is empty. */
+  shift: () => T | undefined
+  /** Resolves when an item is queued (at once if one already is). */
+  wait: () => Promise<void>
   size: () => number
 }
 
@@ -37,10 +41,7 @@ export const createUpdateQueue = <T>(maxQueueSize: number): UpdateQueue<T> => {
   const enqueue = (item: T): boolean => push(item, maxQueueSize)
   const enqueueReserved = (item: T): boolean => push(item, capacity)
 
-  const next = async (): Promise<T | undefined> => {
-    if (queueCount === 0) {
-      await new Promise<void>((resolve) => queueWaiters.push(resolve))
-    }
+  const shift = (): T | undefined => {
     if (queueCount === 0) {
       return undefined
     }
@@ -51,7 +52,17 @@ export const createUpdateQueue = <T>(maxQueueSize: number): UpdateQueue<T> => {
     return item
   }
 
+  const wait = (): Promise<void> =>
+    queueCount > 0
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => queueWaiters.push(resolve))
+
+  const next = async (): Promise<T | undefined> => {
+    await wait()
+    return shift()
+  }
+
   const size = () => queueCount
 
-  return { enqueue, enqueueReserved, next, size }
+  return { enqueue, enqueueReserved, next, shift, wait, size }
 }

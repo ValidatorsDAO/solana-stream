@@ -25,6 +25,7 @@
     "build": "tsup",
     "dev": "tsx src/index.ts",
     "test": "node --import tsx --test test/*.test.ts",
+    "bench": "node --expose-gc --import tsx bench/queue.bench.ts",
     "update:packages": "pnpm update --latest"
   },
   "dependencies": {

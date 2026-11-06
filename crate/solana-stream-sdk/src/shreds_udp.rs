@@ -179,8 +179,15 @@ pub struct ShredsUdpState {
     completed_ttl: Duration,
     suppressed_ttl: Duration,
     warnings: Arc<Mutex<HashMap<FecKey, Instant>>>,
+    /// When the TTL maps (`completed`, `suppressed`) are next pruned; see [`TTL_PRUNE_INTERVAL`].
+    next_ttl_prune: Arc<std::sync::Mutex<Instant>>,
     metrics: Arc<ShredMetrics>,
 }
+
+/// How often the TTL maps drop expired entries. A lookup checks the entry's own age, so
+/// this only bounds memory: pruning them on every datagram read the clock once per entry
+/// (thousands per datagram with the default 30 s `completed_ttl`).
+const TTL_PRUNE_INTERVAL: Duration = Duration::from_millis(250);
 
 #[derive(Default)]
 pub struct ShredMetrics {
@@ -539,7 +546,22 @@ impl ShredsUdpState {
             completed_ttl: cfg.completed_ttl,
             suppressed_ttl: cfg.evict_cooldown,
             warnings: Arc::new(Mutex::new(HashMap::new())),
+            next_ttl_prune: Arc::new(std::sync::Mutex::new(Instant::now())),
             metrics: Arc::new(ShredMetrics::default()),
+        }
+    }
+
+    /// True at most once per [`TTL_PRUNE_INTERVAL`].
+    fn ttl_prune_due(&self, now: Instant) -> bool {
+        let mut next = self
+            .next_ttl_prune
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if now >= *next {
+            *next = now + TTL_PRUNE_INTERVAL;
+            true
+        } else {
+            false
         }
     }
 
@@ -1256,17 +1278,26 @@ pub async fn insert_shred(
     };
     let metrics = state.metrics();
 
+    let now = Instant::now();
+    let live = |at: &Instant, ttl: Duration| now.saturating_duration_since(*at) < ttl;
+    let prune = state.ttl_prune_due(now);
     {
         let mut done = state.completed.lock().await;
-        done.retain(|_, until| until.elapsed() < state.completed_ttl());
-        if done.contains_key(&key) {
+        let ttl = state.completed_ttl();
+        if prune {
+            done.retain(|_, at| live(at, ttl));
+        }
+        if done.get(&key).is_some_and(|at| live(at, ttl)) {
             return ShredInsertOutcome::Skipped;
         }
     }
     {
         let mut sup = state.suppressed.lock().await;
-        sup.retain(|_, until| until.elapsed() < state.suppressed_ttl());
-        if sup.contains_key(&key) {
+        let ttl = state.suppressed_ttl();
+        if prune {
+            sup.retain(|_, at| live(at, ttl));
+        }
+        if sup.get(&key).is_some_and(|at| live(at, ttl)) {
             return ShredInsertOutcome::Skipped;
         }
     }
@@ -1775,8 +1806,10 @@ async fn warn_once(state: &ShredsUdpState, key: FecKey, msg: &str, warn_once: bo
         return;
     }
     let mut warnings = state.warnings.lock().await;
-    warnings.retain(|_, ts| ts.elapsed() < state.completed_ttl());
-    if warnings.insert(key, Instant::now()).is_none() {
+    let now = Instant::now();
+    let ttl = state.completed_ttl();
+    warnings.retain(|_, ts| now.saturating_duration_since(*ts) < ttl);
+    if warnings.insert(key, now).is_none() {
         warn!(
             "slot={} ver={} fec_set={} {}",
             key.slot, key.version, key.fec_set, msg
@@ -2767,6 +2800,149 @@ mod tests {
             !described.contains("SECRET"),
             "the RPC credential reached the log line: {described}"
         );
-        assert!(described.contains("rpc=https://edge.erpc.global/…"), "{described}");
+        assert!(
+            described.contains("rpc=https://edge.erpc.global/…"),
+            "{described}"
+        );
+    }
+
+    #[tokio::test]
+    async fn completed_fec_sets_are_skipped_for_exactly_their_ttl() {
+        let keypair = Keypair::new_from_array([9; 32]);
+        let shredder = Shredder::new(10, 9, 0, 42).expect("shredder");
+        let shred = shredder
+            .make_merkle_shreds_from_entries(
+                &keypair,
+                &[Entry::new(&Hash::default(), 1, vec![])],
+                true,
+                Hash::default(),
+                0,
+                0,
+                &ReedSolomonCache::default(),
+                &mut ProcessShredsStats::default(),
+            )
+            .into_iter()
+            .find(Shred::is_data)
+            .expect("a data shred");
+        let cfg = ShredsUdpConfig {
+            completed_ttl: Duration::from_millis(50),
+            ..ShredsUdpConfig::default()
+        };
+        let state = ShredsUdpState::new(&cfg);
+        let policy = DeshredPolicy {
+            require_code_match: false,
+        };
+        let datagram = UdpDatagram {
+            payload: shred.payload().as_ref().to_vec(),
+            received_at: Instant::now(),
+            from: "127.0.0.1:8001".parse().unwrap(),
+        };
+        let key = FecKey {
+            slot: shred.slot(),
+            version: shred.version(),
+            fec_set: shred.fec_set_index(),
+        };
+        let insert = || async {
+            let decoded = decode_udp_datagram(&datagram, &state, &cfg)
+                .await
+                .expect("prefilter accepts the shred");
+            insert_shred(decoded, &datagram, &state, &cfg, &policy).await
+        };
+
+        state.mark_completed(key).await;
+        assert!(
+            matches!(insert().await, ShredInsertOutcome::Skipped),
+            "a shred of a completed FEC set within its TTL must be skipped"
+        );
+        // Past the TTL, before the next prune (every 250 ms): the entry's own age decides.
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            !matches!(insert().await, ShredInsertOutcome::Skipped),
+            "a shred must be accepted once the completed entry is older than its TTL"
+        );
+    }
+
+    /// Throughput of the UDP pipeline (decode, insert, deshred) on realistic slots: 20
+    /// FEC sets of 32 data and 32 coding shreds per slot, data then coding, in order.
+    ///
+    /// `cargo test -p solana-stream-sdk --features udp --release --lib -- --ignored \
+    ///   --nocapture bench_udp_pipeline`
+    #[tokio::test]
+    #[ignore]
+    async fn bench_udp_pipeline() {
+        const SLOTS: u64 = 300;
+        let keypair = Keypair::new_from_array([7; 32]);
+        let reed_solomon_cache = ReedSolomonCache::default();
+        let mut stats = ProcessShredsStats::default();
+        // ~640 KB of tick entries per slot gives 20 FEC sets of 32 data shreds.
+        let entries: Vec<Entry> = (0..13_000)
+            .map(|_| Entry::new(&Hash::default(), 1, vec![]))
+            .collect();
+        let mut datagrams = Vec::new();
+        let from: std::net::SocketAddr = "127.0.0.1:8001".parse().unwrap();
+        let base = 400_000_000u64;
+        for slot in base..base + SLOTS {
+            let shredder = Shredder::new(slot, slot - 1, 0, 42).expect("shredder");
+            let shreds = shredder.make_merkle_shreds_from_entries(
+                &keypair,
+                &entries,
+                true,
+                Hash::default(),
+                0,
+                0,
+                &reed_solomon_cache,
+                &mut stats,
+            );
+            let (data, code): (Vec<_>, Vec<_>) = shreds.into_iter().partition(Shred::is_data);
+            for shred in data.into_iter().chain(code) {
+                datagrams.push(UdpDatagram {
+                    payload: shred.payload().as_ref().to_vec(),
+                    received_at: Instant::now(),
+                    from,
+                });
+            }
+        }
+
+        let cfg = ShredsUdpConfig::default();
+        let policy = DeshredPolicy {
+            require_code_match: false,
+        };
+        let watch_cfg = Arc::new(cfg.watch_config());
+        let mut runs = Vec::new();
+        let (mut ready, mut entries_out) = (0usize, 0usize);
+        for _ in 0..5 {
+            let state = ShredsUdpState::new(&cfg);
+            (ready, entries_out) = (0, 0);
+            let started = std::time::Instant::now();
+            for datagram in &datagrams {
+                let Some(decoded) = decode_udp_datagram(datagram, &state, &cfg).await else {
+                    continue;
+                };
+                if let ShredInsertOutcome::Ready(batch) =
+                    insert_shred(decoded, datagram, &state, &cfg, &policy).await
+                {
+                    ready += 1;
+                    if let ReadyBatchOutcome::Entries(n) =
+                        process_ready_batch(batch, &state, &cfg, watch_cfg.clone()).await
+                    {
+                        entries_out += n;
+                    }
+                }
+            }
+            runs.push(started.elapsed().as_nanos() as f64 / datagrams.len() as f64);
+        }
+        runs.sort_by(f64::total_cmp);
+        println!(
+            "udp pipeline: {} datagrams ({} slots), 5 runs: median {:.0} ns/datagram ({:.0}k datagrams/s), min {:.0}, max {:.0}; {} ready batches, {} entries",
+            datagrams.len(),
+            SLOTS,
+            runs[2],
+            1e6 / runs[2],
+            runs[0],
+            runs[4],
+            ready,
+            entries_out,
+        );
+        assert!(entries_out > 0, "the bench decoded no entries");
     }
 }

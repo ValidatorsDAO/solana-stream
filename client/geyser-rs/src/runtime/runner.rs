@@ -494,4 +494,92 @@ mod tests {
             other => panic!("expected Disconnected after the drop, got {other:?}"),
         }
     }
+
+    /// After the client's first request that asks for something (as a server reads it), a
+    /// slot update; then, on even calls, a dropped connection, and on odd calls an open
+    /// stream that keeps reading requests.
+    fn drop_after_one_slot(call: usize, requests: Streaming<SubscribeRequest>) -> UpdateStream {
+        use solana_stream_sdk::yellowstone_grpc_proto::geyser::SubscribeUpdateSlot;
+        let slot = SubscribeUpdate {
+            filters: vec!["slots".to_string()],
+            update_oneof: Some(UpdateOneof::Slot(SubscribeUpdateSlot {
+                slot: call as u64 + 1,
+                ..Default::default()
+            })),
+            created_at: None,
+        };
+        let first_request = stream::once(async move {
+            let mut requests = requests;
+            while let Some(Ok(request)) = requests.next().await {
+                if request != SubscribeRequest::default() {
+                    break;
+                }
+            }
+            requests
+        });
+        Box::pin(first_request.flat_map(move |requests| {
+            let tail: UpdateStream = if call % 2 == 0 {
+                Box::pin(stream::iter(vec![Err(Status::unavailable(
+                    "connection reset",
+                ))]))
+            } else {
+                Box::pin(stream::once(async move {
+                    let mut requests = requests;
+                    while let Some(Ok(_)) = requests.next().await {}
+                    futures::future::pending::<()>().await;
+                    Err(Status::cancelled("unreachable"))
+                }))
+            };
+            stream::iter(vec![Ok(slot.clone())]).chain(tail)
+        }))
+    }
+
+    /// Reconnect latency: from the last update of a dropped connection to the first update
+    /// of the next one, as the receiver sees them, with the runner's own settings.
+    ///
+    /// `cargo test -p geyser-rs --release -- --ignored --nocapture bench_reconnect_gap`
+    #[tokio::test]
+    #[ignore]
+    async fn bench_reconnect_gap() {
+        let mut gaps = Vec::new();
+        for _ in 0..20 {
+            let (endpoint, _calls, server) = serve(Arc::new(drop_after_one_slot)).await;
+            let request = SubscribeRequest {
+                slots: [("slots".to_string(), Default::default())].into(),
+                ..Default::default()
+            };
+            let (events_tx, mut events_rx) = mpsc::channel(8);
+            let runner = tokio::spawn(super::run_geyser_stream(
+                endpoint,
+                None,
+                request,
+                Arc::new(AtomicU64::new(0)),
+                events_tx,
+            ));
+            let mut first = None;
+            while let Ok(Some(event)) =
+                tokio::time::timeout(Duration::from_secs(10), events_rx.recv()).await
+            {
+                if let GeyserReconnectEvent::Update(_) = event {
+                    match first {
+                        None => first = Some(tokio::time::Instant::now()),
+                        Some(at) => {
+                            gaps.push(at.elapsed());
+                            break;
+                        }
+                    }
+                }
+            }
+            runner.abort();
+            server.abort();
+        }
+        gaps.sort();
+        println!(
+            "reconnect gap over {} runs: median {:?}, min {:?}, max {:?}",
+            gaps.len(),
+            gaps[gaps.len() / 2],
+            gaps[0],
+            gaps[gaps.len() - 1]
+        );
+    }
 }

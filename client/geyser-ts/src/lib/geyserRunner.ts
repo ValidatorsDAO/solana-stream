@@ -10,6 +10,8 @@ import { getUpdateSlot } from '@/lib/updateSlots'
 import { withResumeSlot, writeRequest } from '@/lib/subscription'
 import type { SubscribeRequest } from '@/utils/geyser'
 
+const YIELD_EVERY = 1024
+
 export type UpdateHandler = (update: any) => void | Promise<void>
 
 /**
@@ -122,11 +124,22 @@ export const runGeyser = async ({
     runHandler(() => onUpdate(data))
   }
 
+  // Take what is queued without a promise per event, wait only when the queue is empty,
+  // and yield to the event loop every YIELD_EVERY events so the stream keeps being read.
+  // About 4x the throughput of awaiting next() per event (bench/queue.bench.ts).
   const processEvents = async (): Promise<void> => {
+    let sinceYield = 0
     while (true) {
-      const event = await eventQueue.next()
-      if (event != undefined) {
-        processEvent(event)
+      const event = eventQueue.shift()
+      if (event === undefined) {
+        sinceYield = 0
+        await eventQueue.wait()
+        continue
+      }
+      processEvent(event)
+      if (++sinceYield >= YIELD_EVERY) {
+        sinceYield = 0
+        await new Promise((resolve) => setImmediate(resolve))
       }
     }
   }

@@ -48,6 +48,8 @@ log = { workspace = true }
 wincode = { workspace = true }
 
 [dev-dependencies]
+flate2 = "1"
+zstd = "0.13"
 solana-hash = { workspace = true }
 solana-keypair = { workspace = true }
 solana-signer = { workspace = true }
