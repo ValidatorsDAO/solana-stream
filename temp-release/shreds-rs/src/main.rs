@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     env_logger::init();
     let endpoint = env::var("SHREDS_ENDPOINT")
-        .unwrap_or_else(|_| "https://shreds-ams-9.erpc.global".to_string());
+        .unwrap_or_else(|_| "http://shreds-ams6-1.erpc.global".to_string());
 
     let mut client = ShredstreamClient::connect(&endpoint).await?;
 

@@ -58,7 +58,7 @@ RUST_LOG=info cargo run
 Create a `.env` file with the following configuration:
 
 ```env
-SHREDS_ENDPOINT=https://shreds-ams.erpc.global
+SHREDS_ENDPOINT=http://shreds-ams6-1.erpc.global
 SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 ```
 

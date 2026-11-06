@@ -35,7 +35,7 @@ This SDK provides a simple and efficient way to connect to Shredstream service a
 ## Features
 
 - **Easy-to-use API** - Simple wrapper around the Shredstream protocols and Geyser gRPC
-- **Yellowstone 15.x Geyser API** - Rust exports track `yellowstone-grpc-client` 15.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers
+- **Yellowstone 15.x Geyser API** - Rust exports track `yellowstone-grpc-client` 15.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers. Servers on Yellowstone gRPC 17 replay `from_slot` only from the first request of a stream and end an oversized request with `RESOURCE_EXHAUSTED` ([Yellowstone gRPC 17](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md#yellowstone-grpc-17-agave-44))
 - **Alpenglow block markers** - `deshred_shreds_to_component` and `classify_block_marker` report `UpdateParent`, `BlockFooter` and the other block markers instead of dropping them (see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md))
 - **Async Support** - Built with tokio for async/await patterns
 - **Type Safety** - Strongly typed Rust interfaces
@@ -118,7 +118,7 @@ cd solana-stream
 2. **Create a `.env` file** (placed in the project root)
 
 ```env
-SHREDS_ENDPOINT=https://shreds-ams.erpc.global
+SHREDS_ENDPOINT=http://shreds-ams6-1.erpc.global
 ```
 
 ⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.
@@ -162,7 +162,7 @@ use solana_stream_sdk::{CommitmentLevel, ShredstreamClient};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Connect to the Shredstream proxy
-    let mut client = ShredstreamClient::connect("https://shreds-ams.erpc.global").await?;
+    let mut client = ShredstreamClient::connect("http://shreds-ams6-1.erpc.global").await?;
 
     // Create a subscription request for a specific account
     let request = ShredstreamClient::create_entries_request_for_account(
@@ -194,7 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Create a `.env` file in your project root:
 
 ```env
-SHREDS_ENDPOINT=https://shreds-ams.erpc.global
+SHREDS_ENDPOINT=http://shreds-ams6-1.erpc.global
 ```
 
 Then use it in your code:
@@ -210,7 +210,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get the shreds endpoint from environment variable
     let endpoint = env::var("SHREDS_ENDPOINT")
-        .unwrap_or_else(|_| "https://shreds-ams.erpc.global".to_string());
+        .unwrap_or_else(|_| "http://shreds-ams6-1.erpc.global".to_string());
 
     let mut client = ShredstreamClient::connect(&endpoint).await?;
 
@@ -299,7 +299,7 @@ use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = ShredstreamClient::connect("https://shreds-ams.erpc.global").await?;
+    let mut client = ShredstreamClient::connect("http://shreds-ams6-1.erpc.global").await?;
 
     let request = SubscribeEntriesRequest {
         accounts: HashMap::new(),

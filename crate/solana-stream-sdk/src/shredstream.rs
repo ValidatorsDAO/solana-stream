@@ -22,7 +22,7 @@ impl ShredstreamClient {
     /// Create a new ShredstreamClient by connecting to the specified endpoint
     ///
     /// # Arguments
-    /// * `endpoint` - The gRPC endpoint URL (e.g., "https://shreds-ams.erpc.global")
+    /// * `endpoint` - The gRPC endpoint URL (e.g., "http://shreds-ams6-1.erpc.global")
     ///
     /// # Example
     /// ```no_run
@@ -30,7 +30,7 @@ impl ShredstreamClient {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let client = ShredstreamClient::connect("https://shreds-ams.erpc.global").await?;
+    ///     let client = ShredstreamClient::connect("http://shreds-ams6-1.erpc.global").await?;
     ///     Ok(())
     /// }
     /// ```
@@ -71,7 +71,7 @@ impl ShredstreamClient {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let mut client = ShredstreamClient::connect("https://shreds-ams.erpc.global").await?;
+    ///     let mut client = ShredstreamClient::connect("http://shreds-ams6-1.erpc.global").await?;
     ///     let request = ShredstreamClient::create_entries_request_for_account(
     ///         "L1ocbjmuFUQDVwwUWi8HjXjg1RYEeN58qQx6iouAsGF",
     ///         Some(CommitmentLevel::Processed),

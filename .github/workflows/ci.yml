@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  endpoints:
+    name: ERPC endpoints in docs and templates
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: node scripts/check-erpc-endpoints.mjs
+
+  node:
+    name: TypeScript SDK and Geyser templates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Install the pnpm version from packageManager
+        run: |
+          corepack enable
+          corepack prepare --activate
+          pnpm --version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @validators-dao/solana-stream-sdk build
+      - run: pnpm --filter @validators-dao/solana-stream-sdk test
+      - name: Type-check and test the Geyser templates
+        run: |
+          set -euo pipefail
+          for dir in client/geyser-ts temp-release/geyser-ts; do
+            echo "::group::$dir"
+            (cd "$dir" && pnpm exec tsc --noEmit -p . && pnpm test)
+            echo "::endgroup::"
+          done
+
+  rust:
+    name: Rust workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install libclang (bindgen for librocksdb-sys)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libclang-dev
+      - name: Install the toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          cargo --version
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - run: cargo test --workspace --locked

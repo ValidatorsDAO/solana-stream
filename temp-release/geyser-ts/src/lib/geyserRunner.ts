@@ -1,5 +1,6 @@
-import { GeyserClient } from '@validators-dao/solana-stream-sdk'
+import type { GeyserClient } from '@validators-dao/solana-stream-sdk'
 
+import { resourceExhaustedMessage } from '@/lib/grpcStatus'
 import { createUpdateQueue } from '@/lib/updateQueue'
 import { getUpdateSlot } from '@/lib/updateSlots'
 import { writeSubscription } from '@/lib/subscription'
@@ -169,6 +170,15 @@ export const runGeyser = async ({
         await writeSubscription(stream, currentRequest, lastSeenSlot, true)
         await streamClosed
       } catch (error) {
+        const exhausted = resourceExhaustedMessage(error)
+        if (exhausted !== null) {
+          throw new Error(
+            `The gRPC server ended the subscription with RESOURCE_EXHAUSTED: ${exhausted}. ` +
+              'Not reconnecting: the server rejects the same request again. Send a smaller ' +
+              'request (fewer filters, accounts or owners), or split it across connections.',
+            { cause: error },
+          )
+        }
         retries = sawNonHeartbeat ? 0 : retries + 1
         if (retries > maxRetries) {
           throw error

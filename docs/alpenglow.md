@@ -193,6 +193,39 @@ A Geyser `bank_id` is a number each node assigns itself. Do not compare it with 
 `bank_id` from another node or another connection. Join the updates of one block on
 `(slot, bank_id)`; to match blocks across connections, compare the blockhash.
 
+## Yellowstone gRPC 17 (Agave 4.4)
+
+Geyser servers on Agave 4.4 run `yellowstone-grpc-geyser` 17.0.0. Its `geyser.proto` is
+the one SDK 3.0.0 already uses (`yellowstone-grpc-proto` 14.0.1), so clients connect
+without changes. Four behaviours change (16.2.0 and 17.0.0 in the
+[Yellowstone changelog](https://github.com/rpcpool/yellowstone-grpc/blob/master/CHANGELOG.md)):
+
+- **Only the first request of a stream replays.** `from_slot` (`fromSlot`) is honoured
+  on the first `SubscribeRequest` of a stream that asks for something. A request written
+  later to the same stream, for example to change filters, is applied, but its
+  `from_slot` is ignored; open a new stream to replay. The empty request `subscribe()`
+  sends first and pings do not count, so `subscribe()` followed by a request with
+  `from_slot` still replays. The sample runners (`client/geyser-rs`,
+  `client/geyser-ts`) open a new stream on every reconnect and send `from_slot` in its
+  first request, so their gap recovery keeps working.
+- **Commitment statuses follow the content.** At `confirmed` and `finalized`, a bank's
+  slot statuses arrive after its accounts, transactions, entries and block meta, in the
+  order Processed, Confirmed, Finalized. They used to arrive first. Code that created
+  per-slot state on the status update must create it on the first content update
+  instead; the status now marks the bank as complete.
+- **`CreatedBank` arrives once, with the content.** At `confirmed` and `finalized`, the
+  `CreatedBank` status of a bank arrives once together with the bank's content, not
+  when the bank was created.
+- **An oversized request ends the stream with `RESOURCE_EXHAUSTED`.** A `Subscribe` or
+  `SubscribeDeshred` request larger than the server's `max_decoding_message_size` ends
+  the stream with `RESOURCE_EXHAUSTED` and a message that names the limit (and the
+  request size, when the request is not compressed). Before 17.0.0 the stream closed
+  without a status. Reconnecting sends the same request and is rejected again, so the
+  sample runners stop and report the server's message instead of retrying: Rust
+  `run_geyser_stream` returns the error and the binary exits with status 1, TypeScript
+  `runGeyser` throws. Send a smaller request (fewer accounts, owners or filters), or
+  split it across connections.
+
 ## Reconnecting with bank recovery (Rust)
 
 `GeyserGrpcClient::subscribe_with_reconnect` of the re-exported `yellowstone-grpc-client`
