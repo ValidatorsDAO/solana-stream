@@ -177,9 +177,9 @@ was built for LLVM 23, but LLVM 21.1.8 was found at /opt/homebrew/.../libLLVM.dy
 versions of the `client/geyser-rs` README recommended setting it. `LIBCLANG_PATH` alone is
 enough for bindgen (only the `udp` feature needs it).
 
-## For maintainers: release order
+## For maintainers: templates
 
 `slv bot init` copies `temp-release/<template>/` from the `main` branch, and those
-templates depend on the published packages. They stay on 3.x in this change. After
-`solana-stream-sdk` 4.0.0 (crates.io) and `@validators-dao/solana-stream-sdk` 4.0.0 (npm)
-are published, move `temp-release/` to 4.0.0 in a follow-up.
+templates depend on the published packages. 4.0.0 was published on 2026-11-06
+(crates.io `solana-stream-sdk`, npm `@validators-dao/solana-stream-sdk`); the templates
+still use 3.x until they are moved to 4.0 in a follow-up.

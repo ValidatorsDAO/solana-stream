@@ -1,18 +1,16 @@
 # Changelog
 
-## Unreleased
+## 4.0.0 - 2026-11-06 — Yellowstone gRPC 17 clients, Agave 4.4
 
-### 4.0.0 (not published yet) — Yellowstone gRPC 17 clients, Agave 4.4
-
-Migration: [docs/migration-v4.md](docs/migration-v4.md).
+Published 2026-11-06: crates.io `solana-stream-sdk` 4.0.0; npm `@validators-dao/solana-stream-sdk` 4.0.0 (published from a workstation, so without a provenance statement; later releases go through `.github/workflows/release.yml`). `@validators-dao/solana-shreds-client` 2.0.0 and `@validators-dao/solana-entry-decoder` 2.5.0 are unchanged and not republished. Migration: [docs/migration-v4.md](docs/migration-v4.md).
 
 - Rust: `yellowstone-grpc-client` 15.0.0 → 17.0.0 (`yellowstone-grpc-proto` stays 14.0.1). `subscribe_with_reconnect` yields `ReconnectEvent::Update(update)` and `ReconnectEvent::Disconnected { partial_banks, replay_from_slot }` at any commitment; re-exported as `GeyserReconnectEvent`, `GeyserDisconnected`, `GeyserBankRef`, `GeyserReconnectConfig`, `GeyserReconnectPolicy`, `GeyserBackoff`, `GeyserReconnectStream` and `GEYSER_RECONNECT_FILTER_KEY`. New example `geyser_reconnect`.
 - Rust: Solana crates 4.2.2 → 4.4.1 (`solana-entry`, `solana-ledger`, `solana-rpc-client`), `solana-message` / `solana-transaction` 5.x, `wincode` 0.6, `http` 1.x in `SolanaStreamError::InvalidUri`. MSRV 1.98.1; the repository toolchain is Rust 1.99.1.
 - Rust: the `udp` feature is opt-in. It needs Agave's `rust-rocksdb` patch in the workspace that enables it (`solana-ledger` 4.4.1 does not build against crates.io `rocksdb`). Without it the SDK resolves 396 crates instead of 684.
 - Node.js: `@triton-one/yellowstone-grpc` 9.0.0 → 10.0.0 (napi 0.4.0). `subscribeWithReconnect()` yields `Update` and `Disconnected { partialBanks, replayFromSlot }` events; reconnect options take `policy` and `slotsBehind`. New exports: `ClientReconnectDuplexStream`, `RECONNECT_FILTER_KEY` and the `BankRef`, `ChannelOptions`, `ReconnectEvent`, `ReconnectOptions`, `SubscribeRequest`, `SubscribeUpdate` types. `engines.node` is `>=22`; CI runs Node.js 22, 24 and 26.
 - Sample clients `client/geyser-rs` and `client/geyser-ts` stream with the reconnecting subscription and hand `Disconnected` to user code (never dropped by the bounded queue); they subscribe again with `from_slot` when the stream gives up, and stop on `RESOURCE_EXHAUSTED`. `client/geyser-rs` no longer uses the unmaintained `backoff` crate.
-- Native packages: `@validators-dao/solana-entry-decoder` moves to `solana-entry` 4.4.1 and `@validators-dao/solana-shreds-client` to SDK 4.0 (rebuilt binaries are needed to publish them).
-- `temp-release/` (served by `slv bot init`) stays on the published 3.x until 4.0.0 is on crates.io and npm.
+- Native packages: the sources of `@validators-dao/solana-entry-decoder` (now on `solana-entry` 4.4.1) and `@validators-dao/solana-shreds-client` (now on SDK 4.0) moved; their published binaries (2.5.0, 2.0.0) are unchanged and need a rebuild for a new release.
+- `temp-release/` (served by `slv bot init`) still uses 3.x; moving it to 4.0 is the next step.
 - macOS: the `client/geyser-rs` README no longer recommends `DYLD_LIBRARY_PATH=/opt/homebrew/opt/llvm/lib`, which makes Rust 1.99 fail with `LLVM version mismatch`.
 
 ### Performance (measured)
@@ -30,7 +28,7 @@ Migration: [docs/migration-v4.md](docs/migration-v4.md).
 - `SECURITY.md` and `CONTRIBUTING.md`.
 - Removed `temp-release/geyser-ts3.tar.gz`, `shreds-rs3.tar.gz` and `shreds-ts.tar.gz`: no longer served (`slv` ≥ 0.13.14 copies `temp-release/<dir>/`; the old download location returns 404) and they still named Shreds and gRPC hosts that do not resolve.
 
-### Since 3.0.0
+### Yellowstone gRPC 17 readiness and templates
 
 - Yellowstone gRPC 17 (Agave 4.4): document what changes for clients — `from_slot` replays only from the first request of a stream, commitment statuses and `CreatedBank` follow the content at confirmed/finalized, and an oversized request ends the stream with `RESOURCE_EXHAUSTED` ([docs/alpenglow.md](docs/alpenglow.md#yellowstone-grpc-17-agave-44)). No SDK package changes: `geyser.proto` is unchanged.
 - Geyser sample runners (`client/geyser-rs`, `client/geyser-ts` and their `temp-release/` copies, including `trade-app`): stop with the server's message when the server ends the stream with `RESOURCE_EXHAUSTED`, instead of reconnecting forever (Rust) or up to `maxRetries` (TypeScript). The binaries exit with status 1.
