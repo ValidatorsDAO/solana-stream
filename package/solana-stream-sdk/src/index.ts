@@ -1,4 +1,4 @@
-import Client, {
+import {
   ClientReconnectDuplexStream,
   CommitmentLevel,
   RECONNECT_FILTER_KEY,
@@ -22,7 +22,6 @@ export type {
 } from '@triton-one/yellowstone-grpc'
 export {
   bs58,
-  Client as GeyserClient,
   ClientReconnectDuplexStream,
   CommitmentLevel,
   RECONNECT_FILTER_KEY,
@@ -35,6 +34,13 @@ export {
   SubscribeRequestFilterSlots,
   SubscribeRequestFilterTransactions,
 }
+
+export {
+  GeyserClient,
+  geyserChannelOptions,
+  DEFAULT_GEYSER_CHANNEL_OPTIONS,
+  HIGH_THROUGHPUT_GRPC_WINDOW_BYTES,
+} from './geyser-client'
 
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)

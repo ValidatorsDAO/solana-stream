@@ -30,5 +30,11 @@ export const createEnvClient = () => {
     console.warn(warning)
   }
 
-  return new GeyserClient(endpoint, token || undefined, undefined, RECONNECT_OPTIONS)
+  // Both HTTP/2 receive windows matter: the smaller one can cap throughput.
+  // Specify this here as well so the standalone starter works with published SDK 4.0.0.
+  return new GeyserClient(endpoint, token || undefined, {
+    grpcInitialStreamWindowSize: 16 * 1024 * 1024,
+    grpcInitialConnectionWindowSize: 16 * 1024 * 1024,
+    grpcHttp2AdaptiveWindow: false,
+  }, RECONNECT_OPTIONS)
 }

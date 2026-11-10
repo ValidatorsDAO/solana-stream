@@ -7,7 +7,7 @@ use futures::StreamExt;
 use solana_stream_sdk::{
     GeyserBackoff, GeyserGrpcClient, GeyserReconnectConfig, GeyserReconnectEvent,
     GeyserReconnectPolicy, GeyserSubscribeRequest, GeyserSubscribeRequestFilterSlots,
-    GeyserUpdateOneof,
+    GeyserUpdateOneof, tune_geyser_grpc_builder,
 };
 use std::time::Duration;
 
@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = std::env::var("GEYSER_ENDPOINT")
         .unwrap_or_else(|_| "http://grpc-ams1.erpc.global".to_string());
 
-    let mut client = GeyserGrpcClient::build_from_shared(endpoint)?
+    let mut client = tune_geyser_grpc_builder(GeyserGrpcClient::build_from_shared(endpoint)?)
         // Up to 6 reconnects in a row (100 ms, 200 ms, … 3.2 s), replaying from the last
         // confirmed slot. A connection that delivers a block refills the budget.
         .set_reconnect_config(

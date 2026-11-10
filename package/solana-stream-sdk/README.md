@@ -32,13 +32,12 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
 </a>
 
-## What's New in v1.1.0
+## What's New in v4.0.0
 
-- Refreshed starter layout and docs to highlight trading hooks
-- Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
-- NAPI-powered Shreds client/decoder so TypeScript can tap near-native throughput
-- Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
-- Faster real-time Geyser streams for TypeScript clients with lower overhead
+- Yellowstone gRPC 17 (Rust) and `@triton-one/yellowstone-grpc` 10 (TypeScript), with Agave 4.4.1-based Solana Rust types.
+- Recommended resilient subscriptions: `subscribe_with_reconnect` and `subscribeWithReconnect`, including explicit disconnected/partial-bank notifications and replay.
+- Alpenglow block-marker support continues from SDK v3; v4 updates client integration and exposed types.
+- Independent local tests measured about **108×** faster Rust UDP internal datagram processing, about **4×** higher TypeScript event-queue throughput, and a **552 → 103 ms** receive-resumption interval following local gRPC disconnects. These are different benchmarks, not cumulative or end-to-end network performance. [Measurement details](https://github.com/ValidatorsDAO/solana-stream/pull/129).
 
 ## Production-Ready Geyser Client (TypeScript Best Practices)
 
@@ -53,6 +52,26 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 
 Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
 duplicates are expected.
+
+## High-throughput Geyser gRPC receive windows (source tree)
+
+The SDK's `GeyserClient` keeps the upstream Yellowstone constructor arguments, but the source-tree version applies 16 MiB **stream and connection** HTTP/2 receive windows with adaptive window sizing disabled. This avoids an accidental low receive-window throughput ceiling. User-provided channel options take precedence, including an explicit choice to re-enable adaptive window sizing.
+
+```typescript
+import { GeyserClient } from '@validators-dao/solana-stream-sdk'
+
+// Fixed high-throughput windows on both HTTP/2 levels by default.
+const client = new GeyserClient(endpoint, xToken)
+
+// Example override: enlarge both windows for a separately measured workload.
+const larger = new GeyserClient(endpoint, xToken, {
+  grpcInitialStreamWindowSize: 32 * 1024 * 1024,
+  grpcInitialConnectionWindowSize: 32 * 1024 * 1024,
+  grpcHttp2AdaptiveWindow: false,
+})
+```
+
+This default **postdates the published 4.0.0 package** and must not be treated as available in npm 4.0.0 until a subsequent package release. See the [ERPC gRPC receive-window FAQ](https://erpc.global/en/faq/grpc/general/) for the 16 KiB vs 16 MiB measurement. A large window does not fix slow decoding, an under-provisioned host, or server-side fair-use limits.
 
 ## Performance Highlights
 

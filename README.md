@@ -26,6 +26,12 @@
 
 # Solana Stream SDK
 
+## SDK v4.0.0 performance
+
+[![Solana Stream SDK 4.0.0: Rust UDP internal processing, TypeScript event-queue throughput and Geyser gRPC reconnection benchmarks](https://storage.elsoul.nl/website/images/news/2026/11/07/erpc-solana-stream-sdk-v4-20261107-performance-en_1280.webp)](https://erpc.global/en/news/2026/11/07/erpc-solana-stream-sdk-v4-20261107/)
+
+The figure compares **three separate local benchmarks**, not end-to-end network latency: approximately **108×** faster Rust UDP internal processing, approximately **4×** greater TypeScript event-queue throughput, and a **552 → 103 ms** median receive-resumption interval after disconnects in the local tonic test. [Methods and test results](https://github.com/ValidatorsDAO/solana-stream/pull/129) · [Full v4 announcement](https://erpc.global/en/news/2026/11/07/erpc-solana-stream-sdk-v4-20261107/).
+
 A collection of Rust and TypeScript packages for Solana stream data, operated by ValidatorsDAO. This repository is published as open-source software (OSS) and is freely available for anyone to use.
 
 <a href="https://solana.com/">
@@ -42,13 +48,12 @@ This project provides libraries and tools for streaming real-time data from the 
 - Shreds gRPC (TypeScript/Rust): raw shreds over gRPC for high-throughput ingestion
 - UDP Shreds (Rust): lowest-latency signal for real-time event detection
 
-## What's New (TypeScript v1.1.0)
+## What's New in v4.0.0
 
-- Refreshed starter layout and docs
-- Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
-- NAPI-powered Shreds client/decoder so TypeScript can tap Rust-grade throughput
-- Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
-- Faster real-time Geyser streams for TypeScript clients with lower overhead
+- Yellowstone gRPC 17 (Rust) and `@triton-one/yellowstone-grpc` 10 (TypeScript), with Agave 4.4.1-based Solana Rust types.
+- Recommended resilient subscriptions: `subscribe_with_reconnect` and `subscribeWithReconnect`, including explicit disconnected/partial-bank notifications and replay.
+- Alpenglow block-marker support continues from SDK v3; v4 updates client integration and exposed types.
+- Independent local tests measured about **108×** faster Rust UDP internal datagram processing, about **4×** higher TypeScript event-queue throughput, and a **552 → 103 ms** receive-resumption interval following local gRPC disconnects. These are different benchmarks, not cumulative or end-to-end network performance. [Measurement details](https://github.com/ValidatorsDAO/solana-stream/pull/129).
 
 ## Production-Ready Geyser Clients (TypeScript + Rust)
 
@@ -66,6 +71,12 @@ This project provides libraries and tools for streaming real-time data from the 
 
 Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
 duplicates are expected.
+
+## High-throughput gRPC receive defaults (source tree)
+
+A client can throttle its own incoming stream when its HTTP/2 *stream* or *connection* receive window is too small. The SDK source now uses **16 MiB for each window**, with adaptive window sizing disabled so the specified sizes take effect. This applies to the TypeScript `GeyserClient`, Rust `ShredstreamClient`, and the included Rust Geyser example/sample through `tune_geyser_grpc_builder` (the published-package starter sets the same values directly). The raw upstream `GeyserGrpcClient` re-export keeps its own defaults unless the helper is used. Callers can override TypeScript channel options or Rust builder/endpoint settings.
+
+This is a change **after the published 4.0.0 release**. Users of the published npm/crates.io 4.0.0 packages will receive it only in a subsequent package release. This tuning does not bypass server-side limits, prevent packet loss, or compensate for a slow application consumer; keep reception efficient and work queues bounded. See [ERPC's flow-control diagnosis and measured 16 KiB vs 16 MiB comparison](https://erpc.global/en/faq/grpc/general/).
 
 ## Rust Highlight: UDP Shreds (Fastest Signal)
 

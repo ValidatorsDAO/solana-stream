@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use tonic::transport::Channel;
+use tonic::transport::{Channel, Endpoint};
 
 use crate::{
     shredstream_proto::{
@@ -10,7 +10,7 @@ use crate::{
         SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots,
         SubscribeRequestFilterTransactions,
     },
-    Result, SolanaStreamError,
+    tune_grpc_endpoint, Result, SolanaStreamError,
 };
 
 /// A convenient wrapper around the Shredstream client
@@ -35,11 +35,17 @@ impl ShredstreamClient {
     /// }
     /// ```
     pub async fn connect(endpoint: impl AsRef<str>) -> Result<Self> {
-        let client = ShredstreamProxyClient::connect(endpoint.as_ref().to_string())
+        // Tonic's small initial flow-control windows can throttle high-volume
+        // Shreds streams even when the host and link have ample capacity.
+        let endpoint = Endpoint::from_shared(endpoint.as_ref().to_string())
+            .map_err(SolanaStreamError::Transport)?;
+        let channel = tune_grpc_endpoint(endpoint)
+            .connect()
             .await
             .map_err(SolanaStreamError::Transport)?;
-
-        Ok(Self { client })
+        Ok(Self {
+            client: ShredstreamProxyClient::new(channel),
+        })
     }
 
     /// Subscribe to entries with the given filters

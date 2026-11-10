@@ -11,6 +11,7 @@ pub mod redact;
 #[cfg(feature = "udp")]
 pub mod shreds_udp;
 pub mod shredstream;
+pub mod transport;
 pub mod txn;
 pub use yellowstone_grpc_client;
 pub use yellowstone_grpc_proto;
@@ -38,6 +39,7 @@ pub use solana_entry::entry::Entry;
 pub use solana_transaction::versioned::VersionedTransaction;
 // Re-export shredstream client
 pub use shredstream::ShredstreamClient;
+pub use transport::{tune_geyser_grpc_builder, tune_grpc_endpoint, HIGH_THROUGHPUT_GRPC_WINDOW_BYTES};
 // Re-export UDP receiver
 #[cfg(feature = "udp")]
 pub use shreds_udp::{
