@@ -3,7 +3,7 @@ const { test } = require('node:test')
 
 test('Geyser uses fixed 16 MiB flow-control windows by default', async () => {
   const { GeyserClient, HIGH_THROUGHPUT_GRPC_WINDOW_BYTES, DEFAULT_GEYSER_CHANNEL_OPTIONS } =
-    await import('../dist/index.js')
+    await import('../dist/geyser-client.js')
   assert.equal(HIGH_THROUGHPUT_GRPC_WINDOW_BYTES, 16 * 1024 * 1024)
   assert.deepEqual(DEFAULT_GEYSER_CHANNEL_OPTIONS, {
     grpcInitialStreamWindowSize: HIGH_THROUGHPUT_GRPC_WINDOW_BYTES,
@@ -16,7 +16,7 @@ test('Geyser uses fixed 16 MiB flow-control windows by default', async () => {
 })
 
 test('caller options override defaults without mutating their input', async () => {
-  const { GeyserClient, geyserChannelOptions } = await import('../dist/index.js')
+  const { GeyserClient, geyserChannelOptions } = await import('../dist/geyser-client.js')
   const caller = { grpcInitialStreamWindowSize: 8 * 1024 * 1024, grpcHttp2AdaptiveWindow: true }
   const options = geyserChannelOptions(caller)
   assert.equal(options.grpcInitialStreamWindowSize, 8 * 1024 * 1024)
