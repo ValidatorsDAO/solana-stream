@@ -1,4 +1,4 @@
-import Client, {
+import {
   ClientReconnectDuplexStream,
   CommitmentLevel,
   RECONNECT_FILTER_KEY,
