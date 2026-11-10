@@ -11,7 +11,7 @@ use solana_stream_sdk::yellowstone_grpc_proto::geyser::SubscribeRequestPing;
 use solana_stream_sdk::{
     GeyserBackoff, GeyserGrpcClient, GeyserGrpcClientError, GeyserReconnectConfig,
     GeyserReconnectEvent, GeyserReconnectPolicy, GeyserSubscribeRequest, GeyserSubscribeUpdate,
-    GeyserUpdateOneof,
+    GeyserUpdateOneof, tune_geyser_grpc_builder,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -109,7 +109,9 @@ async fn stream_once(
     reconnect_backoff: GeyserBackoff,
     saw_updates: &mut bool,
 ) -> anyhow::Result<()> {
-    let mut builder = GeyserGrpcClient::build_from_shared(grpc_endpoint.to_string())?
+    let mut builder = tune_geyser_grpc_builder(
+        GeyserGrpcClient::build_from_shared(grpc_endpoint.to_string())?,
+    )
         .set_reconnect_config(
             GeyserReconnectConfig::default()
                 .with_backoff(reconnect_backoff)
