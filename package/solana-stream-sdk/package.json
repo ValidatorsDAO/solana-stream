@@ -28,7 +28,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/geyser-v1.test.cjs test/alpenglow.test.cjs test/block-marker.test.cjs",
+    "test": "node --test test/geyser-v1.test.cjs test/grpc-throughput-defaults.test.cjs test/alpenglow.test.cjs test/block-marker.test.cjs",
     "build": "tsup",
     "format": "prettier --write ."
   },
