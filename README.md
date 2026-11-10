@@ -75,7 +75,7 @@ duplicates are expected.
 
 ## High-throughput gRPC receive defaults (source tree)
 
-A client can throttle its own incoming stream when its HTTP/2 *stream* or *connection* receive window is too small. The SDK source now uses **16 MiB for each window**, with adaptive window sizing disabled so the specified sizes take effect. This applies to the TypeScript `GeyserClient`, Rust `ShredstreamClient`, and the included Rust Geyser examples/starters through `tune_geyser_grpc_builder`. The raw upstream `GeyserGrpcClient` re-export keeps its own defaults unless the helper is used. Callers can override TypeScript channel options or Rust builder/endpoint settings.
+A client can throttle its own incoming stream when its HTTP/2 *stream* or *connection* receive window is too small. The SDK source now uses **16 MiB for each window**, with adaptive window sizing disabled so the specified sizes take effect. This applies to the TypeScript `GeyserClient`, Rust `ShredstreamClient`, and the included Rust Geyser example/sample through `tune_geyser_grpc_builder` (the published-package starter sets the same values directly). The raw upstream `GeyserGrpcClient` re-export keeps its own defaults unless the helper is used. Callers can override TypeScript channel options or Rust builder/endpoint settings.
 
 This is a change **after the published 4.0.0 release**. Users of the published npm/crates.io 4.0.0 packages will receive it only in a subsequent package release. This tuning does not bypass server-side limits, prevent packet loss, or compensate for a slow application consumer; keep reception efficient and work queues bounded. See [ERPC's flow-control diagnosis and measured 16 KiB vs 16 MiB comparison](https://erpc.global/en/faq/grpc/general/).
 
