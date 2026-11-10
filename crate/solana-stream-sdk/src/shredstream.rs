@@ -38,7 +38,7 @@ impl ShredstreamClient {
         // Tonic's small initial flow-control windows can throttle high-volume
         // Shreds streams even when the host and link have ample capacity.
         let endpoint = Endpoint::from_shared(endpoint.as_ref().to_string())
-            .map_err(SolanaStreamError::InvalidUri)?;
+            .map_err(SolanaStreamError::Transport)?;
         let channel = tune_grpc_endpoint(endpoint)
             .connect()
             .await
