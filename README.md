@@ -48,13 +48,12 @@ This project provides libraries and tools for streaming real-time data from the 
 - Shreds gRPC (TypeScript/Rust): raw shreds over gRPC for high-throughput ingestion
 - UDP Shreds (Rust): lowest-latency signal for real-time event detection
 
-## What's New (TypeScript v1.1.0)
+## What's New in v4.0.0
 
-- Refreshed starter layout and docs
-- Yellowstone Geyser gRPC connection upgraded to an NAPI-RS-powered client for better backpressure
-- NAPI-powered Shreds client/decoder so TypeScript can tap Rust-grade throughput
-- Improved backpressure handling and up to 4x streaming efficiency (400% improvement)
-- Faster real-time Geyser streams for TypeScript clients with lower overhead
+- Yellowstone gRPC 17 (Rust) and `@triton-one/yellowstone-grpc` 10 (TypeScript), with Agave 4.4.1-based Solana Rust types.
+- Recommended resilient subscriptions: `subscribe_with_reconnect` and `subscribeWithReconnect`, including explicit disconnected/partial-bank notifications and replay.
+- Alpenglow block-marker support continues from SDK v3; v4 updates client integration and exposed types.
+- Independent local tests measured about **108×** faster Rust UDP internal datagram processing, about **4×** higher TypeScript event-queue throughput, and a **552 → 103 ms** receive-resumption interval following local gRPC disconnects. These are different benchmarks, not cumulative or end-to-end network performance. [Measurement details](https://github.com/ValidatorsDAO/solana-stream/pull/129).
 
 ## Production-Ready Geyser Clients (TypeScript + Rust)
 
