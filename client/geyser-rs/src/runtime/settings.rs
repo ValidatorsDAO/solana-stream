@@ -63,8 +63,17 @@ mod tests {
             .plaintext_token_warning()
             .expect("a token over http:// must warn");
         assert!(warning.contains("http://grpc-ams1.erpc.global") && !warning.contains("SECRET"));
-        assert_eq!(settings("https://grpc.example.com", Some("t")).plaintext_token_warning(), None);
-        assert_eq!(settings("http://grpc-ams1.erpc.global", None).plaintext_token_warning(), None);
-        assert_eq!(settings("http://127.0.0.1:10000", Some("t")).plaintext_token_warning(), None);
+        assert_eq!(
+            settings("https://grpc.example.com", Some("t")).plaintext_token_warning(),
+            None
+        );
+        assert_eq!(
+            settings("http://grpc-ams1.erpc.global", None).plaintext_token_warning(),
+            None
+        );
+        assert_eq!(
+            settings("http://127.0.0.1:10000", Some("t")).plaintext_token_warning(),
+            None
+        );
     }
 }

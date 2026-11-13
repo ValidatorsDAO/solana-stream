@@ -53,6 +53,9 @@ pub const DEFAULT_EVICT_COOLDOWN: Duration = Duration::from_millis(300);
 
 const DEFAULT_MAX_DATAGRAM_SIZE: usize = 65_536;
 
+/// Receive times of the transactions seen per slot, for the latency monitor.
+pub type TransactionsBySlot = Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>;
+
 /// A raw UDP datagram without any decoding assumptions.
 #[derive(Debug, Clone)]
 pub struct UdpDatagram {
@@ -166,7 +169,7 @@ pub struct ShredsUdpConfig {
 
 #[derive(Clone)]
 pub struct ShredsUdpState {
-    transactions_by_slot: Option<Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>>,
+    transactions_by_slot: Option<TransactionsBySlot>,
     shred_buffer: Arc<Mutex<HashMap<FecKey, ShredBatch>>>,
     slot_data_buffer: Arc<Mutex<HashMap<SlotKey, SlotDataBatch>>>,
     completed: Arc<Mutex<HashMap<FecKey, Instant>>>,
@@ -565,7 +568,7 @@ impl ShredsUdpState {
         self.block_time_cache.clone()
     }
 
-    pub fn transactions_by_slot(&self) -> Option<Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>> {
+    pub fn transactions_by_slot(&self) -> Option<TransactionsBySlot> {
         self.transactions_by_slot.clone()
     }
 
@@ -638,11 +641,11 @@ pub async fn run_shreds_udp(
 
     if let Some(latency_handle) = latency_handle {
         tokio::try_join!(latency_handle, receive_handle)
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))?;
+            .map_err(Box::<dyn std::error::Error + Send + Sync>::from)?;
     } else {
         receive_handle
             .await
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))?;
+            .map_err(Box::<dyn std::error::Error + Send + Sync>::from)?;
     }
     Ok(())
 }
@@ -1088,20 +1091,17 @@ fn apply_env_overrides(mut cfg: ShredsUdpConfig) -> ShredsUdpConfig {
     cfg
 }
 
-fn prepare_log_message(
-    slot: u64,
-    transactions_by_slot: &Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>,
-) {
+fn prepare_log_message(slot: u64, transactions_by_slot: &TransactionsBySlot) {
     let received_time = Utc::now();
     transactions_by_slot
         .entry(slot)
-        .or_insert_with(Vec::new)
+        .or_default()
         .push(("dummy_signature".to_string(), received_time));
 }
 
 pub async fn latency_monitor_task(
     block_time_cache: BlockTimeCache,
-    transactions_by_slot: Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>,
+    transactions_by_slot: TransactionsBySlot,
 ) {
     const MAX_LATENCIES: usize = 420;
     let mut latency_buffer = Vec::new();
@@ -1605,7 +1605,7 @@ async fn prefilter_shred(
         }
         _ => {
             let n = metrics.inc_payload_len_other();
-            if n % 50 == 0 {
+            if n.is_multiple_of(50) {
                 warn!(
                     "unexpected UDP payload len={} from {} (merkle={} legacy={} with_nonce={} max={})",
                     payload_len,
@@ -1643,7 +1643,7 @@ async fn prefilter_shred(
             let n = metrics
                 .payload_size_mismatch
                 .fetch_add(1, Ordering::Relaxed);
-            if n % 100 == 0 {
+            if n.is_multiple_of(100) {
                 warn!(
                     "drop packet: not a valid shred len={} from {} (merkle={} legacy={} with_nonce={} max={})",
                     payload_len,
@@ -1666,7 +1666,7 @@ async fn prefilter_shred(
     if decoded.received_len > decoded.canonical_payload_len() {
         let extra = decoded.received_len - decoded.canonical_payload_len();
         let n = metrics.inc_payload_trailing();
-        if n % 100 == 0 {
+        if n.is_multiple_of(100) {
             info!(
                 "shred received with trailing bytes slot={} ver={} fec_set={} recv_len={} canonical={} extra={} from={}",
                 key.slot,
@@ -2014,7 +2014,7 @@ pub fn collect_watch_events(
                 continue;
             }
             let mut details: Vec<MintDetail> = detail_map.values().cloned().collect();
-            details.sort_by(|a, b| a.mint.cmp(&b.mint));
+            details.sort_by_key(|a| a.mint);
             details.dedup_by(|a, b| a.mint == b.mint);
             events.push(WatchEvent { slot, hit, details });
         }
@@ -2151,7 +2151,7 @@ pub fn log_watch_events(
             let mint = event
                 .hit
                 .mints
-                .get(0)
+                .first()
                 .map(|m| m.mint.to_string())
                 .unwrap_or_else(|| "<unknown>".to_string());
             info!(

@@ -172,7 +172,7 @@ pub fn detect_program_hit(
     }
 
     Some(ProgramHit {
-        signature: tx.signatures.get(0).cloned().unwrap_or_default(),
+        signature: tx.signatures.first().cloned().unwrap_or_default(),
         program_hit,
         authority_hit,
         mints: mint_accounts,
@@ -197,7 +197,7 @@ pub fn extract_mint_accounts(
         };
         // Token program: 0 InitializeMint, 7 MintTo, 14 InitializeMint2, 20 InitializeMintCloseAuthority
         if matches!(tag, 0 | 7 | 14 | 20) {
-            if let Some(mint_idx) = ix.accounts.get(0) {
+            if let Some(mint_idx) = ix.accounts.first() {
                 if let Some(mint) = keys.get(*mint_idx as usize) {
                     mints.insert(*mint);
                 }
@@ -213,7 +213,7 @@ where
 {
     txs.into_iter()
         .filter(|tx| !(skip_vote_txs && is_vote_transaction(tx)))
-        .filter_map(|tx| tx.signatures.get(0))
+        .filter_map(|tx| tx.signatures.first())
         .take(limit)
         .cloned()
         .collect()
@@ -264,7 +264,7 @@ impl MintFinder for SplTokenMintFinder {
                 continue;
             };
             if matches!(tag, 0 | 7 | 14 | 20) {
-                if let Some(mint_idx) = ix.accounts.get(0) {
+                if let Some(mint_idx) = ix.accounts.first() {
                     if let Some(mint) = keys.get(*mint_idx as usize) {
                         insert_mint(&mut mint_accounts, *mint, Some("spl-token"));
                     }
@@ -314,7 +314,7 @@ impl MintFinder for PumpfunAccountMintFinder {
 
             match kind {
                 Some("pump:create") => {
-                    if let Some(mint_idx) = ix.accounts.get(0) {
+                    if let Some(mint_idx) = ix.accounts.first() {
                         if let Some(mint) = keys.get(*mint_idx as usize) {
                             if !is_system_id(mint) {
                                 insert_mint(&mut mints, *mint, Some("pump:create"));
@@ -389,7 +389,7 @@ impl MintDetailer for PumpfunDetailer {
                 _ => None,
             };
             let mint_idx = match kind {
-                Some("create") => ix.accounts.get(0),
+                Some("create") => ix.accounts.first(),
                 _ => ix.accounts.get(2),
             };
             let Some(mint_idx) = mint_idx else {
@@ -456,7 +456,7 @@ impl MintDetailer for PumpfunDetailer {
             }
         }
         for m in mints {
-            if !out.contains_key(&m.mint) {
+            out.entry(m.mint).or_insert_with(|| {
                 let action = m.label.map(|l| {
                     let trimmed = l.trim_start_matches("pump:");
                     match trimmed {
@@ -465,20 +465,17 @@ impl MintDetailer for PumpfunDetailer {
                         other => other,
                     }
                 });
-                out.insert(
-                    m.mint,
-                    MintDetail {
-                        mint: m.mint,
-                        label: m.label,
-                        action,
-                        sol_amount: None,
-                        token_amount: None,
-                        name: None,
-                        symbol: None,
-                        uri: None,
-                    },
-                );
-            }
+                MintDetail {
+                    mint: m.mint,
+                    label: m.label,
+                    action,
+                    sol_amount: None,
+                    token_amount: None,
+                    name: None,
+                    symbol: None,
+                    uri: None,
+                }
+            });
         }
         out.into_values().collect()
     }

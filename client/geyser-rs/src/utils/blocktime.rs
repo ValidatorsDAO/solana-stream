@@ -88,23 +88,20 @@ impl BlockTimeCache {
 }
 
 pub fn prepare_log_message(msg: &GeyserSubscribeUpdate, transactions_by_slot: &TransactionsBySlot) {
-    match &msg.update_oneof {
-        Some(GeyserUpdateOneof::Transaction(tx_info)) => {
-            let received_time = Utc::now();
-            let slot = tx_info.slot;
-            if let Some(tx) = &tx_info.transaction {
-                if let Some(inner_tx) = &tx.transaction {
-                    if let Some(sig) = inner_tx.signatures.first() {
-                        let sig_str = bs58::encode(sig).into_string();
-                        transactions_by_slot
-                            .entry(slot)
-                            .or_insert_with(Vec::new)
-                            .push((sig_str, received_time));
-                    }
+    if let Some(GeyserUpdateOneof::Transaction(tx_info)) = &msg.update_oneof {
+        let received_time = Utc::now();
+        let slot = tx_info.slot;
+        if let Some(tx) = &tx_info.transaction {
+            if let Some(inner_tx) = &tx.transaction {
+                if let Some(sig) = inner_tx.signatures.first() {
+                    let sig_str = bs58::encode(sig).into_string();
+                    transactions_by_slot
+                        .entry(slot)
+                        .or_default()
+                        .push((sig_str, received_time));
                 }
             }
         }
-        _ => {}
     }
 }
 

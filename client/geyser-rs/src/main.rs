@@ -5,8 +5,6 @@ use crate::runtime::subscription::build_subscribe_request;
 use crate::utils::blocktime::{create_transactions_by_slot, latency_monitor_task, BlockTimeCache};
 use crate::utils::config::Config;
 use dotenvy::dotenv;
-use env_logger;
-use serde_jsonc;
 use solana_stream_sdk::GeyserReconnectEvent;
 use std::sync::atomic::AtomicU64;
 use std::{fs, sync::Arc};

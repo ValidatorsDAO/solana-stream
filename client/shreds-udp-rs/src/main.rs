@@ -1,5 +1,4 @@
 use dotenvy::dotenv;
-use env_logger;
 use log::{error, info};
 use solana_stream_sdk::{
     shreds_udp::{

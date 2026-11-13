@@ -36,6 +36,8 @@ pub enum BlockMarkerKind {
 
 /// Decoded content of one deshredded payload.
 #[derive(Debug, Clone, PartialEq, Eq)]
+// Boxing the marker would change this public type; a payload is decoded once per batch.
+#[allow(clippy::large_enum_variant)]
 pub enum BlockComponentPayload {
     /// An entry batch. An empty vector is the empty batch agave sends to close
     /// an aborted slot.
