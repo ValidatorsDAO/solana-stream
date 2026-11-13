@@ -176,8 +176,9 @@ jobs:
             (cd "temp-release/$dir" && cargo check --all-targets)
             echo "::endgroup::"
           done
-      # What shreds-udp-rs users build from the published SDK's udp feature: no
-      # solana-ledger, RocksDB, OpenSSL or bzip2 (this job installs no libclang).
+      # The SDK's part of the shreds-udp-rs starter's graph, resolved from the published
+      # crate with the starter's features: no solana-ledger, RocksDB, OpenSSL or bzip2.
+      # The starter's other direct dependencies are not checked here.
       - name: udp dependency gate on the shreds-udp-rs starter
         working-directory: temp-release/shreds-udp-rs
         run: |

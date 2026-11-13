@@ -10,8 +10,10 @@ or later.
 
 The receive loops in `src/main.rs` and `src/bin/generic_logger.rs` do not check that the
 slot's leader signed a shred. To drop shreds the leader did not sign, call
-`solana_stream_sdk::shred::wire::verify_shred` on the datagram between `recv_raw` and
-`decode_udp_datagram`, with the leader from a schedule you trust; see the
+`solana_stream_sdk::shred::wire::verify_shred(&datagram.payload, &leader)` between
+`recv_raw` and `decode_udp_datagram`, where `leader` is the slot's leader from a schedule
+you trust (a `solana_pubkey::Pubkey`: add `solana-pubkey = "4"`, the major the SDK uses);
+see the
 [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/migration-v5.md#leader-signatures).
 
 1) Edit `settings.jsonc` (jsonc comments allowed). It is embedded into the binary at build time, so no runtime `SHREDS_UDP_CONFIG` is needed.

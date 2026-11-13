@@ -2,11 +2,12 @@
 
 ## Unreleased
 
-- `temp-release/shreds-udp-rs` (served by `slv bot init`) moves to the published SDK 5.0.0: its `Cargo.toml` drops `solana-ledger` and the rust-rocksdb `[patch.crates-io]`, and its README says that the sample's receive loops do not check leader signatures and where to add the check. The starters' CI job no longer installs libclang and runs the udp dependency gate on this starter's resolution of the published crate.
+- npm `@validators-dao/solana-stream-sdk` (source; npm serves 4.0.0, and 5.0.0 was Rust only): `GeyserClient` is now a subclass of the Yellowstone `Client` that opens 16 MiB HTTP/2 stream and connection receive windows with adaptive windows off, where it was the upstream `Client` itself. The constructor takes the same arguments, and channel options you pass win. New exports `geyserChannelOptions`, `DEFAULT_GEYSER_CHANNEL_OPTIONS` and `HIGH_THROUGHPUT_GRPC_WINDOW_BYTES` (#133).
+- `temp-release/shreds-udp-rs` (served by `slv bot init`) moves to the published SDK 5.0.0: its `Cargo.toml` drops `solana-ledger` and the rust-rocksdb `[patch.crates-io]`, and its README says that the sample's receive loops do not check leader signatures and where to add the check. The starters' CI job no longer installs libclang and runs the udp dependency gate on the SDK's part of this starter's graph, resolved from the published crate.
 
 ## 5.0.0 - 2026-11-13 — the `udp` feature without `solana-ledger`
 
-Published 2026-11-13: crates.io `solana-stream-sdk` 5.0.0, from `main` de658bb by `.github/workflows/release.yml` with crates.io trusted publishing (run 43461974320). Rust only: the npm packages are unchanged and not republished. Migration: [docs/migration-v5.md](docs/migration-v5.md).
+Published 2026-11-13: crates.io `solana-stream-sdk` 5.0.0, from `main` de658bb by `.github/workflows/release.yml` with crates.io trusted publishing (run 43461974320). Rust only: no npm package was published (the npm SDK's change from #133 is under Unreleased). Migration: [docs/migration-v5.md](docs/migration-v5.md).
 
 ### Rust SDK 5.0.0: the `udp` feature without `solana-ledger` (breaking)
 
@@ -22,6 +23,11 @@ Moving from 4.x (only if you enable `udp`):
 1. `solana-stream-sdk = { version = "5.0.0", features = ["udp"] }`. Remove the `librocksdb-sys` and `rocksdb` lines under `[patch.crates-io]`, and `solana-ledger`, unless something else in your workspace needs them (tests that make shreds with `Shredder` keep it as a dev-dependency, with the patch).
 2. Replace `solana_ledger::shred::{Shred, layout}` with `solana_stream_sdk::shred::{Shred, layout}`; `shred::Error` is `shred::ShredError`, `Shredder::deshred(…)` is `shred::deshred(…)`. Checking a received packet's signature: `shred::wire::verify_shred(&packet, &leader)` with the leader of `wire::get_slot(&packet)`. Then adapt the calls that differ, listed in [docs/migration-v5.md](docs/migration-v5.md).
 3. `client/shreds-udp-rs` needs no source change. `temp-release/shreds-udp-rs` needed only `Cargo.toml` changes: SDK 5.0.0, no `solana-ledger`, no `[patch.crates-io]`.
+
+### High-throughput gRPC defaults (#133)
+
+- `ShredstreamClient::connect` opens 16 MiB HTTP/2 stream and connection receive windows, with adaptive windows off, instead of tonic's defaults: a small window caps a stream at about window / round-trip time.
+- New module `transport`: `tune_grpc_endpoint` (a tonic `Endpoint`) and `tune_geyser_grpc_builder` (a Yellowstone `GeyserGrpcBuilder`) apply the same windows, and builder calls after them override them; `HIGH_THROUGHPUT_GRPC_WINDOW_BYTES` (16 MiB). The re-exported `GeyserGrpcClient` keeps its upstream defaults. `client/geyser-rs`, `client/geyser-ts`, the `geyser_reconnect` example and the `geyser-rs`/`geyser-ts` starters open the same windows.
 
 ### Other changes
 
