@@ -50,10 +50,10 @@ This project provides libraries and tools for streaming real-time data from the 
 
 ## What's New in v5.0.0 (Rust)
 
-- The `udp` feature decodes shreds itself (`solana_stream_sdk::shred`, following Agave 4.4.1) instead of building `solana-ledger`: no RocksDB, OpenSSL or bzip2, no `[patch.crates-io]` and no libclang, 419 crates instead of 648. This breaks code that names `solana_ledger::shred` types; without `udp`, moving from 4.x is a version bump. See the [5.0 migration guide](docs/migration-v5.md).
+- The `udp` feature decodes shreds itself (`solana_stream_sdk::shred`, following Agave 4.4.1) instead of building `solana-ledger`: no RocksDB, OpenSSL or bzip2, no `[patch.crates-io]` and no libclang, 419 crates instead of 648. This breaks code that uses the `Shred` values of the `udp` API (`DecodedShred::shred`, `ShredReadyBatch::shreds`, the deshred functions) as `solana_ledger` ones; without `udp`, moving from 4.x is a version bump. See the [5.0 migration guide](docs/migration-v5.md).
 - The UDP receiver does not check that the slot's leader signed a shred (neither did 4.x). `shred::wire::verify_shred` does, in a receive loop of your own; see the [migration guide](docs/migration-v5.md#leader-signatures).
 - `ShredstreamClient::connect` opens 16 MiB HTTP/2 receive windows, and the new `transport` helpers apply them to your own endpoints and Geyser builders (see below).
-- Rust only: the npm packages stay at 4.0.0.
+- Rust only: no npm package was released (`@validators-dao/solana-stream-sdk` stays at 4.0.0).
 
 ## What's New in v4.0.0
 
@@ -83,7 +83,7 @@ duplicates are expected.
 
 A client can throttle its own incoming stream when its HTTP/2 *stream* or *connection* receive window is too small. The SDK source now uses **16 MiB for each window**, with adaptive window sizing disabled so the specified sizes take effect. This applies to the TypeScript `GeyserClient`, Rust `ShredstreamClient`, and the included Rust Geyser example/sample through `tune_geyser_grpc_builder` (the published-package starter sets the same values directly). The raw upstream `GeyserGrpcClient` re-export keeps its own defaults unless the helper is used. Callers can override TypeScript channel options or Rust builder/endpoint settings.
 
-Rust: published in crates.io `solana-stream-sdk` **5.0.0**. TypeScript: the `GeyserClient` change is in this source tree only; npm `@validators-dao/solana-stream-sdk` 4.0.0 does not have it until its next release. This tuning does not bypass server-side limits, prevent packet loss, or compensate for a slow application consumer; keep reception efficient and work queues bounded. See [ERPC's flow-control diagnosis and measured 16 KiB vs 16 MiB comparison](https://erpc.global/en/faq/grpc/general/).
+Rust: published in crates.io `solana-stream-sdk` **5.0.0**. TypeScript: the `GeyserClient` change is in this source tree only; npm `@validators-dao/solana-stream-sdk` 4.0.0 does not have it until its next release, and neither does `@validators-dao/solana-shreds-client` 2.0.0 (its published binary predates the change). This tuning does not bypass server-side limits, prevent packet loss, or compensate for a slow application consumer; keep reception efficient and work queues bounded. See [ERPC's flow-control diagnosis and measured 16 KiB vs 16 MiB comparison](https://erpc.global/en/faq/grpc/general/).
 
 ## Rust Highlight: UDP Shreds (Fastest Signal)
 
