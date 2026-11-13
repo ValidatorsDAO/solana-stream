@@ -1,5 +1,6 @@
 > Alpenglow has been active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/alpenglow.md).
 > **4.0** moves to the Yellowstone gRPC 17 clients and the Agave 4.4 crates, and makes the reconnecting subscription (`subscribe_with_reconnect` / `subscribeWithReconnect`) the recommended way to stream Geyser updates. See the [4.0 migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/migration-v4.md).
+> **5.0** decodes UDP shreds itself: the `udp` feature no longer builds `solana-ledger`, RocksDB, OpenSSL or bzip2, and needs no `[patch]`. Its shred type is now `solana_stream_sdk::shred::Shred`; see the [CHANGELOG](https://github.com/ValidatorsDAO/solana-stream/blob/main/CHANGELOG.md).
 
 > Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/transaction-v1.md).
 
@@ -96,24 +97,40 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-stream-sdk = "4.0.0"
+solana-stream-sdk = "5.0.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"  # Optional: for loading environment variables from .env files
 ```
 
-UDP shreds (`UdpShredReceiver`, `deshred_shreds_to_component`, …) are behind the `udp`
-feature, which is off by default since 4.0. It pulls in `solana-ledger`, which builds only
-against Agave's `rust-rocksdb` fork, so the workspace that enables it needs the same
-`[patch.crates-io]` lines as this repository's `Cargo.toml`:
+UDP shreds (`UdpShredReceiver`, `deshred_shreds_to_component`, …) and the shred decoder
+(`solana_stream_sdk::shred`) are behind the `udp` feature, which is off by default:
 
 ```toml
 [dependencies]
-solana-stream-sdk = { version = "4.0.0", features = ["udp"] }
-
-[patch.crates-io]
-librocksdb-sys = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
-rocksdb = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
+solana-stream-sdk = { version = "5.0.0", features = ["udp"] }
 ```
+
+Since 5.0 the SDK decodes shreds itself: the Merkle shreds Agave 4.4.1 sends, with the
+checks Agave's `sanitize` makes, the Merkle root, the leader's signature and deshredding,
+tested against `solana-ledger` 4.4.1 on the same bytes. The feature builds neither
+`solana-ledger` nor RocksDB, OpenSSL or bzip2, so it needs no `[patch.crates-io]` and no
+libclang. To drop shreds the slot's leader did not sign:
+
+```rust,ignore
+use solana_stream_sdk::shred::{wire, Shred};
+
+// `leader` is the slot's leader, from the leader schedule (for example
+// `RpcClient::get_slot_leaders`) for `wire::get_slot(&payload)`.
+if wire::verify_shred(&payload, &leader) {
+    let shred = Shred::new_from_serialized_shred(payload)?;
+}
+```
+
+From 4.x: replace `solana_ledger::shred::Shred` (and `layout`) with
+`solana_stream_sdk::shred::Shred` (and `layout`), and remove the `rust-rocksdb`
+`[patch.crates-io]` lines and `solana-ledger` unless something else needs them. The
+[CHANGELOG](https://github.com/ValidatorsDAO/solana-stream/blob/main/CHANGELOG.md) lists
+the API.
 
 ## Usage
 

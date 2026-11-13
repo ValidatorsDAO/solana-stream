@@ -2,38 +2,42 @@
 # CI runs it on every pull request (.github/workflows/ci.yml).
 
 [graph]
-# Check every feature, including `udp` (solana-ledger), which users opt into.
+# Check every feature, including `udp`, which users opt into. Dev-dependencies are
+# checked too: solana-ledger is one (the SDK's differential shred tests), and the
+# exceptions below that name it apply to it alone, not to any build of the published crate.
 all-features = true
 
 [advisories]
 version = 2
 yanked = "deny"
 # Each entry comes through Agave's crates, which this repository cannot change. The two
-# vulnerabilities (ed25519-dalek 1.0.1, curve25519-dalek 3.2.0) are only in the opt-in
-# `udp` build (solana-ledger -> solana-runtime -> agave-precompiles); the default build
-# has curve25519-dalek 4.1.3. Of the unmaintained crates, bincode 1.3.3 is also in the
-# default build, through solana-entry itself.
+# vulnerabilities (ed25519-dalek 1.0.1, curve25519-dalek 3.2.0) come only through the
+# dev-dependency solana-ledger (-> solana-runtime -> agave-precompiles); since 5.0 the
+# `udp` feature does not build it. Of the unmaintained crates, bincode 1.3.3 is also in
+# the default build, through solana-entry itself.
 ignore = [
   # ed25519-dalek 1.0.1 and curve25519-dalek 3.2.0 via agave-precompiles: Agave uses
   # them to verify ed25519 precompile instructions. The oracle attack needs a signing
   # API, and the timing issue needs secret scalars; verification has neither.
-  { id = "RUSTSEC-2022-0093", reason = "agave-precompiles 4.4.1 (udp): verification only" },
-  { id = "RUSTSEC-2024-0344", reason = "agave-precompiles 4.4.1 (udp): verification only" },
+  { id = "RUSTSEC-2022-0093", reason = "agave-precompiles 4.4.1 (dev-dependency solana-ledger): verification only" },
+  { id = "RUSTSEC-2024-0344", reason = "agave-precompiles 4.4.1 (dev-dependency solana-ledger): verification only" },
   # Unmaintained crates deep in Agave's tree.
   { id = "RUSTSEC-2025-0141", reason = "bincode 1.3.3 via solana-entry and other agave crates" },
-  { id = "RUSTSEC-2024-0384", reason = "instant via reed-solomon-erasure (udp)" },
-  { id = "RUSTSEC-2025-0161", reason = "libsecp256k1 via agave-precompiles (udp)" },
-  { id = "RUSTSEC-2024-0436", reason = "paste via ark-ff (solana-poseidon, udp)" },
+  { id = "RUSTSEC-2024-0384", reason = "instant via reed-solomon-erasure (dev-dependency solana-ledger)" },
+  { id = "RUSTSEC-2025-0161", reason = "libsecp256k1 via agave-precompiles (dev-dependency solana-ledger)" },
+  { id = "RUSTSEC-2024-0436", reason = "paste via ark-ff (solana-poseidon, dev-dependency solana-ledger)" },
 ]
 
 [licenses]
 version = 2
 confidence-threshold = 0.9
+# Licences of what the crates build; dev-dependencies are not checked. Since 5.0, `udp`
+# no longer builds solana-ledger, which brought bzip2-1.0.6 (libbz2-rs-sys) and MPL-2.0
+# (attohttpc, imbl).
 allow = [
   "0BSD",
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
-  "bzip2-1.0.6",
   "BSD-2-Clause",
   "BSD-3-Clause",
   "BSL-1.0",
@@ -42,7 +46,6 @@ allow = [
   "ISC",
   "MIT",
   "MIT-0",
-  "MPL-2.0",
   "Unicode-3.0",
   "Unlicense",
   "Zlib",
@@ -61,5 +64,6 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# The rust-rocksdb fork Agave builds solana-ledger with (the [patch] in Cargo.toml).
+# The rust-rocksdb fork Agave builds solana-ledger with (the [patch] in Cargo.toml), for
+# the dev-dependency solana-ledger.
 allow-git = ["https://github.com/anza-xyz/rust-rocksdb"]

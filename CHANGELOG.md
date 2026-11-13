@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Rust SDK 5.0.0: the `udp` feature without `solana-ledger` (breaking)
+
+The crate version is 5.0.0 on `main`; it is not published yet.
+
+- The SDK decodes shreds itself: `solana_stream_sdk::shred` (behind `udp`) replaces `solana-ledger` in the UDP receiver. It decodes the Merkle shreds Agave 4.4.1 sends (chained, resigned or not; Agave 4.4.1 no longer accepts legacy or unchained shreds, and neither does the SDK), makes the checks Agave's `sanitize` makes in the same order with the same error messages, computes the Merkle root from a shred and its proof, checks the leader's signature, and deshreds. Each piece names the `solana-ledger` 4.4.1 function it follows.
+- `udp` no longer builds `solana-ledger`, and with it RocksDB, OpenSSL, `native-tls`, `hyper-tls` and bzip2 (`libbz2-rs-sys`, licence `bzip2-1.0.6`). It needs no `[patch.crates-io]` and no libclang. It resolves 419 crates instead of 648 (`cargo tree -p solana-stream-sdk --features udp -e normal`). It keeps `solana-rpc-client` (leader schedule, block times), whose `reqwest` uses rustls. CI checks that the feature builds none of these.
+- Breaking: `deshred_shreds_to_entries`, `deshred_shreds_to_component`, `ShredReadyBatch::shreds`, `DecodedShred::shred` and the receiver's batches use `solana_stream_sdk::shred::Shred` instead of `solana_ledger::shred::Shred`. The function names and what they do are unchanged. `Shred` keeps Agave's variants (`ShredCode`, `ShredData`) and accessors; `payload()` returns `shred::Payload`, which derefs to `[u8]`.
+- New API in `solana_stream_sdk::shred`: `Shred::new_from_serialized_shred`, `sanitize`, `merkle_root`, `chained_merkle_root`, `retransmitter_signature`, `verify(&leader)`; `deshred` (Agave's `Shredder::deshred`); `ShredError`; `wire` (also `layout`): `get_slot`, `get_index`, `get_fec_set_index`, `get_signature`, `get_merkle_root`, … and `verify_shred(packet, &leader)`, the check Agave's `sigverify_shreds::verify_shred_cpu` makes on a received packet.
+- Tests: `tests/shred_differential.rs` runs the SDK and `solana-ledger` 4.4.1 on the same bytes and requires the same answer, on 14,912 shreds from Agave's `Shredder`, 36,547 corrupted copies, 88,600 header values at the limits `sanitize` checks, 6,848 shreds with every proof size, 18,000 deshred lists and 30,000 random inputs. `solana-ledger` is a dev-dependency only; the workspace keeps the `rust-rocksdb` `[patch.crates-io]` for it, and `cargo test` in this repository still needs libclang.
+
+Moving from 4.x (only if you enable `udp`):
+
+1. `solana-stream-sdk = { version = "5.0.0", features = ["udp"] }`. Remove the `librocksdb-sys` and `rocksdb` lines under `[patch.crates-io]`, and `solana-ledger`, unless something else in your workspace needs them.
+2. Replace `solana_ledger::shred::{Shred, layout}` with `solana_stream_sdk::shred::{Shred, layout}`; `shred::Error` is `shred::ShredError`, `Shredder::deshred(…)` is `shred::deshred(…)`. Checking a received packet's signature: `shred::wire::verify_shred(&packet, &leader)` with the leader of `wire::get_slot(&packet)`.
+3. `client/shreds-udp-rs` needs no source change. `temp-release/shreds-udp-rs` stays on the published 4.0.0 until 5.0.0 is published; then it needs only `Cargo.toml` changes: SDK 5.0.0, no `solana-ledger`, no `[patch.crates-io]`.
+
+### Other changes
+
+- `package/solana-shreds-client` (the source of the npm native client, which does not use `udp`) requires the SDK at 5.0.0 so that it keeps building against this repository's crate. The workspace optimizes `solana-ed25519` and `sha2` in its dev builds: the shred tests check hundreds of thousands of signatures, which take 5 ms each unoptimized.
 - Starters (`temp-release/`, which `slv bot init` copies from `main`) move to the published 4.0.0:
   - `geyser-rs` and `geyser-ts` are now the same code as `client/geyser-rs` and `client/geyser-ts`: the reconnecting subscription with `Disconnected` handling, redacted logs, the plaintext-token warning, and the faster TypeScript queue.
   - `shreds-rs`, `shreds-ts` and `shreds-udp-rs` move to SDK 4.0. `shreds-udp-rs` enables the `udp` feature and carries the rust-rocksdb `[patch.crates-io]` lines it needs.

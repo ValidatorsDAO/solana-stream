@@ -17,7 +17,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "4.0.0"
+version = "5.0.0"
 description = ""
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
