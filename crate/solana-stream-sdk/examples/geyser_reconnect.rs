@@ -5,9 +5,9 @@
 //! ```
 use futures::StreamExt;
 use solana_stream_sdk::{
-    GeyserBackoff, GeyserGrpcClient, GeyserReconnectConfig, GeyserReconnectEvent,
-    GeyserReconnectPolicy, GeyserSubscribeRequest, GeyserSubscribeRequestFilterSlots,
-    GeyserUpdateOneof, tune_geyser_grpc_builder,
+    tune_geyser_grpc_builder, GeyserBackoff, GeyserGrpcClient, GeyserReconnectConfig,
+    GeyserReconnectEvent, GeyserReconnectPolicy, GeyserSubscribeRequest,
+    GeyserSubscribeRequestFilterSlots, GeyserUpdateOneof,
 };
 use std::time::Duration;
 

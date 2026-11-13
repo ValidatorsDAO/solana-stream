@@ -20,7 +20,6 @@ futures = { workspace = true }
 log = { workspace = true }
 solana-entry = { workspace = true }
 solana-rpc-client = { workspace = true }
-solana-ledger = { workspace = true }
 solana-transaction = { workspace = true }
 solana-stream-sdk = { workspace = true, features = ["udp"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }

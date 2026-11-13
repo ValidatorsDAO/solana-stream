@@ -52,19 +52,8 @@ enum Commands {
 /// Determines the appropriate content type based on file extension
 fn get_content_type(file_path: &Path) -> &'static str {
     match file_path.extension().and_then(|ext| ext.to_str()) {
-        Some("gz") => {
-            // Check if it's a .tar.gz file
-            if file_path
-                .file_stem()
-                .and_then(|stem| Path::new(stem).extension())
-                .and_then(|ext| ext.to_str())
-                == Some("tar")
-            {
-                "application/gzip"
-            } else {
-                "application/gzip"
-            }
-        }
+        // .tar.gz is gzip too.
+        Some("gz") => "application/gzip",
         Some("tar") => "application/x-tar",
         Some("zip") => "application/zip",
         Some("bz2") => "application/x-bzip2",
@@ -80,7 +69,7 @@ fn find_binary_file(binary_name: &str, target_dir: &str) -> Option<PathBuf> {
     // List of possible file patterns to check, in order of preference
     let patterns = vec![
         // Exact binary name (original behavior)
-        format!("{}", binary_name),
+        binary_name.to_string(),
         // Compressed archives with binary name
         format!("{}.tar.gz", binary_name),
         format!("{}.tar.bz2", binary_name),

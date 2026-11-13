@@ -1,6 +1,6 @@
 [package]
 name = "solana-stream-sdk"
-version = "4.0.0"
+version = "5.0.0"
 description = "Rust SDK for Solana streaming data"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -13,10 +13,18 @@ categories = ["api-bindings", "network-programming"]
 
 [features]
 default = []
-# UDP shred reception and deshredding. It pulls in solana-ledger (RocksDB), which builds
-# only with the rust-rocksdb patch in this repository's Cargo.toml: copy that
-# [patch.crates-io] section into the workspace that enables this feature.
-udp = ["dep:solana-ledger", "dep:solana-rpc-client"]
+# UDP shred reception, shred decoding and signature checks (`shred`), and deshredding.
+# The decoder is the SDK's own (Agave 4.4.1's shred format, checked against solana-ledger
+# in tests/shred_differential.rs), so this feature builds neither solana-ledger nor
+# RocksDB, OpenSSL or bzip2, and needs no [patch] or libclang. solana-rpc-client is for
+# the leader schedule and block times; it uses reqwest with rustls.
+udp = [
+    "dep:bytes",
+    "dep:solana-hash",
+    "dep:solana-rpc-client",
+    "dep:solana-sha256-hasher",
+    "solana-signature/verify",
+]
 
 [dependencies]
 futures = { workspace = true }
@@ -35,13 +43,15 @@ url = { workspace = true }
 yellowstone-grpc-client = { workspace = true }
 yellowstone-grpc-proto = { workspace = true }
 dashmap = { workspace = true }
+bytes = { workspace = true, optional = true }
 solana-entry = { workspace = true }
-solana-ledger = { workspace = true, optional = true }
+solana-hash = { workspace = true, optional = true }
 solana-message = { workspace = true }
 solana-pubkey = { workspace = true }
 solana-signature = { workspace = true }
 solana-transaction = { workspace = true }
 solana-sdk-ids = { workspace = true }
+solana-sha256-hasher = { workspace = true, optional = true }
 solana-rpc-client = { workspace = true, optional = true }
 chrono = { workspace = true }
 log = { workspace = true }
@@ -53,10 +63,22 @@ zstd = "0.13"
 solana-hash = { workspace = true }
 solana-keypair = { workspace = true }
 solana-signer = { workspace = true }
+# The tests make shreds with solana-ledger's Shredder (shreds_udp.rs, entries_wire.rs,
+# shred_differential.rs) and compare the decoder with solana-ledger and its signature
+# check, which takes the other three. Dev-dependencies only: users of the crate never
+# build them. solana-ledger needs the rust-rocksdb [patch] in ../../Cargo.toml.
+lazy-lru = "0.1.4"
+solana-ledger = { workspace = true }
+solana-nohash-hasher = "0.2.1"
+solana-perf = "=4.4.1"
 
 
 [[test]]
 name = "entries_wire"
+required-features = ["udp"]
+
+[[test]]
+name = "shred_differential"
 required-features = ["udp"]
 
 [build-dependencies]

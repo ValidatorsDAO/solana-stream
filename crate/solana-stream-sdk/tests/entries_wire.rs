@@ -115,6 +115,10 @@ fn udp_reassembly_preserves_mixed_transactions_across_fec_sets() {
         )
         .into_iter()
         .filter(Shred::is_data)
+        .map(|shred| {
+            solana_stream_sdk::shred::Shred::new_from_serialized_shred(shred.payload().to_vec())
+                .unwrap()
+        })
         .collect();
     assert!(shreds.len() > 32, "fixture must cross an FEC boundary");
     assert_eq!(

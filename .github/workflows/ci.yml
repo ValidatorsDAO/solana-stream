@@ -42,6 +42,8 @@ jobs:
         run: bash scripts/check-oss-hygiene.sh
       - name: Hygiene gate self-test
         run: bash scripts/tests/check-oss-hygiene.test.sh
+      - name: udp dependency gate self-test
+        run: bash scripts/tests/check-udp-deps.test.sh
 
   deny:
     name: cargo deny (advisories, licenses, bans, sources)
@@ -116,6 +118,9 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      # librocksdb-sys runs bindgen; solana-ledger is a dev-dependency of the SDK (its tests
+      # make shreds with Agave's Shredder and compare the decoder with it), so the tests
+      # still build RocksDB.
       - name: Install libclang (bindgen for librocksdb-sys)
         run: |
           sudo apt-get update
@@ -126,8 +131,19 @@ jobs:
           cargo --version
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo test --workspace --locked
-      - name: Build the SDK without the udp feature (no solana-ledger, no RocksDB)
+      # The SDK's udp tests (the shred decoder against solana-ledger) on their own: in the
+      # workspace run they depend on a client enabling `udp`.
+      - name: SDK tests with the udp feature
+        run: cargo test -p solana-stream-sdk --features udp --locked
+      - name: Build the SDK without the udp feature
         run: cargo check -p solana-stream-sdk --no-default-features --locked
+      # What a user of `solana-stream-sdk/udp` builds (dev-dependencies excluded), on every
+      # target: no solana-ledger, RocksDB, OpenSSL, native-tls or bzip2.
+      - name: udp dependency gate
+        run: |
+          set -o pipefail
+          cargo tree -p solana-stream-sdk --features udp -e normal,build --target all \
+            --locked --prefix none | bash scripts/check-udp-deps.sh
 
   rust-starters:
     name: Rust starters (temp-release, published SDK)
@@ -139,6 +155,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      # shreds-udp-rs is on the published SDK 4.0, whose udp feature builds RocksDB.
       - name: Install libclang (bindgen for librocksdb-sys)
         run: |
           sudo apt-get update

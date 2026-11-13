@@ -17,7 +17,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "4.0.0"
+version = "5.0.0"
 description = ""
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -27,10 +27,20 @@ edition = "2021"
 # thin has minimal overhead vs none (default): https://blog.llvm.org/2016/06/thinlto-scalable-and-incremental-lto.html
 lto = "thin"
 
+# The shred differential tests check hundreds of thousands of Ed25519 signatures and
+# Merkle roots. Unoptimized, one verification takes 5 ms (a 64-shred erasure batch 330 ms
+# to make); with these two crates optimized, 30 us (8 ms). Profiles apply only to builds of
+# this workspace, not to users of the published crates.
+[profile.dev.package.solana-ed25519]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
+
 [workspace.dependencies]
 anyhow = "1.0.100"
 bincode = "1.3.3"
 bs58 = "0.5.1"
+bytes = "1"
 chrono = "0.4.42"
 clap = { version = "4.5.51", features = ["derive", "env"] }
 dashmap = "6"
@@ -58,6 +68,7 @@ solana-packet = "4.3.0"
 solana-pubkey = "4.3.0"
 solana-rpc-client = { version = "=4.4.1", features = ["agave-unstable-api"] }
 solana-sdk-ids = "3.1.0"
+solana-sha256-hasher = { version = "3.1.0", features = ["sha2"] }
 solana-signature = "3.5.2"
 solana-signer = "4.0.0"
 solana-stream-sdk = { path = "crate/solana-stream-sdk" }
@@ -72,9 +83,10 @@ wincode = { version = "0.6.1", features = ["derive"] }
 yellowstone-grpc-client = "17.0.0"
 yellowstone-grpc-proto = "14.0.1"
 
-# solana-ledger 4.4.1 (the `udp` feature) builds only against Agave's rust-rocksdb fork,
-# which Agave applies with this same patch. A patch applies only in the workspace that
-# declares it, so a crate that enables `solana-stream-sdk/udp` needs these lines too.
+# solana-ledger 4.4.1 builds only against Agave's rust-rocksdb fork, which Agave applies
+# with this same patch. Here solana-ledger is only a dev-dependency of the SDK (its tests
+# make shreds with its Shredder and compare the decoder with it); the `udp` feature does
+# not use it, so a crate that enables `solana-stream-sdk/udp` needs no patch.
 [patch.crates-io]
 librocksdb-sys = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
 rocksdb = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }

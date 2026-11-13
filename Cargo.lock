@@ -2319,7 +2319,7 @@ dependencies = [
 
 [[package]]
 name = "geyser-rs"
-version = "4.0.0"
+version = "5.0.0"
 dependencies = [
  "anyhow",
  "bs58",
@@ -5028,7 +5028,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "shreds-rs"
-version = "4.0.0"
+version = "5.0.0"
 dependencies = [
  "chrono",
  "dotenvy",
@@ -5043,7 +5043,7 @@ dependencies = [
 
 [[package]]
 name = "shreds-udp-rs"
-version = "4.0.0"
+version = "5.0.0"
 dependencies = [
  "chrono",
  "dotenvy",
@@ -5051,7 +5051,6 @@ dependencies = [
  "futures",
  "log",
  "solana-entry",
- "solana-ledger",
  "solana-rpc-client",
  "solana-stream-sdk",
  "solana-transaction",
@@ -7309,13 +7308,15 @@ dependencies = [
 
 [[package]]
 name = "solana-stream-sdk"
-version = "4.0.0"
+version = "5.0.0"
 dependencies = [
+ "bytes",
  "chrono",
  "dashmap 6.2.1",
  "flate2",
  "futures",
  "http",
+ "lazy-lru",
  "log",
  "prost",
  "prost-types",
@@ -7327,10 +7328,13 @@ dependencies = [
  "solana-keypair",
  "solana-ledger",
  "solana-message",
+ "solana-nohash-hasher",
  "solana-packet",
+ "solana-perf",
  "solana-pubkey 4.4.0",
  "solana-rpc-client",
  "solana-sdk-ids",
+ "solana-sha256-hasher",
  "solana-signature",
  "solana-signer",
  "solana-transaction",

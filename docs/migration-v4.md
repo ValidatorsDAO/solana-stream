@@ -128,8 +128,9 @@ Plain `subscribe` / `subscribe_with_request` still work and still do not reconne
   `solana_entry` re-export) come from the Agave 4.4.1 crates: `solana-transaction` and
   `solana-message` 5.x, `solana-entry` 4.4.1. Code that passes them to its own
   `solana-*` dependencies needs the same majors.
-- The `udp` feature is no longer on by default. It pulls in `solana-ledger`, which builds
-  only against Agave's `rust-rocksdb` fork. Enable it and copy the patch from this
+- The `udp` feature is no longer on by default. In 4.x it pulls in `solana-ledger`, which
+  builds only against Agave's `rust-rocksdb` fork (5.0 no longer needs it: see the
+  [CHANGELOG](../CHANGELOG.md)). Enable it and copy the patch from this
   repository's `Cargo.toml` into your workspace (a `[patch]` applies only in the
   workspace that declares it):
 
