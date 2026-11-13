@@ -841,6 +841,36 @@ fn corrupted_bytes_are_judged_identically() {
                 format!("{}: all-zero signature, {which}", batch.label)
             }));
         }
+        // A resigned shred's retransmitter signature is outside the signed leaf, so anyone
+        // can write it. Forged content with the leader's signature copied there too must
+        // still fail: neither side may take the two regions agreeing for a valid signature.
+        if agave_layout::is_retransmitter_signed_variant(&base).unwrap() {
+            let mut bytes = base.clone();
+            bytes[header_len] ^= 0x01;
+            let end = bytes.len();
+            let signature = bytes[..64].to_vec();
+            bytes[end - 64..].copy_from_slice(&signature);
+            assert_eq!(
+                agave_layout::get_retransmitter_signature(&bytes)
+                    .unwrap()
+                    .as_ref(),
+                &signature[..]
+            );
+            assert!(!agave_verify_packet(&bytes, &leader), "{}", batch.label);
+            assert!(!wire::verify_shred(&bytes, &leader), "{}", batch.label);
+            assert!(
+                !Shred::new_from_serialized_shred(bytes.as_slice())
+                    .is_ok_and(|s| s.verify(&leader)),
+                "{}",
+                batch.label
+            );
+            tally.add(compare(&bytes, &leader, &other, &|| {
+                format!(
+                    "{}: content changed, leader signature copied over the retransmitter's",
+                    batch.label
+                )
+            }));
+        }
         // Every value of the variant byte.
         for value in 0..=u8::MAX {
             let mut bytes = base.clone();
