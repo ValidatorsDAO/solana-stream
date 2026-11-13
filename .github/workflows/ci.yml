@@ -118,8 +118,9 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      # librocksdb-sys runs bindgen; solana-ledger is a dev-dependency of the SDK (its
-      # differential shred tests), so the tests still build RocksDB.
+      # librocksdb-sys runs bindgen; solana-ledger is a dev-dependency of the SDK (its tests
+      # make shreds with Agave's Shredder and compare the decoder with it), so the tests
+      # still build RocksDB.
       - name: Install libclang (bindgen for librocksdb-sys)
         run: |
           sudo apt-get update

@@ -84,9 +84,9 @@ yellowstone-grpc-client = "17.0.0"
 yellowstone-grpc-proto = "14.0.1"
 
 # solana-ledger 4.4.1 builds only against Agave's rust-rocksdb fork, which Agave applies
-# with this same patch. Here solana-ledger is only a dev-dependency (the SDK's differential
-# shred tests); the `udp` feature does not use it, so a crate that enables
-# `solana-stream-sdk/udp` needs no patch.
+# with this same patch. Here solana-ledger is only a dev-dependency of the SDK (its tests
+# make shreds with its Shredder and compare the decoder with it); the `udp` feature does
+# not use it, so a crate that enables `solana-stream-sdk/udp` needs no patch.
 [patch.crates-io]
 librocksdb-sys = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
 rocksdb = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }

@@ -40,8 +40,10 @@ use thiserror::Error;
 mod merkle;
 pub mod wire;
 
-/// Agave's alias for [`wire`] (`shred::layout`), so code written against
-/// `solana_ledger::shred::layout` only changes its import.
+/// Agave's alias for [`wire`] (`shred::layout`). The readers it shares with
+/// `solana_ledger::shred::layout` keep their names; `get_shred` takes the packet's bytes and
+/// `get_flags` returns a `u8`, and the functions that write or take packets are absent
+/// (`docs/migration-v5.md` in the repository lists them).
 pub use self::wire as layout;
 
 /// Bytes of the nonce a repair response appends to the shred (`SIZE_OF_NONCE`).
@@ -90,8 +92,8 @@ const _: () = assert!(DATA_SHRED_PAYLOAD_SIZE == 1203);
 
 /// Why a shred was rejected. The message of each variant is the one `solana-ledger`
 /// 4.4.1 gives for the same input (`shred::Error`), except [`TruncatedHeaders`] (Agave
-/// reports the header deserializer's error) and [`InvalidErasureShardIndex`] (Agave
-/// prints the headers).
+/// reports the header deserializer's `WincodeRead` error) and [`InvalidErasureShardIndex`]
+/// (Agave prints the headers).
 ///
 /// [`TruncatedHeaders`]: ShredError::TruncatedHeaders
 /// [`InvalidErasureShardIndex`]: ShredError::InvalidErasureShardIndex

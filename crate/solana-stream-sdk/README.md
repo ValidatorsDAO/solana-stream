@@ -126,11 +126,17 @@ if wire::verify_shred(&payload, &leader) {
 }
 ```
 
+The UDP receiver (`run_shreds_udp`, `decode_udp_datagram`) does not check leader
+signatures itself; call `wire::verify_shred` first, as above, with a leader schedule from
+an RPC node you trust.
+
 From 4.x: replace `solana_ledger::shred::Shred` (and `layout`) with
 `solana_stream_sdk::shred::Shred` (and `layout`), and remove the `rust-rocksdb`
-`[patch.crates-io]` lines and `solana-ledger` unless something else needs them. The
-[CHANGELOG](https://github.com/ValidatorsDAO/solana-stream/blob/main/CHANGELOG.md) lists
-the API.
+`[patch.crates-io]` lines and `solana-ledger` unless something else needs them. Some
+accessors and layout functions differ or are absent (for example `proof_size()` returns
+`u8`, `layout::get_flags` returns `u8`, `Shred::id` is absent); the
+[migration guide](https://github.com/ValidatorsDAO/solana-stream/blob/main/docs/migration-v5.md)
+lists each with its replacement.
 
 ## Usage
 

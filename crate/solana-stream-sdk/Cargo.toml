@@ -63,8 +63,9 @@ zstd = "0.13"
 solana-hash = { workspace = true }
 solana-keypair = { workspace = true }
 solana-signer = { workspace = true }
-# The differential tests check the shred decoder against Agave's own code: solana-ledger
-# and what its signature check takes. Dev-dependencies only: users of the crate never
+# The tests make shreds with solana-ledger's Shredder (shreds_udp.rs, entries_wire.rs,
+# shred_differential.rs) and compare the decoder with solana-ledger and its signature
+# check, which takes the other three. Dev-dependencies only: users of the crate never
 # build them. solana-ledger needs the rust-rocksdb [patch] in ../../Cargo.toml.
 lazy-lru = "0.1.4"
 solana-ledger = { workspace = true }

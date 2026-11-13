@@ -3,8 +3,10 @@
 
 [graph]
 # Check every feature, including `udp`, which users opt into. Dev-dependencies are
-# checked too: solana-ledger is one (the SDK's differential shred tests), and the
-# exceptions below that name it apply to it alone, not to any build of the published crate.
+# checked too: solana-ledger is one (the SDK's tests make shreds with its Shredder and
+# compare the decoder with it). An `ignore` below applies to its advisory wherever it
+# appears; today the crates they name are reached only through solana-ledger, and
+# scripts/check-udp-deps.sh (CI) fails if one enters what `udp` builds.
 all-features = true
 
 [advisories]
