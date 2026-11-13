@@ -643,6 +643,19 @@ fn deshred_matches_shredder_deshred() {
                 *entries,
                 "{label}"
             );
+            // And the UDP receiver's own entry points, which take the SDK's shreds.
+            assert_eq!(
+                solana_stream_sdk::deshred_shreds_to_entries(&shreds).unwrap(),
+                *entries,
+                "{label}"
+            );
+            assert!(
+                matches!(
+                    solana_stream_sdk::deshred_shreds_to_component(&shreds),
+                    Ok(solana_stream_sdk::BlockComponentPayload::Entries(decoded)) if decoded == *entries
+                ),
+                "{label}"
+            );
         }
     }
     println!("deshred: {cases} shred lists compared, {ok} accepted by both");

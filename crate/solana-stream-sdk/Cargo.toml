@@ -13,13 +13,14 @@ categories = ["api-bindings", "network-programming"]
 
 [features]
 default = []
-# UDP shred reception and deshredding. It pulls in solana-ledger (RocksDB), which builds
-# only with the rust-rocksdb patch in this repository's Cargo.toml: copy that
-# [patch.crates-io] section into the workspace that enables this feature.
+# UDP shred reception, shred decoding and signature checks (`shred`), and deshredding.
+# The decoder is the SDK's own (Agave 4.4.1's shred format, checked against solana-ledger
+# in tests/shred_differential.rs), so this feature builds neither solana-ledger nor
+# RocksDB, OpenSSL or bzip2, and needs no [patch] or libclang. solana-rpc-client is for
+# the leader schedule and block times; it uses reqwest with rustls.
 udp = [
     "dep:bytes",
     "dep:solana-hash",
-    "dep:solana-ledger",
     "dep:solana-rpc-client",
     "dep:solana-sha256-hasher",
     "solana-signature/verify",
@@ -45,7 +46,6 @@ dashmap = { workspace = true }
 bytes = { workspace = true, optional = true }
 solana-entry = { workspace = true }
 solana-hash = { workspace = true, optional = true }
-solana-ledger = { workspace = true, optional = true }
 solana-message = { workspace = true }
 solana-pubkey = { workspace = true }
 solana-signature = { workspace = true }
@@ -64,7 +64,8 @@ solana-hash = { workspace = true }
 solana-keypair = { workspace = true }
 solana-signer = { workspace = true }
 # The differential tests check the shred decoder against Agave's own code: solana-ledger
-# and what its signature check takes (all of them already in solana-ledger's build).
+# and what its signature check takes. Dev-dependencies only: users of the crate never
+# build them. solana-ledger needs the rust-rocksdb [patch] in ../../Cargo.toml.
 lazy-lru = "0.1.4"
 solana-ledger = { workspace = true }
 solana-nohash-hasher = "0.2.1"

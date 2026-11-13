@@ -2,6 +2,10 @@ use crate::{
     block_marker::{
         classify_block_marker, decode_block_component, BlockComponentPayload, BlockMarkerKind,
     },
+    shred::{
+        self, Shred, DATA_SHRED_PAYLOAD_SIZE, MAX_CODE_SHREDS_PER_SLOT, MAX_DATA_SHREDS_PER_SLOT,
+        SIZE_OF_NONCE,
+    },
     txn::{
         default_token_program_ids, detect_program_hit, first_signatures, parse_pubkeys, MintDetail,
         ProgramHit, ProgramWatchConfig,
@@ -14,9 +18,6 @@ use futures::future::join_all;
 use log::{error, info, warn};
 use serde::Deserialize;
 use solana_entry::block_component::{VersionedBlockMarker, VersionedUpdateParent};
-use solana_ledger::shred::{
-    Shred, Shredder, MAX_CODE_SHREDS_PER_SLOT, MAX_DATA_SHREDS_PER_SLOT, SIZE_OF_NONCE,
-};
 use solana_packet::PACKET_DATA_SIZE;
 use solana_pubkey::Pubkey;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
@@ -34,8 +35,8 @@ use tokio::{net::UdpSocket, sync::Mutex};
 const COMMON_HEADER_LEN: usize = 83;
 const CODING_HEADER_LEN: usize = 6;
 const SHRED_PAYLOAD_SIZE: usize = PACKET_DATA_SIZE - SIZE_OF_NONCE;
-// Matches `solana_ledger::shred::merkle::ShredData::SIZE_OF_PAYLOAD` (Agave merkle data shreds).
-const MERKLE_DATA_SHRED_PAYLOAD_SIZE: usize = 1203;
+// Agave Merkle data shreds (`merkle::ShredData::SIZE_OF_PAYLOAD`).
+const MERKLE_DATA_SHRED_PAYLOAD_SIZE: usize = DATA_SHRED_PAYLOAD_SIZE;
 const MERKLE_DATA_SHRED_PAYLOAD_WITH_NONCE: usize = MERKLE_DATA_SHRED_PAYLOAD_SIZE + SIZE_OF_NONCE;
 // Maximum UDP payload we expect to receive (legacy/repair shreds with nonce).
 const MAX_UDP_PAYLOAD_SIZE: usize = PACKET_DATA_SIZE;
@@ -108,9 +109,8 @@ impl UdpShredReceiver {
     }
 }
 
-fn deshred_payload(shreds: &[solana_ledger::shred::Shred]) -> Result<Vec<u8>> {
-    let payloads: Vec<&[u8]> = shreds.iter().map(|s| s.payload().as_ref()).collect();
-    Shredder::deshred(payloads)
+fn deshred_payload(shreds: &[Shred]) -> Result<Vec<u8>> {
+    shred::deshred(shreds.iter().map(Shred::payload))
         .map_err(|e| SolanaStreamError::Serialization(format!("deshred failed: {e}")))
 }
 
@@ -122,9 +122,7 @@ fn deshred_payload(shreds: &[solana_ledger::shred::Shred]) -> Result<Vec<u8>> {
 /// The same empty vector is returned for an empty entry batch, a block marker and an
 /// `Unknown` payload, so the three cannot be told apart here; use
 /// [`deshred_shreds_to_component`] when that matters.
-pub fn deshred_shreds_to_entries(
-    shreds: &[solana_ledger::shred::Shred],
-) -> Result<Vec<solana_entry::entry::Entry>> {
+pub fn deshred_shreds_to_entries(shreds: &[Shred]) -> Result<Vec<solana_entry::entry::Entry>> {
     let data = deshred_payload(shreds)?;
     if classify_block_marker(&data).is_some() {
         return Ok(Vec::new());
@@ -134,9 +132,7 @@ pub fn deshred_shreds_to_entries(
 }
 
 /// Attempt to deshred a batch of shreds into an entry batch or a block marker.
-pub fn deshred_shreds_to_component(
-    shreds: &[solana_ledger::shred::Shred],
-) -> Result<BlockComponentPayload> {
+pub fn deshred_shreds_to_component(shreds: &[Shred]) -> Result<BlockComponentPayload> {
     decode_block_component(&deshred_payload(shreds)?)
 }
 
@@ -2434,7 +2430,12 @@ mod tests {
     use solana_entry::entry::Entry;
     use solana_hash::Hash;
     use solana_keypair::Keypair;
-    use solana_ledger::shred::{ProcessShredsStats, ReedSolomonCache};
+    use solana_ledger::shred::{ProcessShredsStats, ReedSolomonCache, Shredder};
+
+    /// The SDK's decoding of a shred Agave's `Shredder` made.
+    fn from_ledger(shred: solana_ledger::shred::Shred) -> Shred {
+        Shred::new_from_serialized_shred(shred.payload().to_vec()).expect("Agave's shred decodes")
+    }
 
     #[test]
     fn deshred_decodes_agave_wincode_entries() {
@@ -2455,6 +2456,7 @@ mod tests {
                 &mut stats,
             )
             .into_iter()
+            .map(from_ledger)
             .filter(Shred::is_data)
             .collect();
 
@@ -2482,6 +2484,7 @@ mod tests {
                 &mut stats,
             )
             .into_iter()
+            .map(from_ledger)
             .filter(Shred::is_data)
             .collect();
         let fec_sets: BTreeSet<_> = data_shreds.iter().map(Shred::fec_set_index).collect();
@@ -2528,6 +2531,7 @@ mod tests {
                 &mut stats,
             )
             .into_iter()
+            .map(from_ledger)
             .filter(Shred::is_data)
             .collect();
         let next_index = first_data.last().map_or(0, |shred| shred.index() + 1);
@@ -2543,6 +2547,7 @@ mod tests {
                 &mut stats,
             )
             .into_iter()
+            .map(from_ledger)
             .filter(Shred::is_data)
             .collect();
 
@@ -2661,8 +2666,8 @@ mod tests {
             next_code_index: u32,
         }
         impl SlotShreds {
-            fn push(&mut self, shreds: impl IntoIterator<Item = Shred>) {
-                for shred in shreds {
+            fn push(&mut self, shreds: impl IntoIterator<Item = solana_ledger::shred::Shred>) {
+                for shred in shreds.into_iter().map(from_ledger) {
                     if shred.is_data() {
                         self.next_data_index = self.next_data_index.max(shred.index() + 1);
                         self.data.push(shred);
@@ -2822,6 +2827,7 @@ mod tests {
                 &mut ProcessShredsStats::default(),
             )
             .into_iter()
+            .map(from_ledger)
             .find(Shred::is_data)
             .expect("a data shred");
         let cfg = ShredsUdpConfig {
@@ -2893,7 +2899,10 @@ mod tests {
                 &reed_solomon_cache,
                 &mut stats,
             );
-            let (data, code): (Vec<_>, Vec<_>) = shreds.into_iter().partition(Shred::is_data);
+            let (data, code): (Vec<_>, Vec<_>) = shreds
+                .into_iter()
+                .map(from_ledger)
+                .partition(Shred::is_data);
             for shred in data.into_iter().chain(code) {
                 datagrams.push(UdpDatagram {
                     payload: shred.payload().as_ref().to_vec(),

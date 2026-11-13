@@ -29,6 +29,8 @@
 //! # assert!(accept(&[0u8; 1203]).is_none());
 //! ```
 
+use std::ops::Deref;
+
 use bytes::Bytes;
 use solana_hash::Hash;
 use solana_pubkey::Pubkey;
@@ -332,6 +334,31 @@ fn get_retransmitter_signature_offset(
     Ok(proof_offset + usize::from(proof_size) * SIZE_OF_MERKLE_PROOF_ENTRY)
 }
 
+/// A shred's bytes (`shred::Payload` in Agave): read it as `&[u8]` (it derefs to one, and
+/// `as_ref()` gives one), and clone it without copying.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Payload(Bytes);
+
+impl Deref for Payload {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for Payload {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<Payload> for Vec<u8> {
+    fn from(payload: Payload) -> Self {
+        payload.0.to_vec()
+    }
+}
+
 /// A shred decoded and checked as `solana_ledger::shred::Shred::new_from_serialized_shred`
 /// 4.4.1 does it, with the same variants (`ShredCode`, `ShredData`).
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -346,7 +373,7 @@ pub enum Shred {
 pub struct ShredData {
     common_header: CommonHeader,
     data_header: DataHeader,
-    payload: Bytes,
+    payload: Payload,
 }
 
 /// A coding shred: headers, an erasure-coded shard, the chained Merkle root, the Merkle
@@ -355,7 +382,7 @@ pub struct ShredData {
 pub struct ShredCode {
     common_header: CommonHeader,
     coding_header: CodingHeader,
-    payload: Bytes,
+    payload: Payload,
 }
 
 /// What the two shred types share (`impl_merkle_shred!` and `impl_shred_common!` in
@@ -363,7 +390,7 @@ pub struct ShredCode {
 macro_rules! impl_merkle_shred {
     () => {
         /// The canonical payload: the received bytes cut to the shred's size.
-        pub fn payload(&self) -> &[u8] {
+        pub fn payload(&self) -> &Payload {
             &self.payload
         }
 
@@ -505,7 +532,7 @@ impl ShredData {
         let shred = Self {
             common_header,
             data_header,
-            payload,
+            payload: Payload(payload),
         };
         shred.sanitize()?;
         Ok(shred)
@@ -652,7 +679,7 @@ impl ShredCode {
         let shred = Self {
             common_header,
             coding_header,
-            payload,
+            payload: Payload(payload),
         };
         shred.sanitize()?;
         Ok(shred)
@@ -779,7 +806,7 @@ impl Shred {
     );
     dispatch!(
         /// The canonical payload.
-        pub fn payload(&self) -> &[u8]
+        pub fn payload(&self) -> &Payload
     );
     dispatch!(pub fn slot(&self) -> u64);
     dispatch!(pub fn index(&self) -> u32);
