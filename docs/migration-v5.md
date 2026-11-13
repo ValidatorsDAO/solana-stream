@@ -38,8 +38,9 @@ It does not make, recover, re-sign or filter shreds. Replace the import, then:
 ### `Shred`
 
 Kept, with the SDK's `ShredError` and `ShredType` where Agave's signature names its own:
-`new_from_serialized_shred` (it takes a `Vec<u8>`, a `&[u8]` or a `shred::Payload`; not
-`bytes::Bytes`), `sanitize`, `merkle_root`, `chained_merkle_root`, `verify`, `slot`,
+`new_from_serialized_shred` (it takes any `impl Into<Vec<u8>>`: a `Vec<u8>` as it is,
+or a `&[u8]`, a `shred::Payload` or a `bytes::Bytes`, converted into a `Vec<u8>`, which
+copies the bytes unless a `Bytes` holds the only reference to them), `sanitize`, `merkle_root`, `chained_merkle_root`, `verify`, `slot`,
 `index`, `version`, `fec_set_index`, `signature`, `parent`, `data`, `shred_type`,
 `is_data`, `is_code`, `last_in_slot`, `data_complete`, and the variants
 `Shred::ShredCode` and `Shred::ShredData`.
@@ -47,7 +48,7 @@ Kept, with the SDK's `ShredError` and `ShredType` where Agave's signature names 
 | `solana_ledger::shred::Shred` | `solana_stream_sdk::shred::Shred` |
 |---|---|
 | `proof_size()` returns `Result<u8, Error>` | returns `u8` (drop the `?`) |
-| `payload()` returns Agave's `Payload` | returns `shred::Payload`: it derefs to `[u8]` and has `as_ref()`, but no `bytes` field, `as_mut`, `get_mut`, `truncate` or `into_bytes_mut` |
+| `payload()` returns Agave's `Payload` | returns `shred::Payload`: it derefs to `[u8]` and has `as_ref()`, but no `bytes` field, `as_mut`, `get_mut`, `truncate`, `into_bytes_mut` or `From<Vec<u8>>`/`From<Bytes>`/`From<BytesMut>` (make a shred from bytes with `new_from_serialized_shred`). Agave's `copy_to_packet`, `to_packet` and `to_bytes_packet` exist only with its `dev-context-only-utils` feature; there are none here. |
 | `into_payload()` | `payload().clone()`, or `Vec::<u8>::from(payload().clone())` |
 | `id()` (`ShredId`) | `(shred.slot(), shred.index(), shred.shred_type())` |
 | `has_correct_proof_size()` | `shred.proof_size() == shred::PROOF_ENTRIES_FOR_32_32_BATCH` |
@@ -85,7 +86,10 @@ Kept, with the SDK's `ShredError` and `ShredType` where Agave's signature names 
 
 ## Leader signatures
 
-The UDP receiver (`run_shreds_udp`, `decode_udp_datagram`) decodes and checks shreds but
-does not check that the slot's leader signed them, in 4.x or 5.0. To drop shreds the
-leader did not sign, check each datagram with `shred::wire::verify_shred` before
-`decode_udp_datagram`, with the leader schedule from an RPC node you trust.
+The UDP receiver decodes and checks shreds but does not check that the slot's leader
+signed them, in 4.x or 5.0. `run_shreds_udp` has no hook for such a check: what it emits
+is unverified. To drop shreds the leader did not sign, write the receive loop yourself,
+as `client/shreds-udp-rs` does: `UdpShredReceiver::recv_raw`, then
+`shred::wire::verify_shred` on the datagram, with the leader of `wire::get_slot` from a
+leader schedule you get from an RPC node you trust, then `decode_udp_datagram` and
+`insert_shred`.

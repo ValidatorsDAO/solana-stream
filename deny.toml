@@ -4,19 +4,22 @@
 [graph]
 # Check every feature, including `udp`, which users opt into. Dev-dependencies are
 # checked too: solana-ledger is one (the SDK's tests make shreds with its Shredder and
-# compare the decoder with it). An `ignore` below applies to its advisory wherever it
-# appears; today the crates they name are reached only through solana-ledger, and
-# scripts/check-udp-deps.sh (CI) fails if one enters what `udp` builds.
+# compare the decoder with it). An `ignore` below applies to its advisory wherever the
+# crate appears in the graph, not only under solana-ledger.
 all-features = true
 
 [advisories]
 version = 2
 yanked = "deny"
-# Each entry comes through Agave's crates, which this repository cannot change. The two
-# vulnerabilities (ed25519-dalek 1.0.1, curve25519-dalek 3.2.0) come only through the
-# dev-dependency solana-ledger (-> solana-runtime -> agave-precompiles); since 5.0 the
-# `udp` feature does not build it. Of the unmaintained crates, bincode 1.3.3 is also in
-# the default build, through solana-entry itself.
+# Each entry comes through Agave's crates, which this repository cannot change.
+# - The two vulnerabilities (ed25519-dalek 1.0.1, curve25519-dalek 3.2.0) come only
+#   through the dev-dependency solana-ledger (-> solana-runtime -> agave-precompiles).
+#   Since 5.0 `udp` does not build it, and scripts/check-udp-deps.sh (CI) fails if
+#   ed25519-dalek below 2.0.0 or curve25519-dalek below 4.1.3 enters what `udp` builds.
+# - The four unmaintained crates are notices, not vulnerabilities; they are ignored
+#   wherever they appear and the gate does not check them. bincode 1.3.3 is in the
+#   default and `udp` builds (solana-entry, solana-rpc-client) and cannot be avoided;
+#   instant, libsecp256k1 and paste are reached only through solana-ledger today.
 ignore = [
   # ed25519-dalek 1.0.1 and curve25519-dalek 3.2.0 via agave-precompiles: Agave uses
   # them to verify ed25519 precompile instructions. The oracle attack needs a signing
