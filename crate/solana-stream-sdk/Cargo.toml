@@ -16,7 +16,14 @@ default = []
 # UDP shred reception and deshredding. It pulls in solana-ledger (RocksDB), which builds
 # only with the rust-rocksdb patch in this repository's Cargo.toml: copy that
 # [patch.crates-io] section into the workspace that enables this feature.
-udp = ["dep:solana-ledger", "dep:solana-rpc-client"]
+udp = [
+    "dep:bytes",
+    "dep:solana-hash",
+    "dep:solana-ledger",
+    "dep:solana-rpc-client",
+    "dep:solana-sha256-hasher",
+    "solana-signature/verify",
+]
 
 [dependencies]
 futures = { workspace = true }
@@ -35,13 +42,16 @@ url = { workspace = true }
 yellowstone-grpc-client = { workspace = true }
 yellowstone-grpc-proto = { workspace = true }
 dashmap = { workspace = true }
+bytes = { workspace = true, optional = true }
 solana-entry = { workspace = true }
+solana-hash = { workspace = true, optional = true }
 solana-ledger = { workspace = true, optional = true }
 solana-message = { workspace = true }
 solana-pubkey = { workspace = true }
 solana-signature = { workspace = true }
 solana-transaction = { workspace = true }
 solana-sdk-ids = { workspace = true }
+solana-sha256-hasher = { workspace = true, optional = true }
 solana-rpc-client = { workspace = true, optional = true }
 chrono = { workspace = true }
 log = { workspace = true }

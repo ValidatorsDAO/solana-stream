@@ -7311,6 +7311,7 @@ dependencies = [
 name = "solana-stream-sdk"
 version = "4.0.0"
 dependencies = [
+ "bytes",
  "chrono",
  "dashmap 6.2.1",
  "flate2",
@@ -7331,6 +7332,7 @@ dependencies = [
  "solana-pubkey 4.4.0",
  "solana-rpc-client",
  "solana-sdk-ids",
+ "solana-sha256-hasher",
  "solana-signature",
  "solana-signer",
  "solana-transaction",

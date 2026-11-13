@@ -31,6 +31,7 @@ lto = "thin"
 anyhow = "1.0.100"
 bincode = "1.3.3"
 bs58 = "0.5.1"
+bytes = "1"
 chrono = "0.4.42"
 clap = { version = "4.5.51", features = ["derive", "env"] }
 dashmap = "6"
@@ -58,6 +59,7 @@ solana-packet = "4.3.0"
 solana-pubkey = "4.3.0"
 solana-rpc-client = { version = "=4.4.1", features = ["agave-unstable-api"] }
 solana-sdk-ids = "3.1.0"
+solana-sha256-hasher = { version = "3.1.0", features = ["sha2"] }
 solana-signature = "3.5.2"
 solana-signer = "4.0.0"
 solana-stream-sdk = { path = "crate/solana-stream-sdk" }

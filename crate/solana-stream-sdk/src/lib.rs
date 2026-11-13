@@ -9,6 +9,8 @@ pub mod entries;
 pub mod error;
 pub mod redact;
 #[cfg(feature = "udp")]
+pub mod shred;
+#[cfg(feature = "udp")]
 pub mod shreds_udp;
 pub mod shredstream;
 pub mod transport;
