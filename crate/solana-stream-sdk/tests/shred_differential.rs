@@ -852,6 +852,62 @@ fn header_fields_at_their_limits_are_judged_identically() {
     assert!(tally.accepted > 1_000 && tally.rejected > 10_000);
 }
 
+/// A coding shred's erasure batch has to end inside the slot: its last data shred
+/// (`fec_set_index + num_data_shreds - 1`) and its last coding shred
+/// (`index - position + num_coding_shreds - 1`) below 32,768. Each case puts one of them
+/// two below to two past the limit with every other field valid, so the limit alone
+/// decides, and both sides must flip from accept to reject at the same place.
+#[test]
+fn erasure_batch_ends_at_the_slot_limit_as_in_agave() {
+    let other = Keypair::new().pubkey();
+    let max = sdk::MAX_DATA_SHREDS_PER_SLOT as i64;
+    assert_eq!(sdk::MAX_CODE_SHREDS_PER_SLOT as i64, max);
+    let mut tally = Tally::default();
+    for batch in batches().iter().step_by(4) {
+        let leader = batch.leader.pubkey();
+        let Some(shred) = batch.shreds.iter().find(|s| s.is_code()) else {
+            continue;
+        };
+        let base = shred.payload().to_vec();
+        for count in [2u16, 3, 32, 64, 256] {
+            for past in -2i64..=2 {
+                // The batch's last data shred at `max - 1 + past`.
+                let fec_set_index = (max - i64::from(count) + past) as u32;
+                let mut last_data = base.clone();
+                last_data[79..83].copy_from_slice(&fec_set_index.to_le_bytes());
+                last_data[83..85].copy_from_slice(&count.to_le_bytes());
+                // The batch's last coding shred at `max - 1 + past`; position 0, so the
+                // shred's own index is the first coding index (below the limit here).
+                let index = (max - i64::from(count) + past) as u32;
+                let mut last_code = base.clone();
+                last_code[73..77].copy_from_slice(&index.to_le_bytes());
+                last_code[85..87].copy_from_slice(&count.to_le_bytes());
+                last_code[87..89].copy_from_slice(&0u16.to_le_bytes());
+                for (bytes, which) in [(last_data, "data"), (last_code, "coding")] {
+                    let t = compare(&bytes, &leader, &other, &|| {
+                        format!(
+                            "{}: last {which} shred {past} past the limit, {count} shreds",
+                            batch.label
+                        )
+                    });
+                    assert_eq!(
+                        t.accepted == 1,
+                        past <= 0,
+                        "{}: last {which} shred {past} past the limit",
+                        batch.label
+                    );
+                    tally.add(t);
+                }
+            }
+        }
+    }
+    println!(
+        "slot limit: {} inputs compared ({} accepted, {} rejected)",
+        tally.inputs, tally.accepted, tally.rejected
+    );
+    assert!(tally.accepted > 100 && tally.rejected > 50);
+}
+
 /// Proof sizes other than the 6 of a 32:32 batch: the variant byte sets where the
 /// proof starts, and a leaf index must be below `2^proof_size`. Each case is signed over
 /// the root Agave computes, so both sides must accept the signature exactly when the
