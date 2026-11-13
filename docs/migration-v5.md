@@ -1,7 +1,8 @@
 # Migrating to 5.0
 
-5.0 changes only the Rust SDK's `udp` feature. If you do not enable `udp`, moving from
-4.x is a version bump.
+5.0 breaks only the Rust SDK's `udp` feature. If you do not enable `udp`, moving from
+4.x is a version bump; what else 5.0 changes (16 MiB HTTP/2 receive windows in
+`ShredstreamClient::connect`, the new `transport` module) is in the CHANGELOG.
 
 | | 4.x | 5.0 |
 |---|---|---|

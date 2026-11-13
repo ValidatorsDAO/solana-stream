@@ -25,7 +25,7 @@
 
 # Shreds-RS
 
-A Rust client for streaming Solana shreds data using `solana-stream-sdk` 4.0.
+A Rust client for streaming Solana shreds data using `solana-stream-sdk` 5.0.
 
 <a href="https://solana.com/">
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
@@ -84,9 +84,9 @@ SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
 
 ## Dependencies
 
-This project targets `solana-stream-sdk` 4.0:
+This project targets `solana-stream-sdk` 5.0:
 
-- `solana-stream-sdk = "4.0.0"` - Main SDK for Solana streaming
+- `solana-stream-sdk = "5.0.0"` - Main SDK for Solana streaming
 - `tokio` - Async runtime
 - `dotenvy` - Environment variable loading
 - `solana-entry` - Solana entry types

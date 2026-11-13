@@ -1,6 +1,6 @@
 [package]
 name = "shreds-udp-rs-starter"
-version = "4.0.0"
+version = "5.0.0"
 description = "Rust UDP client for Solana Shredstream"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -23,14 +23,7 @@ futures = "0.3.31"
 log = "0.4"
 solana-entry = { version = "=4.4.1", features = ["agave-unstable-api"] }
 solana-rpc-client = { version = "=4.4.1", features = ["agave-unstable-api"] }
-solana-ledger = { version = "=4.4.1", features = ["agave-unstable-api"] }
 solana-transaction = { version = "5.0.0", features = ["serde", "wincode", "verify"] }
-solana-stream-sdk = { version = "4.0.0", features = ["udp"] }
+solana-stream-sdk = { version = "5.0.0", features = ["udp"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "signal"] }
 
-# solana-stream-sdk's `udp` feature uses solana-ledger 4.4.1, which builds only against
-# Agave's rust-rocksdb fork. Agave applies it with this patch, and a patch applies only in
-# the workspace that declares it: keep these lines in the workspace that builds this crate.
-[patch.crates-io]
-librocksdb-sys = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
-rocksdb = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }

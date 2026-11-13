@@ -48,6 +48,13 @@ This project provides libraries and tools for streaming real-time data from the 
 - Shreds gRPC (TypeScript/Rust): raw shreds over gRPC for high-throughput ingestion
 - UDP Shreds (Rust): lowest-latency signal for real-time event detection
 
+## What's New in v5.0.0 (Rust)
+
+- The `udp` feature decodes shreds itself (`solana_stream_sdk::shred`, following Agave 4.4.1) instead of building `solana-ledger`: no RocksDB, OpenSSL or bzip2, no `[patch.crates-io]` and no libclang, 419 crates instead of 648. This breaks code that uses the `Shred` values of the `udp` API (`DecodedShred::shred`, `ShredReadyBatch::shreds`, the deshred functions) as `solana_ledger` ones; without `udp`, moving from 4.x is a version bump. See the [5.0 migration guide](docs/migration-v5.md).
+- The UDP receiver does not check that the slot's leader signed a shred (neither did 4.x). `shred::wire::verify_shred` does, in a receive loop of your own; see the [migration guide](docs/migration-v5.md#leader-signatures).
+- `ShredstreamClient::connect` opens 16 MiB HTTP/2 receive windows, and the new `transport` helpers apply them to your own endpoints and Geyser builders (see below).
+- Rust only: no npm package was released (`@validators-dao/solana-stream-sdk` stays at 4.0.0).
+
 ## What's New in v4.0.0
 
 - Yellowstone gRPC 17 (Rust) and `@triton-one/yellowstone-grpc` 10 (TypeScript), with Agave 4.4.1-based Solana Rust types.
@@ -72,11 +79,11 @@ This project provides libraries and tools for streaming real-time data from the 
 Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
 duplicates are expected.
 
-## High-throughput gRPC receive defaults (source tree)
+## High-throughput gRPC receive defaults
 
 A client can throttle its own incoming stream when its HTTP/2 *stream* or *connection* receive window is too small. The SDK source now uses **16 MiB for each window**, with adaptive window sizing disabled so the specified sizes take effect. This applies to the TypeScript `GeyserClient`, Rust `ShredstreamClient`, and the included Rust Geyser example/sample through `tune_geyser_grpc_builder` (the published-package starter sets the same values directly). The raw upstream `GeyserGrpcClient` re-export keeps its own defaults unless the helper is used. Callers can override TypeScript channel options or Rust builder/endpoint settings.
 
-This is a change **after the published 4.0.0 release**. Users of the published npm/crates.io 4.0.0 packages will receive it only in a subsequent package release. This tuning does not bypass server-side limits, prevent packet loss, or compensate for a slow application consumer; keep reception efficient and work queues bounded. See [ERPC's flow-control diagnosis and measured 16 KiB vs 16 MiB comparison](https://erpc.global/en/faq/grpc/general/).
+Rust: published in crates.io `solana-stream-sdk` **5.0.0**. TypeScript: the `GeyserClient` change is in this source tree only; npm `@validators-dao/solana-stream-sdk` 4.0.0 does not have it until its next release, and neither does `@validators-dao/solana-shreds-client` 2.0.0 (its published binary predates the change). This tuning does not bypass server-side limits, prevent packet loss, or compensate for a slow application consumer; keep reception efficient and work queues bounded. See [ERPC's flow-control diagnosis and measured 16 KiB vs 16 MiB comparison](https://erpc.global/en/faq/grpc/general/).
 
 ## Rust Highlight: UDP Shreds (Fastest Signal)
 
@@ -196,11 +203,11 @@ The sample code can be found at:
 
 #### Usage with solana-stream-sdk
 
-The following example targets SDK 4.0 (see the [4.0 migration guide](docs/migration-v4.md) and the [Alpenglow migration guide](docs/alpenglow.md); Transaction v1 support is covered by the [v1 migration guide](docs/transaction-v1.md)).
+The following example targets SDK 5.0 (see the [5.0](docs/migration-v5.md) and [4.0](docs/migration-v4.md) migration guides and the [Alpenglow migration guide](docs/alpenglow.md); Transaction v1 support is covered by the [v1 migration guide](docs/transaction-v1.md)).
 
 ```toml
 [dependencies]
-solana-stream-sdk = { version = "4.0.0", default-features = false }
+solana-stream-sdk = { version = "5.0.0", default-features = false }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dotenvy = "0.15"
 ```
