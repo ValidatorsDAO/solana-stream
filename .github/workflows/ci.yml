@@ -155,11 +155,6 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      # shreds-udp-rs is on the published SDK 4.0, whose udp feature builds RocksDB.
-      - name: Install libclang (bindgen for librocksdb-sys)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libclang-dev
       - name: Install the toolchain from rust-toolchain.toml
         run: |
           rustup toolchain install
@@ -181,3 +176,11 @@ jobs:
             (cd "temp-release/$dir" && cargo check --all-targets)
             echo "::endgroup::"
           done
+      # What shreds-udp-rs users build from the published SDK's udp feature: no
+      # solana-ledger, RocksDB, OpenSSL or bzip2 (this job installs no libclang).
+      - name: udp dependency gate on the shreds-udp-rs starter
+        working-directory: temp-release/shreds-udp-rs
+        run: |
+          set -euo pipefail
+          cargo tree -p solana-stream-sdk -e normal,build --target all --prefix none \
+            | bash ../../scripts/check-udp-deps.sh

@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-### Rust SDK 5.0.0: the `udp` feature without `solana-ledger` (breaking)
+- `temp-release/shreds-udp-rs` (served by `slv bot init`) moves to the published SDK 5.0.0: its `Cargo.toml` drops `solana-ledger` and the rust-rocksdb `[patch.crates-io]`, and its README says that the sample's receive loops do not check leader signatures and where to add the check. The starters' CI job no longer installs libclang and runs the udp dependency gate on this starter's resolution of the published crate.
 
-The crate version is 5.0.0 on `main`; it is not published yet. Migration: [docs/migration-v5.md](docs/migration-v5.md).
+## 5.0.0 - 2026-11-13 — the `udp` feature without `solana-ledger`
+
+Published 2026-11-13: crates.io `solana-stream-sdk` 5.0.0, from `main` de658bb by `.github/workflows/release.yml` with crates.io trusted publishing (run 43461974320). Rust only: the npm packages are unchanged and not republished. Migration: [docs/migration-v5.md](docs/migration-v5.md).
+
+### Rust SDK 5.0.0: the `udp` feature without `solana-ledger` (breaking)
 
 - The SDK decodes shreds itself: `solana_stream_sdk::shred` (behind `udp`) replaces `solana-ledger` in the UDP receiver. It decodes the Merkle shreds Agave 4.4.1 sends (chained, resigned or not; Agave 4.4.1 no longer accepts legacy or unchained shreds, and neither does the SDK), makes the checks Agave's `sanitize` makes in the same order with the same error messages (except `TruncatedHeaders`, where Agave reports its header deserializer's error, and `InvalidErasureShardIndex`, where Agave prints the headers), computes the Merkle root from a shred and its proof, checks the leader's signature, and deshreds. Each piece names the `solana-ledger` 4.4.1 function it follows.
 - `udp` no longer builds `solana-ledger`, and with it RocksDB, OpenSSL, `native-tls`, `hyper-tls` and bzip2 (`libbz2-rs-sys`, licence `bzip2-1.0.6`). It needs no `[patch.crates-io]` and no libclang. It resolves 419 crates instead of 648 (`cargo tree -p solana-stream-sdk --features udp -e normal`). It keeps `solana-rpc-client` (leader schedule, block times), whose `reqwest` uses rustls. `scripts/check-udp-deps.sh` (run in CI on `cargo tree --target all`, with a self-test in `scripts/tests/`) fails if the feature builds any of these, `bindgen`, `solana-runtime`, `solana-storage-bigtable`, `agave-precompiles`, or `ed25519-dalek` < 2.0.0 / `curve25519-dalek` < 4.1.3. CI also runs `cargo test -p solana-stream-sdk --features udp` on its own.
@@ -17,7 +21,7 @@ Moving from 4.x (only if you enable `udp`):
 
 1. `solana-stream-sdk = { version = "5.0.0", features = ["udp"] }`. Remove the `librocksdb-sys` and `rocksdb` lines under `[patch.crates-io]`, and `solana-ledger`, unless something else in your workspace needs them (tests that make shreds with `Shredder` keep it as a dev-dependency, with the patch).
 2. Replace `solana_ledger::shred::{Shred, layout}` with `solana_stream_sdk::shred::{Shred, layout}`; `shred::Error` is `shred::ShredError`, `Shredder::deshred(…)` is `shred::deshred(…)`. Checking a received packet's signature: `shred::wire::verify_shred(&packet, &leader)` with the leader of `wire::get_slot(&packet)`. Then adapt the calls that differ, listed in [docs/migration-v5.md](docs/migration-v5.md).
-3. `client/shreds-udp-rs` needs no source change. `temp-release/shreds-udp-rs` stays on the published 4.0.0 until 5.0.0 is published; then it needs only `Cargo.toml` changes: SDK 5.0.0, no `solana-ledger`, no `[patch.crates-io]`.
+3. `client/shreds-udp-rs` needs no source change. `temp-release/shreds-udp-rs` needed only `Cargo.toml` changes: SDK 5.0.0, no `solana-ledger`, no `[patch.crates-io]`.
 
 ### Other changes
 
