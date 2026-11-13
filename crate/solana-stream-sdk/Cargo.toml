@@ -63,10 +63,20 @@ zstd = "0.13"
 solana-hash = { workspace = true }
 solana-keypair = { workspace = true }
 solana-signer = { workspace = true }
+# The differential tests check the shred decoder against Agave's own code: solana-ledger
+# and what its signature check takes (all of them already in solana-ledger's build).
+lazy-lru = "0.1.4"
+solana-ledger = { workspace = true }
+solana-nohash-hasher = "0.2.1"
+solana-perf = "=4.4.1"
 
 
 [[test]]
 name = "entries_wire"
+required-features = ["udp"]
+
+[[test]]
+name = "shred_differential"
 required-features = ["udp"]
 
 [build-dependencies]
