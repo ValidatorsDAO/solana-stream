@@ -4,6 +4,7 @@
 
 - npm `@validators-dao/solana-stream-sdk` (source; npm serves 4.0.0, and 5.0.0 was Rust only): `GeyserClient` is now a subclass of the Yellowstone `Client` that opens 16 MiB HTTP/2 stream and connection receive windows with adaptive windows off, where it was the upstream `Client` itself. The constructor takes the same arguments, and channel options you pass win. New exports `geyserChannelOptions`, `DEFAULT_GEYSER_CHANNEL_OPTIONS` and `HIGH_THROUGHPUT_GRPC_WINDOW_BYTES` (#133).
 - `temp-release/shreds-udp-rs` (served by `slv bot init`) moves to the published SDK 5.0.0: its `Cargo.toml` drops `solana-ledger` and the rust-rocksdb `[patch.crates-io]`, and its README says that the sample's receive loops do not check leader signatures and where to add the check. The starters' CI job no longer installs libclang and runs the udp dependency gate on the SDK's part of this starter's graph, resolved from the published crate.
+- `client/shreds-rs`'s README names SDK 5.0, which it builds against in this workspace (it said 4.0). The repository README has a "What's New in v5.0.0 (Rust)" section, says the 16 MiB gRPC windows are in crates.io 5.0.0 and not yet on npm, and its `ShredstreamClient` example targets 5.0.0.
 
 ## 5.0.0 - 2026-11-13 — the `udp` feature without `solana-ledger`
 
@@ -32,7 +33,7 @@ Moving from 4.x (only if you enable `udp`):
 ### Other changes
 
 - `package/solana-shreds-client` (the source of the npm native client, which does not use `udp`) requires the SDK at 5.0.0 so that it keeps building against this repository's crate. The workspace optimizes `solana-ed25519` and `sha2` in its dev builds: the shred tests check hundreds of thousands of signatures, which take 5 ms each unoptimized.
-- `shreds_udp::TransactionsBySlot` names the type `ShredsUdpState::transactions_by_slot` already returned (`Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>`); no type changes.
+- `shreds_udp::TransactionsBySlot` names the map type (`Arc<DashMap<u64, Vec<(String, DateTime<Utc>)>>>`) inside the `Option` that `ShredsUdpState::transactions_by_slot` returns; no type changes.
 - Starters (`temp-release/`, which `slv bot init` copies from `main`) move to the published 4.0.0:
   - `geyser-rs` and `geyser-ts` are now the same code as `client/geyser-rs` and `client/geyser-ts`: the reconnecting subscription with `Disconnected` handling, redacted logs, the plaintext-token warning, and the faster TypeScript queue.
   - `shreds-rs`, `shreds-ts` and `shreds-udp-rs` move to SDK 4.0. `shreds-udp-rs` enables the `udp` feature and carries the rust-rocksdb `[patch.crates-io]` lines it needs.
@@ -40,7 +41,7 @@ Moving from 4.x (only if you enable `udp`):
 - `trade-app` builds again. `ultima-swap-pumpfun` is pinned to `dbbe5f6e` (later commits add a required field to `SellParams` / `BuyParams`, so `cargo build` failed). It moves to SDK 4.0 and `dotenvy`, and keeps its own runner: it trades at processed commitment without de-duplication, and the 4.0 runner replays from the last confirmed slot after each reconnect, which would resend recent pool creations.
 - TypeScript starters are standalone pnpm projects, as users get them. Each has a `pnpm-workspace.yaml` that decides esbuild's install script: without one, pnpm 11 stops `pnpm install` with `ERR_PNPM_IGNORED_BUILDS`. They are no longer packages of the repository's workspace.
 - CI installs, type-checks, tests and builds the TypeScript starters on their own, and runs `cargo check --all-targets` on the four Rust starters against the published SDK.
-- Docs: `client/shreds-rs` and the crate README named SDK 3.0.0 and Rust 1.96.1; now SDK 4.0 and Rust 1.98.1.
+- Docs: `client/shreds-rs`'s README moved from SDK 3.0.0 and Rust 1.96.1 to SDK 4.0 and Rust 1.98.1; the crate README from Rust 1.96.1 to 1.98.1, and its examples name SDK 5.0.0.
 
 ## 4.0.0 - 2026-11-06 — Yellowstone gRPC 17 clients, Agave 4.4
 
