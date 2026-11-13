@@ -3,9 +3,12 @@
 //! the same shreds corrupted byte by byte, and random bytes.
 //!
 //! For each input both sides must agree on: accept or reject (and why), every header
-//! field, `sanitize`, the Merkle root, the chained Merkle root, the retransmitter
-//! signature, the leader signature check (decoded, and Agave's `verify_shred_cpu` on the
-//! packet) with the right and a wrong key, and `deshred`. Keys are generated here.
+//! field (flags and variant byte included), `sanitize`, the Merkle root, the chained
+//! Merkle root, the retransmitter signature, the leader signature check (decoded, and
+//! Agave's `verify_shred_cpu` on the packet) with the right and a wrong key, every
+//! packet-level reader, and `deshred`. Where solana-ledger keeps a reader private, the
+//! test reads the bytes itself. Keys and inputs come from a seeded source, so counts and
+//! failures repeat from run to run.
 //!
 //! `cargo test -p solana-stream-sdk --features udp --test shred_differential -- --nocapture`
 //! prints how many inputs each test compared.
@@ -67,6 +70,12 @@ struct Decoded {
     parent: Result<u64, String>,
     data: Result<Vec<u8>, String>,
     proof_size: u8,
+    /// The variant byte as the decoder re-encodes it, and its resigned bit.
+    variant_byte: u8,
+    resigned: bool,
+    /// Data shreds only: the flags byte and its reference tick.
+    flags: Option<u8>,
+    reference_tick: Option<u8>,
     sanitize: Result<(), String>,
     merkle_root: Result<Hash, String>,
     chained_merkle_root: Result<Hash, String>,
@@ -96,6 +105,18 @@ fn agave_decoded(shred: &agave::Shred, leader: &Pubkey, other: &Pubkey) -> Decod
         proof_size: shred
             .proof_size()
             .expect("a decoded shred has a proof size"),
+        // solana-ledger's ShredVariant is private: the byte it decoded.
+        variant_byte: shred.payload()[64],
+        resigned: agave_layout::is_retransmitter_signed_variant(shred.payload()).unwrap(),
+        flags: shred
+            .is_data()
+            .then(|| agave_layout::get_flags(shred.payload()).unwrap().bits()),
+        // ShredData::reference_tick is test-only in solana-ledger: its mask on its flags.
+        reference_tick: shred.is_data().then(|| {
+            (agave_layout::get_flags(shred.payload()).unwrap()
+                & agave::ShredFlags::SHRED_TICK_REFERENCE_MASK)
+                .bits()
+        }),
         sanitize: shred.sanitize().map_err(|e| agave_error(&e)),
         merkle_root: shred.merkle_root().map_err(|e| agave_error(&e)),
         chained_merkle_root: shred.chained_merkle_root().map_err(|e| agave_error(&e)),
@@ -124,6 +145,16 @@ fn sdk_decoded(shred: &Shred, leader: &Pubkey, other: &Pubkey) -> Decoded {
         parent: shred.parent().map_err(|e| sdk_error(&e)),
         data: shred.data().map(<[u8]>::to_vec).map_err(|e| sdk_error(&e)),
         proof_size: shred.proof_size(),
+        variant_byte: u8::from(shred.variant()),
+        resigned: shred.variant().resigned(),
+        flags: match shred {
+            Shred::ShredData(data) => Some(data.flags()),
+            Shred::ShredCode(_) => None,
+        },
+        reference_tick: match shred {
+            Shred::ShredData(data) => Some(data.reference_tick()),
+            Shred::ShredCode(_) => None,
+        },
         sanitize: shred.sanitize().map_err(|e| sdk_error(&e)),
         merkle_root: shred.merkle_root().map_err(|e| sdk_error(&e)),
         chained_merkle_root: shred.chained_merkle_root().map_err(|e| sdk_error(&e)),
@@ -140,16 +171,57 @@ fn sdk_decoded(shred: &Shred, leader: &Pubkey, other: &Pubkey) -> Decoded {
 /// signature check is one of them).
 #[derive(Debug, PartialEq)]
 struct PacketView {
+    shred_len: Option<usize>,
+    signature: Option<Vec<u8>>,
     slot: Option<u64>,
     index: Option<u32>,
+    version: Option<u16>,
     fec_set_index: Option<u32>,
     shred_type: Result<u8, String>,
+    parent_offset: Option<u16>,
     flags: Result<u8, String>,
+    coding_header: Option<(u16, u16, u16)>,
     merkle_root: Option<Hash>,
+    chained_merkle_root: Option<Hash>,
     resigned: Result<bool, String>,
     retransmitter_signature: Result<Vec<u8>, String>,
     verifies_leader: bool,
     verifies_other: bool,
+}
+
+/// `bytes` as a received packet, for Agave's functions that take one. A packet holds at
+/// most `PACKET_DATA_SIZE` bytes.
+fn packet(bytes: &[u8]) -> Option<Packet> {
+    let mut packet = Packet::default();
+    packet
+        .buffer_mut()
+        .get_mut(..bytes.len())?
+        .copy_from_slice(bytes);
+    packet.meta_mut().size = bytes.len();
+    Some(packet)
+}
+
+fn le16(bytes: &[u8], at: usize) -> Option<u16> {
+    bytes
+        .get(at..at + 2)
+        .map(|b| u16::from_le_bytes([b[0], b[1]]))
+}
+
+/// The chained Merkle root where solana-ledger's layout puts it: after the headers and
+/// the shred type's `capacity` (its own `get_chained_merkle_root` is crate-private).
+fn agave_chained_merkle_root(bytes: &[u8]) -> Option<Hash> {
+    let proof_size = bytes.get(64)? & 0x0F;
+    let resigned = agave_layout::is_retransmitter_signed_variant(bytes).ok()?;
+    let offset = match agave_layout::get_shred_type(bytes).ok()? {
+        agave::ShredType::Data => {
+            agave::SIZE_OF_DATA_SHRED_HEADERS
+                + agave::ShredData::capacity(proof_size, resigned).ok()?
+        }
+        // SIZE_OF_CODING_SHRED_HEADERS is private in solana-ledger.
+        agave::ShredType::Code => 89 + agave::ShredCode::capacity(proof_size, resigned).ok()?,
+    };
+    let root = bytes.get(offset..offset + 32)?;
+    Some(Hash::new_from_array(root.try_into().unwrap()))
 }
 
 /// Agave's `sigverify_shreds::verify_shred_cpu` with `leader` as the slot's leader. A
@@ -177,17 +249,37 @@ fn agave_verify_packet(bytes: &[u8], leader: &Pubkey) -> bool {
 }
 
 fn agave_packet(bytes: &[u8], leader: &Pubkey, other: &Pubkey) -> PacketView {
+    let shred_type = agave_layout::get_shred_type(bytes).ok();
     PacketView {
+        // Agave's get_shred takes a packet; longer input is cut by type, as it would be.
+        shred_len: match packet(bytes) {
+            Some(packet) => agave_layout::get_shred(PacketRef::from(&packet)).map(<[u8]>::len),
+            None => shred_type.map(|shred_type| match shred_type {
+                agave::ShredType::Data => sdk::DATA_SHRED_PAYLOAD_SIZE,
+                agave::ShredType::Code => sdk::CODE_SHRED_PAYLOAD_SIZE,
+            }),
+        },
+        // get_signature, get_version, get_parent_offset and the coding header readers
+        // are private in solana-ledger: the bytes where its layout puts them.
+        signature: bytes.get(..64).map(<[u8]>::to_vec),
         slot: agave_layout::get_slot(bytes),
         index: agave_layout::get_index(bytes),
+        version: le16(bytes, 77),
         fec_set_index: agave_layout::get_fec_set_index(bytes),
         shred_type: agave_layout::get_shred_type(bytes)
             .map(u8::from)
             .map_err(|e| agave_error(&e)),
+        parent_offset: (shred_type == Some(agave::ShredType::Data))
+            .then(|| le16(bytes, 83))
+            .flatten(),
         flags: agave_layout::get_flags(bytes)
             .map(|flags| flags.bits())
             .map_err(|e| agave_error(&e)),
+        coding_header: (shred_type == Some(agave::ShredType::Code))
+            .then(|| Some((le16(bytes, 83)?, le16(bytes, 85)?, le16(bytes, 87)?)))
+            .flatten(),
         merkle_root: agave_layout::get_merkle_root(bytes),
+        chained_merkle_root: agave_chained_merkle_root(bytes),
         resigned: agave_layout::is_retransmitter_signed_variant(bytes).map_err(|e| agave_error(&e)),
         retransmitter_signature: agave_layout::get_retransmitter_signature(bytes)
             .map(|s| s.as_ref().to_vec())
@@ -199,14 +291,20 @@ fn agave_packet(bytes: &[u8], leader: &Pubkey, other: &Pubkey) -> PacketView {
 
 fn sdk_packet(bytes: &[u8], leader: &Pubkey, other: &Pubkey) -> PacketView {
     PacketView {
+        shred_len: wire::get_shred(bytes).map(<[u8]>::len),
+        signature: wire::get_signature(bytes).map(|s| s.as_ref().to_vec()),
         slot: wire::get_slot(bytes),
         index: wire::get_index(bytes),
+        version: wire::get_version(bytes),
         fec_set_index: wire::get_fec_set_index(bytes),
         shred_type: wire::get_shred_type(bytes)
             .map(|t| t as u8)
             .map_err(|e| sdk_error(&e)),
+        parent_offset: wire::get_parent_offset(bytes),
         flags: wire::get_flags(bytes).map_err(|e| sdk_error(&e)),
+        coding_header: wire::get_coding_header(bytes),
         merkle_root: wire::get_merkle_root(bytes),
+        chained_merkle_root: wire::get_chained_merkle_root(bytes),
         resigned: wire::is_retransmitter_signed_variant(bytes).map_err(|e| sdk_error(&e)),
         retransmitter_signature: wire::get_retransmitter_signature(bytes)
             .map(|s| s.as_ref().to_vec())
@@ -246,6 +344,14 @@ fn compare(bytes: &[u8], leader: &Pubkey, other: &Pubkey, what: &dyn Fn() -> Str
         (Ok(agave), Ok(ours)) => {
             let decoded = agave_decoded(agave, leader, other);
             assert_eq!(decoded, sdk_decoded(ours, leader, other), "{}", what());
+            // The packet readers agree with Agave's decoded shred where it has them.
+            assert_eq!(
+                wire::get_chained_merkle_root(bytes),
+                agave.chained_merkle_root().ok(),
+                "{}",
+                what()
+            );
+            assert_eq!(wire::get_data(bytes).ok(), agave.data().ok(), "{}", what());
             if let Shred::ShredCode(code) = ours {
                 let raw = |offset: usize| u16::from_le_bytes([bytes[offset], bytes[offset + 1]]);
                 assert_eq!(code.num_data_shreds(), raw(83), "{}", what());
@@ -341,7 +447,7 @@ impl Rng {
 fn entries(rng: &mut Rng, count: usize, with_transactions: bool) -> Vec<Entry> {
     use solana_message::Message;
     use solana_stream_sdk::VersionedTransaction;
-    let signer = Keypair::new();
+    let signer = rng.keypair();
     (0..count)
         .map(|i| {
             let transactions = if with_transactions {
@@ -410,7 +516,7 @@ fn make_batches() -> Vec<Batch> {
         for &count in counts {
             for with_transactions in [false, true] {
                 for is_last_in_slot in [false, true] {
-                    let leader = Keypair::new();
+                    let leader = rng.keypair();
                     let entries = entries(&mut rng, count, with_transactions);
                     let shreds = shredder.make_merkle_shreds_from_entries(
                         &leader,
@@ -454,7 +560,7 @@ fn make_batches() -> Vec<Batch> {
         for (k, &size) in sizes.iter().enumerate() {
             // Alternate so each size is shredded both ways across the layouts.
             let is_last_in_slot = (k + layout) % 2 == 0;
-            let leader = Keypair::new();
+            let leader = rng.keypair();
             let data = rng.bytes(size);
             let shreds = shredder
                 .make_shreds_from_data_slice(
@@ -477,7 +583,7 @@ fn make_batches() -> Vec<Batch> {
         }
     }
     // A retransmitter signs the resigned shreds, as Turbine does.
-    let retransmitter = Keypair::new();
+    let retransmitter = rng.keypair();
     for batch in &mut batches {
         for shred in &mut batch.shreds {
             if agave_layout::is_retransmitter_signed_variant(shred.payload()).unwrap() {
@@ -527,7 +633,7 @@ fn batches() -> &'static [Batch] {
 #[test]
 fn shredder_output_decodes_identically() {
     let batches = batches();
-    let other = Keypair::new().pubkey();
+    let other = Rng(0x5eed_0101).keypair().pubkey();
     let mut tally = Tally::default();
     let (mut data, mut code, mut resigned, mut last) = (0, 0, 0, 0);
     for batch in batches {
@@ -636,6 +742,18 @@ fn deshred_matches_shredder_deshred() {
                 format!("{label}: shred {i} byte {offset} = {value}")
             });
         }
+        // Indices u32::MAX then 0 are not consecutive (Agave's checked_add); 5 then 6, with
+        // the same bytes otherwise, are.
+        if data.len() > 1 {
+            for (first, second) in [(u32::MAX, 0u32), (5, 6)] {
+                let mut pair = vec![data[0].clone(), data[1].clone()];
+                pair[0][73..77].copy_from_slice(&first.to_le_bytes());
+                pair[1][73..77].copy_from_slice(&second.to_le_bytes());
+                pair[0][85] &= !0b1100_0000;
+                pair[1][85] |= 0b0100_0000;
+                check(&pair, &|| format!("{label}: indices {first} then {second}"));
+            }
+        }
         // The deshredded bytes decode to the entries that were shredded.
         if let Some(entries) = &batch.entries {
             let shreds: Vec<Shred> = data
@@ -671,7 +789,7 @@ fn deshred_matches_shredder_deshred() {
 fn corrupted_bytes_are_judged_identically() {
     let batches = batches();
     let picked = sample(batches);
-    let other = Keypair::new().pubkey();
+    let other = Rng(0x5eed_0102).keypair().pubkey();
     let mut tally = Tally::default();
     for (batch, shred) in &picked {
         let leader = batch.leader.pubkey();
@@ -704,6 +822,23 @@ fn corrupted_bytes_are_judged_identically() {
             bytes[offset] ^= 0x01;
             tally.add(compare(&bytes, &leader, &other, &|| {
                 format!("{}: byte {offset} flipped", batch.label)
+            }));
+        }
+        // An all-zero signature: on the shred as made, and on shreds whose Merkle root
+        // cannot be computed (a data shred's index below its FEC set index; a coding
+        // shred's position past every proof), where only the root check stands between
+        // the signature and acceptance.
+        let mut no_root = base.clone();
+        if shred.is_data() {
+            let index = u32::from_le_bytes(base[73..77].try_into().unwrap());
+            no_root[79..83].copy_from_slice(&(index + 1).to_le_bytes());
+        } else {
+            no_root[87..89].copy_from_slice(&u16::MAX.to_le_bytes());
+        }
+        for (which, mut bytes) in [("as made", base.clone()), ("without a root", no_root)] {
+            bytes[..64].fill(0);
+            tally.add(compare(&bytes, &leader, &other, &|| {
+                format!("{}: all-zero signature, {which}", batch.label)
             }));
         }
         // Every value of the variant byte.
@@ -744,7 +879,7 @@ fn corrupted_bytes_are_judged_identically() {
 #[test]
 fn header_fields_at_their_limits_are_judged_identically() {
     let batches = batches();
-    let other = Keypair::new().pubkey();
+    let other = Rng(0x5eed_0103).keypair().pubkey();
     let mut tally = Tally::default();
     let set_u16 = |b: &mut Vec<u8>, o: usize, v: u16| b[o..o + 2].copy_from_slice(&v.to_le_bytes());
     let set_u32 = |b: &mut Vec<u8>, o: usize, v: u32| b[o..o + 4].copy_from_slice(&v.to_le_bytes());
@@ -990,6 +1125,36 @@ fn leader_signature_moved_to_another_batch_is_rejected() {
     );
 }
 
+/// Every variant byte: accepted exactly when Agave accepts it, with Agave's shred type,
+/// proof size and resigned bit, and `u8::from` gives the byte back.
+#[test]
+fn variant_byte_round_trips_as_in_agave() {
+    let mut accepted = 0;
+    for byte in 0..=u8::MAX {
+        let mut bytes = vec![0u8; 65];
+        bytes[64] = byte;
+        let agave = agave_layout::get_shred_type(&bytes).map(|t| {
+            (
+                u8::from(t),
+                byte & 0x0F,
+                agave_layout::is_retransmitter_signed_variant(&bytes).unwrap(),
+            )
+        });
+        let ours = sdk::ShredVariant::try_from(byte).map(|variant| {
+            assert_eq!(u8::from(variant), byte, "{byte:#04x} round trip");
+            (
+                sdk::ShredType::from(variant) as u8,
+                variant.proof_size(),
+                variant.resigned(),
+            )
+        });
+        assert_eq!(agave.ok(), ours.ok(), "variant byte {byte:#04x}");
+        accepted += usize::from(agave_layout::get_shred_type(&bytes).is_ok());
+    }
+    // 0x6?, 0x7?, 0x9? and 0xb?.
+    assert_eq!(accepted, 64);
+}
+
 /// A coding shred's erasure batch has to end inside the slot: its last data shred
 /// (`fec_set_index + num_data_shreds - 1`) and its last coding shred
 /// (`index - position + num_coding_shreds - 1`) below 32,768. Each case puts one of them
@@ -997,7 +1162,7 @@ fn leader_signature_moved_to_another_batch_is_rejected() {
 /// decides, and both sides must flip from accept to reject at the same place.
 #[test]
 fn erasure_batch_ends_at_the_slot_limit_as_in_agave() {
-    let other = Keypair::new().pubkey();
+    let other = Rng(0x5eed_0104).keypair().pubkey();
     let max = sdk::MAX_DATA_SHREDS_PER_SLOT as i64;
     assert_eq!(sdk::MAX_CODE_SHREDS_PER_SLOT as i64, max);
     let mut tally = Tally::default();
@@ -1053,7 +1218,7 @@ fn erasure_batch_ends_at_the_slot_limit_as_in_agave() {
 #[test]
 fn every_proof_size_gives_the_same_root_and_signature_check() {
     let batches = batches();
-    let other = Keypair::new().pubkey();
+    let other = Rng(0x5eed_0105).keypair().pubkey();
     let mut tally = Tally::default();
     let mut rng = Rng(0x5eed_0003);
     for batch in batches.iter().step_by(7) {
@@ -1093,8 +1258,8 @@ fn every_proof_size_gives_the_same_root_and_signature_check() {
 fn random_bytes_never_panic_and_are_judged_identically() {
     const ROUNDS: usize = 30_000;
     let mut rng = Rng(0x5eed_0004);
-    let leader = Keypair::new();
-    let other = Keypair::new().pubkey();
+    let leader = rng.keypair();
+    let other = rng.keypair().pubkey();
     let variants = [
         0x66u8, 0x76, 0x96, 0xb6, 0x60, 0x7f, 0x90, 0xbf, 0x5a, 0xa5, 0x00, 0xff,
     ];
