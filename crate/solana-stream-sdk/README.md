@@ -128,10 +128,11 @@ if wire::verify_shred(&payload, &leader) {
 
 The UDP receiver does not check leader signatures. `run_shreds_udp` receives, decodes
 and deshreds with no hook for a check, so what it emits is unverified. To drop shreds the
-leader did not sign, write the receive loop yourself, as the `shreds-udp-rs` sample does:
-`UdpShredReceiver::recv_raw`, then `wire::verify_shred` on the datagram (with the leader
-of its slot, from a leader schedule you get from an RPC node you trust), then
-`decode_udp_datagram` and `insert_shred`.
+leader did not sign, write the receive loop yourself: `UdpShredReceiver::recv_raw`, then
+`wire::verify_shred` on the datagram (with the leader of its slot, from a leader schedule
+you get from an RPC node you trust), then `decode_udp_datagram` and `insert_shred`. The
+`shreds-udp-rs` sample's `main.rs` has such a loop without the signature check: add
+`wire::verify_shred` between `recv_raw` and `decode_udp_datagram`.
 
 From 4.x: replace `solana_ledger::shred::Shred` (and `layout`) with
 `solana_stream_sdk::shred::Shred` (and `layout`), and remove the `rust-rocksdb`

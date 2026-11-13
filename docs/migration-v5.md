@@ -88,8 +88,9 @@ Kept, with the SDK's `ShredError` and `ShredType` where Agave's signature names 
 
 The UDP receiver decodes and checks shreds but does not check that the slot's leader
 signed them, in 4.x or 5.0. `run_shreds_udp` has no hook for such a check: what it emits
-is unverified. To drop shreds the leader did not sign, write the receive loop yourself,
-as `client/shreds-udp-rs` does: `UdpShredReceiver::recv_raw`, then
-`shred::wire::verify_shred` on the datagram, with the leader of `wire::get_slot` from a
-leader schedule you get from an RPC node you trust, then `decode_udp_datagram` and
-`insert_shred`.
+is unverified. To drop shreds the leader did not sign, write the receive loop yourself:
+`UdpShredReceiver::recv_raw`, then `shred::wire::verify_shred` on the datagram, with the
+leader of `wire::get_slot` from a leader schedule you get from an RPC node you trust,
+then `decode_udp_datagram` and `insert_shred`. `client/shreds-udp-rs` has such a loop
+without the signature check (it does not verify leader signatures): add
+`shred::wire::verify_shred` between `recv_raw` and `decode_udp_datagram`.
