@@ -330,6 +330,11 @@ impl Rng {
     fn hash(&mut self) -> Hash {
         Hash::new_from_array(self.bytes(32).try_into().unwrap())
     }
+
+    /// A key derived from this source, so that runs repeat exactly.
+    fn keypair(&mut self) -> Keypair {
+        Keypair::new_from_array(self.bytes(32).try_into().unwrap())
+    }
 }
 
 /// Tick entries and entries with signed transactions.
@@ -850,6 +855,139 @@ fn header_fields_at_their_limits_are_judged_identically() {
         tally.inputs, tally.accepted, tally.rejected
     );
     assert!(tally.accepted > 1_000 && tally.rejected > 10_000);
+}
+
+/// A genuine signature of the same leader, moved to another erasure batch, must not
+/// verify. Batch k+1 chains to batch k: its chained-root field is batch k's Merkle root
+/// R_k, and every shred of batch k carries the leader's signature over R_k. A verifier
+/// that also accepted a signature over the chained root, or that remembered a signature
+/// as good for a leader without the root it was checked over (what the root in Agave's
+/// `(signature, leader, root)` cache key prevents), would accept a batch k+1 rebuilt with
+/// any content and batch k's signature. Agave and the SDK must both reject, on the
+/// decoded shred and on the packet; also between unrelated batches, backwards, and from
+/// data shreds into coding shreds and back.
+#[test]
+fn leader_signature_moved_to_another_batch_is_rejected() {
+    let mut rng = Rng(0x5eed_0006);
+    let leader = rng.keypair();
+    let other = rng.keypair().pubkey();
+    let cache = ReedSolomonCache::default();
+    let mut stats = ProcessShredsStats::default();
+    let capacity = agave::ShredData::capacity(sdk::PROOF_ENTRIES_FOR_32_32_BATCH, false).unwrap();
+    // One call, three chained batches: two full ones and a resigned last one.
+    let chained = Shredder::new(1_000, 999, 1, 7)
+        .unwrap()
+        .make_shreds_from_data_slice(
+            &leader,
+            &rng.bytes(2 * sdk::DATA_SHREDS_PER_FEC_BLOCK * capacity + 1),
+            true,
+            rng.hash(),
+            0,
+            0,
+            &cache,
+            &mut stats,
+        )
+        .unwrap();
+    // The same leader in another slot.
+    let unrelated = Shredder::new(2_000, 1_998, 3, 7)
+        .unwrap()
+        .make_shreds_from_data_slice(
+            &leader,
+            &rng.bytes(1_000),
+            false,
+            rng.hash(),
+            64,
+            64,
+            &cache,
+            &mut stats,
+        )
+        .unwrap();
+    let batches: Vec<Vec<&agave::Shred>> = chained
+        .chunk_by(|a, b| a.fec_set_index() == b.fec_set_index())
+        .chain(unrelated.chunk_by(|a, b| a.fec_set_index() == b.fec_set_index()))
+        .map(|batch| batch.iter().collect())
+        .collect();
+    assert_eq!(
+        batches.len(),
+        4,
+        "three chained batches and an unrelated one"
+    );
+    let root = |batch: &[&agave::Shred]| batch[0].merkle_root().unwrap();
+    for k in 0..2 {
+        // The chain the transplant exploits: batch k+1 names batch k's root.
+        for shred in &batches[k + 1] {
+            assert_eq!(shred.chained_merkle_root().unwrap(), root(&batches[k]));
+        }
+    }
+    assert!(batches[2]
+        .iter()
+        .all(|s| agave_layout::is_retransmitter_signed_variant(s.payload()).unwrap()));
+
+    // (from, to): forwards along the chain, backwards, and between unrelated batches.
+    let moves = [
+        (0, 1),
+        (1, 2),
+        (1, 0),
+        (2, 1),
+        (0, 2),
+        (3, 0),
+        (0, 3),
+        (2, 3),
+    ];
+    let (mut rejected, mut tally) = (0, Tally::default());
+    for (from, to) in moves {
+        // A batch has one root, so its data and coding shreds carry the same signature.
+        let data = batches[from]
+            .iter()
+            .find(|s| s.is_data())
+            .unwrap()
+            .signature();
+        let code = batches[from]
+            .iter()
+            .find(|s| s.is_code())
+            .unwrap()
+            .signature();
+        assert_eq!(data, code);
+        for (source, signature) in [("data", data), ("coding", code)] {
+            for shred in &batches[to] {
+                let leader = leader.pubkey();
+                // The genuine shred verifies: only the signature makes it fail below.
+                assert!(shred.verify(&leader));
+                let mut bytes = shred.payload().to_vec();
+                bytes[..64].copy_from_slice(signature.as_ref());
+                let target = if shred.is_data() { "data" } else { "coding" };
+                let what = || {
+                    format!("batch {from} signature from a {source} shred into batch {to} {target} shred {}", shred.index())
+                };
+                let decoded_agave = agave::Shred::new_from_serialized_shred(bytes.clone())
+                    .is_ok_and(|s| s.verify(&leader));
+                let decoded_sdk = Shred::new_from_serialized_shred(bytes.as_slice())
+                    .is_ok_and(|s| s.verify(&leader));
+                assert!(!decoded_agave, "Agave's Shred::verify accepts {}", what());
+                assert!(
+                    !agave_verify_packet(&bytes, &leader),
+                    "Agave's verify_shred_cpu accepts {}",
+                    what()
+                );
+                assert!(!decoded_sdk, "the SDK's Shred::verify accepts {}", what());
+                assert!(
+                    !wire::verify_shred(&bytes, &leader),
+                    "the SDK's wire::verify_shred accepts {}",
+                    what()
+                );
+                tally.add(compare(&bytes, &leader, &other, &what));
+                rejected += 1;
+            }
+        }
+    }
+    println!(
+        "transplanted signatures: {rejected} shreds, all rejected by both sides ({} decoded)",
+        tally.accepted
+    );
+    assert_eq!(
+        tally.accepted, rejected,
+        "the shreds still decode; only the signature fails"
+    );
 }
 
 /// A coding shred's erasure batch has to end inside the slot: its last data shred
