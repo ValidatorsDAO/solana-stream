@@ -42,6 +42,8 @@ jobs:
         run: bash scripts/check-oss-hygiene.sh
       - name: Hygiene gate self-test
         run: bash scripts/tests/check-oss-hygiene.test.sh
+      - name: udp dependency gate self-test
+        run: bash scripts/tests/check-udp-deps.test.sh
 
   deny:
     name: cargo deny (advisories, licenses, bans, sources)
@@ -128,22 +130,19 @@ jobs:
           cargo --version
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo test --workspace --locked
+      # The SDK's udp tests (the shred decoder against solana-ledger) on their own: in the
+      # workspace run they depend on a client enabling `udp`.
+      - name: SDK tests with the udp feature
+        run: cargo test -p solana-stream-sdk --features udp --locked
       - name: Build the SDK without the udp feature
         run: cargo check -p solana-stream-sdk --no-default-features --locked
-      # What a user of `solana-stream-sdk/udp` builds (dev-dependencies excluded).
-      - name: The udp feature builds no solana-ledger, RocksDB, OpenSSL, native-tls or bzip2
+      # What a user of `solana-stream-sdk/udp` builds (dev-dependencies excluded), on every
+      # target: no solana-ledger, RocksDB, OpenSSL, native-tls or bzip2.
+      - name: udp dependency gate
         run: |
-          set -euo pipefail
-          built=$(cargo tree -p solana-stream-sdk --features udp -e normal,build --locked --prefix none | awk '{print $1}' | sort -u)
-          found=0
-          for crate in solana-ledger librocksdb-sys rocksdb clang-sys openssl-sys openssl native-tls hyper-tls libbz2-rs-sys bzip2 bzip2-sys; do
-            if grep -qx "$crate" <<<"$built"; then
-              echo "::error::solana-stream-sdk --features udp builds $crate"
-              cargo tree -p solana-stream-sdk --features udp -e normal,build --locked -i "$crate"
-              found=1
-            fi
-          done
-          exit "$found"
+          set -o pipefail
+          cargo tree -p solana-stream-sdk --features udp -e normal,build --target all \
+            --locked --prefix none | bash scripts/check-udp-deps.sh
 
   rust-starters:
     name: Rust starters (temp-release, published SDK)
