@@ -17,7 +17,7 @@ default = []
 # The decoder is the SDK's own (Agave 4.4.1's shred format, checked against solana-ledger
 # in tests/shred_differential.rs), so this feature builds neither solana-ledger nor
 # RocksDB, OpenSSL or bzip2, and needs no [patch] or libclang. solana-rpc-client is for
-# the leader schedule and block times; it uses reqwest with rustls.
+# block times (the SDK fetches no leader schedule); it uses reqwest with rustls.
 udp = [
     "dep:bytes",
     "dep:solana-hash",
