@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Self-test for scripts/check-udp-deps.sh: every banned crate must fail the gate and be
-# named, the version bans must bite exactly below their fixed versions, and a clean graph
-# (with look-alike names that are allowed) must pass. Input that is not a `cargo tree`
-# graph must fail rather than pass by matching nothing.
+# named, the version bans must bite exactly below their fixed versions in SemVer order
+# (pre-releases of the fixed version included), a clean graph (with look-alike names that
+# are allowed) must pass, the whole input must be read (a banned crate after 2,000 lines,
+# or on a last line without a newline), and input that is not a `cargo tree` graph must
+# fail rather than pass by matching nothing.
 #
 #   bash scripts/tests/check-udp-deps.test.sh
 set -uo pipefail
@@ -31,8 +33,13 @@ ed25519-dalek v2.2.0'
 failures=0
 # check <name> <pass|fail> <input> [text the output must contain]
 check() {
+  check_input "$1" "$2" "$(printf '%s\n' "$3")
+" "${4:-}"
+}
+# check_input <name> <pass|fail> <exact input> [text the output must contain]
+check_input() {
   local name="$1" expect="$2" input="$3" needle="${4:-}" out rc=0
-  out="$(printf '%s\n' "$input" | bash "$gate" 2>&1)" || rc=$?
+  out="$(printf '%s' "$input" | bash "$gate" 2>&1)" || rc=$?
   if [ "$expect" = pass ] && [ "$rc" -ne 0 ]; then
     echo "FAIL $name: expected to pass, gate exited $rc: $out"
     failures=$((failures + 1))
@@ -72,19 +79,24 @@ for line in \
 $line" "builds $crate v"
 done
 
-# The version bans, at their boundaries.
-check "ed25519-dalek 1.0.1" fail "$clean
-ed25519-dalek v1.0.1" "builds ed25519-dalek v1.0.1"
-check "ed25519-dalek 2.0.0" pass "$clean
-ed25519-dalek v2.0.0"
-check "curve25519-dalek 3.2.0" fail "$clean
-curve25519-dalek v3.2.0 (*)" "builds curve25519-dalek v3.2.0"
-check "curve25519-dalek 4.1.2" fail "$clean
-curve25519-dalek v4.1.2" "builds curve25519-dalek v4.1.2"
-check "curve25519-dalek 4.1.3" pass "$clean
-curve25519-dalek v4.1.3"
-check "curve25519-dalek 5.0.0" pass "$clean
-curve25519-dalek v5.0.0"
+# The version bans, at their boundaries, in SemVer order: a pre-release of the fixed
+# version is below it, build metadata does not count, parts compare as numbers.
+for version in 1.0.1 1.99.99 2.0.0-rc.3 2.0.0-pre.1 2.0.0-rc.3+build.1; do
+  check "ed25519-dalek $version" fail "$clean
+ed25519-dalek v$version" "builds ed25519-dalek v$version"
+done
+for version in 2.0.0 2.0.0+build.1 2.0.1-alpha 10.0.0; do
+  check "ed25519-dalek $version" pass "$clean
+ed25519-dalek v$version"
+done
+for version in 3.2.0 4.1.2 4.1.3-pre.0 4.1.3-rc.1+build.1 0.99.0; do
+  check "curve25519-dalek $version" fail "$clean
+curve25519-dalek v$version (*)" "builds curve25519-dalek v$version"
+done
+for version in 4.1.3 4.1.3+build.1 4.1.10 4.2.0-pre.1 5.0.0; do
+  check "curve25519-dalek $version" pass "$clean
+curve25519-dalek v$version"
+done
 
 # Several at once are all named.
 check "two banned crates, first named" fail "$clean
@@ -94,9 +106,28 @@ check "two banned crates, second named" fail "$clean
 openssl-sys v0.9.118
 librocksdb-sys v0.17.3+10.4.2" "builds openssl-sys"
 
+# The whole input is read. The CI input is about 1,800 lines; here 2,000 clean ones,
+# with a banned crate near the end, or on a last line that has no newline.
+long="$clean"
+for i in $(seq 1 2000); do
+  long="$long
+filler-$i v0.$((i % 97)).$i"
+done
+check "2,000 clean lines" pass "$long"
+check "banned crate after 2,000 lines" fail "$long
+openssl-sys v0.9.118 (*)
+filler-last v1.0.0" "builds openssl-sys v0.9.118"
+check "banned version after 2,000 lines" fail "$long
+curve25519-dalek v4.1.3-pre.0" "builds curve25519-dalek v4.1.3-pre.0"
+check_input "banned crate on a last line without a newline" fail "$clean
+libbz2-rs-sys v0.2.6" "builds libbz2-rs-sys v0.2.6"
+
 # Input that is not the graph fails instead of passing by matching nothing.
 check "empty input" fail ""
 check "another root" fail "geyser-rs v5.0.0 (/work/client/geyser-rs)
+bytes v1.12.1"
+check "another root with the SDK below it (a client's graph)" fail "shreds-udp-rs v5.0.0 (/work/client/shreds-udp-rs)
+solana-stream-sdk v5.0.0 (/work/crate/solana-stream-sdk)
 bytes v1.12.1"
 check "tree prefixes left on" fail "solana-stream-sdk v5.0.0 (/work/crate/solana-stream-sdk)
 ├── bytes v1.12.1"
