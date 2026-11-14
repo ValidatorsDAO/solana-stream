@@ -1,6 +1,6 @@
 [package]
 name = "shreds-rs-starter"
-version = "4.0.0"
+version = "5.0.0"
 description = "Rust client for Solana shreds streaming"
 authors = ["ELSOUL LABO B.V. <labo@elsoul.nl>"]
 homepage = "https://elsoul.nl/"
@@ -20,8 +20,7 @@ dotenvy = "0.15"
 env_logger = "0.11.8"
 futures = "0.3.31"
 log = "0.4"
-solana-stream-sdk = "4.0.0"
-solana-entry = { version = "=4.4.1", features = ["agave-unstable-api"] }
+solana-stream-sdk = "5.0.0"
 solana-rpc-client = { version = "=4.4.1", features = ["agave-unstable-api"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }
 

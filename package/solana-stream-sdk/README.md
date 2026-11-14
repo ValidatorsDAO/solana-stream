@@ -32,6 +32,11 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
   <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
 </a>
 
+## What's New in v4.1.0
+
+- `GeyserClient` opens 16 MiB HTTP/2 stream and connection receive windows, with adaptive window sizing off, instead of the upstream defaults ([below](#high-throughput-geyser-grpc-receive-windows)). It takes the same constructor arguments as before, and channel options you pass win.
+- New exports: `geyserChannelOptions`, `DEFAULT_GEYSER_CHANNEL_OPTIONS`, `HIGH_THROUGHPUT_GRPC_WINDOW_BYTES`.
+
 ## What's New in v4.0.0
 
 - Yellowstone gRPC 17 (Rust) and `@triton-one/yellowstone-grpc` 10 (TypeScript), with Agave 4.4.1-based Solana Rust types.
@@ -53,9 +58,9 @@ Solana Stream SDK by Validators DAO - A TypeScript SDK for streaming Solana bloc
 Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
 duplicates are expected.
 
-## High-throughput Geyser gRPC receive windows (source tree)
+## High-throughput Geyser gRPC receive windows
 
-The SDK's `GeyserClient` keeps the upstream Yellowstone constructor arguments, but the source-tree version applies 16 MiB **stream and connection** HTTP/2 receive windows with adaptive window sizing disabled. This avoids an accidental low receive-window throughput ceiling. User-provided channel options take precedence, including an explicit choice to re-enable adaptive window sizing.
+From 4.1.0, the SDK's `GeyserClient` keeps the upstream Yellowstone constructor arguments but applies 16 MiB **stream and connection** HTTP/2 receive windows with adaptive window sizing disabled. This avoids an accidental low receive-window throughput ceiling. User-provided channel options take precedence, including an explicit choice to re-enable adaptive window sizing.
 
 ```typescript
 import { GeyserClient } from '@validators-dao/solana-stream-sdk'
@@ -71,7 +76,7 @@ const larger = new GeyserClient(endpoint, xToken, {
 })
 ```
 
-This default **postdates the published 4.0.0 package** and must not be treated as available in npm 4.0.0 until a subsequent package release. See the [ERPC gRPC receive-window FAQ](https://erpc.global/en/faq/grpc/general/) for the 16 KiB vs 16 MiB measurement. A large window does not fix slow decoding, an under-provisioned host, or server-side fair-use limits.
+4.0.0 and earlier use the upstream defaults. See the [ERPC gRPC receive-window FAQ](https://erpc.global/en/faq/grpc/general/) for the 16 KiB vs 16 MiB measurement. A large window does not fix slow decoding, an under-provisioned host, or server-side fair-use limits.
 
 ## Performance Highlights
 
