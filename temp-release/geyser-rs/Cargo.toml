@@ -1,6 +1,6 @@
 [package]
 name = "geyser-rs-temp-release"
-version = "4.0.0"
+version = "5.0.0"
 description = "Rust client for Solana Geyser streaming"
 homepage = "https://elsoul.nl/"
 edition = "2021"
@@ -27,7 +27,7 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_jsonc = "1"
-solana-stream-sdk = "4.0.0"
+solana-stream-sdk = "5.0.0"
 solana-rpc-client = { version = "=4.4.1", features = ["agave-unstable-api"] }
 solana-pubkey = "4.3.0"
 solana-signature = "3.5.2"

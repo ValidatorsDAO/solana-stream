@@ -19,11 +19,7 @@ path = "src/main.rs"
 chrono = "0.4.42"
 dotenvy = "0.15"
 env_logger = "0.11.8"
-futures = "0.3.31"
 log = "0.4"
-solana-entry = { version = "=4.4.1", features = ["agave-unstable-api"] }
-solana-rpc-client = { version = "=4.4.1", features = ["agave-unstable-api"] }
-solana-transaction = { version = "5.0.0", features = ["serde", "wincode", "verify"] }
 solana-stream-sdk = { version = "5.0.0", features = ["udp"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "signal"] }
 

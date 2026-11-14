@@ -9,9 +9,9 @@ use futures::{SinkExt, StreamExt};
 use log::{error, info, warn};
 use solana_stream_sdk::yellowstone_grpc_proto::geyser::SubscribeRequestPing;
 use solana_stream_sdk::{
-    GeyserBackoff, GeyserGrpcClient, GeyserGrpcClientError, GeyserReconnectConfig,
-    GeyserReconnectEvent, GeyserReconnectPolicy, GeyserSubscribeRequest, GeyserSubscribeUpdate,
-    GeyserUpdateOneof,
+    tune_geyser_grpc_builder, GeyserBackoff, GeyserGrpcClient, GeyserGrpcClientError,
+    GeyserReconnectConfig, GeyserReconnectEvent, GeyserReconnectPolicy, GeyserSubscribeRequest,
+    GeyserSubscribeUpdate, GeyserUpdateOneof,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -109,18 +109,14 @@ async fn stream_once(
     reconnect_backoff: GeyserBackoff,
     saw_updates: &mut bool,
 ) -> anyhow::Result<()> {
-    // This starter builds against the published SDK 4.0.0, which does not yet
-    // export tune_geyser_grpc_builder. Apply the same windows directly.
-    const WINDOW: u32 = 16 * 1024 * 1024;
-    let mut builder = GeyserGrpcClient::build_from_shared(grpc_endpoint.to_string())?
-        .initial_stream_window_size(WINDOW)
-        .initial_connection_window_size(WINDOW)
-        .http2_adaptive_window(false)
-        .set_reconnect_config(
-            GeyserReconnectConfig::default()
-                .with_backoff(reconnect_backoff)
-                .with_policy(GeyserReconnectPolicy::Replay { slots_behind: 0 }),
-        );
+    let mut builder = tune_geyser_grpc_builder(GeyserGrpcClient::build_from_shared(
+        grpc_endpoint.to_string(),
+    )?)
+    .set_reconnect_config(
+        GeyserReconnectConfig::default()
+            .with_backoff(reconnect_backoff)
+            .with_policy(GeyserReconnectPolicy::Replay { slots_behind: 0 }),
+    );
     if let Some(token) = x_token {
         builder = builder.x_token(Some(token.to_string()))?;
     }
@@ -524,7 +520,7 @@ mod tests {
             requests
         });
         Box::pin(first_request.flat_map(move |requests| {
-            let tail: UpdateStream = if call % 2 == 0 {
+            let tail: UpdateStream = if call.is_multiple_of(2) {
                 Box::pin(stream::iter(vec![Err(Status::unavailable(
                     "connection reset",
                 ))]))

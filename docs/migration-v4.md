@@ -181,13 +181,14 @@ enough for bindgen (only the `udp` feature needs it).
 ## Starters (`temp-release/`)
 
 `slv bot init` copies `temp-release/<template>/` from the `main` branch, and those
-starters install the published packages. They use 4.0.0 (published on 2026-11-06), and
-CI checks them against it.
+starters install the published packages. They used 4.0.0 (published on 2026-11-06) when
+this guide was written; the Rust starters have since moved to 5.0.0 (see
+[migration-v5.md](migration-v5.md)), and CI checks each starter against what it names.
 
 - `geyser-rs`, `geyser-ts`: the same code as `client/geyser-rs` and `client/geyser-ts`.
-- `shreds-udp-rs`: enables `udp` and carries the rust-rocksdb `[patch.crates-io]`
-  lines. Keep them if you move the crate into another workspace.
-- `trade-app`: SDK 4.0, but its own runner. It trades at processed commitment without
+- `shreds-udp-rs`: enables `udp`. On 4.0 it carried the rust-rocksdb
+  `[patch.crates-io]` lines; on 5.0 it needs none.
+- `trade-app`: the published SDK (4.0 then, 5.0 now), but its own runner. It trades at processed commitment without
   de-duplication, and the 4.0 runner replays from the last confirmed slot after each
   reconnect, which would resend recent pool creations. Add de-duplication before you
   switch it to `subscribe_with_reconnect`.
