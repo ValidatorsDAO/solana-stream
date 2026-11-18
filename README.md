@@ -34,7 +34,7 @@ cd solana-stream
 pnpm install
 
 cp client/geyser-ts/.env.example client/geyser-ts/.env
-# Edit the .env file with your own GEYSER_ENDPOINT and, if required, X_TOKEN.
+# Set GEYSER_ENDPOINT and SOLANA_RPC_ENDPOINT; add X_TOKEN if your provider requires it.
 
 pnpm -F @validators-dao/solana-stream-sdk build
 pnpm -F geyser-ts dev
