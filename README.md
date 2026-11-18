@@ -1,439 +1,115 @@
-> Alpenglow has been active on Solana mainnet-beta since epoch 1064 (2026-10-21). It adds block markers to entry streams and changes the Yellowstone protocol. SDK 3.0.0 supports it — see the [Alpenglow migration guide](docs/alpenglow.md).
-> **4.0** moves to the Yellowstone gRPC 17 clients and the Agave 4.4 crates, and makes the reconnecting subscription (`subscribe_with_reconnect` / `subscribeWithReconnect`) the recommended way to stream Geyser updates. See the [4.0 migration guide](docs/migration-v4.md).
-
-> Transaction v1 is live on Solana mainnet (since epoch 1035, 2026-09-15). SDK 2.0.0 and later / entry decoder 2.5.0 decode it — see the [migration guide](docs/transaction-v1.md).
-
-<p align="center">
-  <a href="https://slv.dev/" target="_blank">
-    <img src="https://storage.validators.solutions/SolanaStreamSDK.jpg" alt="SolanaStreamSDK" />
-  </a>
-  <a href="https://twitter.com/intent/follow?screen_name=ValidatorsDAO" target="_blank">
-    <img src="https://img.shields.io/twitter/follow/ValidatorsDAO.svg?label=Follow%20@ValidatorsDAO" alt="Follow @ValidatorsDAO" />
-  </a>
-  <a href="https://crates.io/crates/solana-stream-sdk">
-    <img alt="Crate" src="https://img.shields.io/crates/v/solana-stream-sdk?label=solana-stream-sdk&color=fc8d62&logo=rust">
-    </a>
-  <a href="https://www.npmjs.com/package/@validators-dao/solana-stream-sdk">
-    <img alt="NPM Version" src="https://img.shields.io/npm/v/@validators-dao/solana-stream-sdk?color=268bd2&label=version&logo=npm">
-  </a>
-  <a aria-label="License" href="https://github.com/ValidatorsDAO/solana-stream/blob/main/LICENSE.txt">
-    <img alt="" src="https://badgen.net/badge/license/Apache/blue">
-  </a>
-  <a aria-label="Code of Conduct" href="https://github.com/ValidatorsDAO/solana-stream/blob/main/CODE_OF_CONDUCT.md">
-    <img alt="" src="https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg">
-  </a>
-</p>
-
 # Solana Stream SDK
 
-## SDK v4.0.0 performance
+**Real-time Solana data for Rust and TypeScript.**
 
-[![Solana Stream SDK 4.0.0: Rust UDP internal processing, TypeScript event-queue throughput and Geyser gRPC reconnection benchmarks](https://storage.elsoul.nl/website/images/news/2026/11/07/erpc-solana-stream-sdk-v4-20261107-performance-en_1280.webp)](https://erpc.global/en/news/2026/11/07/erpc-solana-stream-sdk-v4-20261107/)
+Build indexers, monitors, and event-driven applications with **Geyser gRPC**, **Shreds gRPC**, or **UDP Shreds**. One open-source repository with SDKs, working clients, and protocol migration guides.
 
-The figure compares **three separate local benchmarks**, not end-to-end network latency: approximately **108×** faster Rust UDP internal processing, approximately **4×** greater TypeScript event-queue throughput, and a **552 → 103 ms** median receive-resumption interval after disconnects in the local tonic test. [Methods and test results](https://github.com/ValidatorsDAO/solana-stream/pull/129) · [Full v4 announcement](https://erpc.global/en/news/2026/11/07/erpc-solana-stream-sdk-v4-20261107/).
+[![Rust crate](https://img.shields.io/crates/v/solana-stream-sdk?label=Rust%20crate)](https://crates.io/crates/solana-stream-sdk)
+[![TypeScript package](https://img.shields.io/npm/v/@validators-dao/solana-stream-sdk?label=TypeScript%20npm)](https://www.npmjs.com/package/@validators-dao/solana-stream-sdk)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE.txt)
 
-A collection of Rust and TypeScript packages for Solana stream data, operated by ValidatorsDAO. This repository is published as open-source software (OSS) and is freely available for anyone to use.
+[Choose a stream](#choose-your-stream) · [Quick start](#quick-start) · [Documentation](#documentation) · [Releases](#versions-and-compatibility)
 
-<a href="https://solana.com/">
-  <img src="https://storage.slv.dev/PoweredBySolana.svg" alt="Powered By Solana" width="200px" height="95px">
-</a>
+## Choose your stream
 
-## Overview
+| Stream | Best for | Language | Working example |
+| --- | --- | --- | --- |
+| **Geyser gRPC** | Structured transactions, accounts, slots, and blocks with server-side filters and resilient subscriptions | Rust / TypeScript | [Rust](client/geyser-rs/README.md) · [TypeScript](client/geyser-ts/README.md) |
+| **Shreds gRPC** | Receiving and decoding shred-derived entries over a gRPC connection | Rust / TypeScript | [Rust](client/shreds-rs/README.md) · [TypeScript](client/shreds-ts/README.md) |
+| **UDP Shreds** | Packet-level Solana data for latency-sensitive custom processing, where packet loss and incomplete data can be handled | Rust | [Receiver](client/shreds-udp-rs/README.md) · [Integration guide](docs/udp-shreds.md) |
 
-This project provides libraries and tools for streaming real-time data from the Solana blockchain. It supports both Geyser and Shreds approaches, making it easier for developers to access Solana data streams.
+**New to Solana streams? Start with Geyser gRPC.** It offers structured updates and supported subscription filters. Choose Shreds when you need the lower-level data path and understand the trade-offs.
 
-## Choose Your Path
+This repository contains **client libraries and examples**, not a hosted data service. Bring a compatible stream endpoint or UDP forwarding source. [ERPC](https://dashboard.erpc.global/en) is one option; other compatible providers can be used.
 
-- Geyser gRPC (TypeScript/Rust): production-ready streaming with resilient reconnects
-- Shreds gRPC (TypeScript/Rust): raw shreds over gRPC for high-throughput ingestion
-- UDP Shreds (Rust): lowest-latency signal for real-time event detection
+## Quick start
 
-## What's New in v5.0.0 (Rust)
+### 1. TypeScript: run the Geyser client
 
-- The `udp` feature decodes shreds itself (`solana_stream_sdk::shred`, following Agave 4.4.1) instead of building `solana-ledger`: no RocksDB, OpenSSL or bzip2, no `[patch.crates-io]` and no libclang, 419 crates instead of 648. This breaks code that uses the `Shred` values of the `udp` API (`DecodedShred::shred`, `ShredReadyBatch::shreds`, the deshred functions) as `solana_ledger` ones; without `udp`, moving from 4.x is a version bump. See the [5.0 migration guide](docs/migration-v5.md).
-- The UDP receiver does not check that the slot's leader signed a shred (neither did 4.x). `shred::wire::verify_shred` does, in a receive loop of your own; see the [migration guide](docs/migration-v5.md#leader-signatures).
-- `ShredstreamClient::connect` opens 16 MiB HTTP/2 receive windows, and the new `transport` helpers apply them to your own endpoints and Geyser builders (see below).
-- Rust only: no npm package was released (`@validators-dao/solana-stream-sdk` stays at 4.0.0).
-
-## What's New in v4.0.0
-
-- Yellowstone gRPC 17 (Rust) and `@triton-one/yellowstone-grpc` 10 (TypeScript), with Agave 4.4.1-based Solana Rust types.
-- Recommended resilient subscriptions: `subscribe_with_reconnect` and `subscribeWithReconnect`, including explicit disconnected/partial-bank notifications and replay.
-- Alpenglow block-marker support continues from SDK v3; v4 updates client integration and exposed types.
-- Independent local tests measured about **108×** faster Rust UDP internal datagram processing, about **4×** higher TypeScript event-queue throughput, and a **552 → 103 ms** receive-resumption interval following local gRPC disconnects. These are different benchmarks, not cumulative or end-to-end network performance. [Measurement details](https://github.com/ValidatorsDAO/solana-stream/pull/129).
-
-## Production-Ready Geyser Clients (TypeScript + Rust)
-
-- Rust Geyser exports track `yellowstone-grpc-client` 17.x and expose deshred, token-account expansion, cuckoo filter, block footer and `UpdateParent` helpers
-- Reconnecting subscriptions (`subscribe_with_reconnect` / `subscribeWithReconnect`) replay from the last confirmed slot and report each dropped connection with the banks to discard
-- Ping/Pong handling to keep Yellowstone gRPC streams alive
-- Exponential reconnect backoff plus gap recovery (`fromSlot` / `from_slot`), sent as the first request of each new stream
-- Stops with the server's message when a request is rejected with `RESOURCE_EXHAUSTED` (larger than the server accepts) instead of reconnecting
-- Works with Yellowstone gRPC 17 (Agave 4.4); see [what changes](docs/alpenglow.md#yellowstone-grpc-17-agave-44)
-- Bounded queues/channels with drop logging for backpressure safety
-- Code-based subscription filters in TypeScript
-- Optional runtime metrics logging (TypeScript)
-- Default filters drop vote/failed transactions to reduce traffic
-- Rust Geyser client ships the same safeguards and powers UDP Shreds for fastest signal
-
-Tip: start with slots, then add filters as needed. When resuming from `fromSlot`,
-duplicates are expected.
-
-## High-throughput gRPC receive defaults
-
-A client can throttle its own incoming stream when its HTTP/2 *stream* or *connection* receive window is too small. The SDK source now uses **16 MiB for each window**, with adaptive window sizing disabled so the specified sizes take effect. This applies to the TypeScript `GeyserClient`, Rust `ShredstreamClient`, and the included Rust Geyser example/sample through `tune_geyser_grpc_builder`, in this repository and in the `geyser-rs` starter (the TypeScript starters set the same values themselves until they move to npm 4.1.0). The raw upstream `GeyserGrpcClient` re-export keeps its own defaults unless the helper is used. Callers can override TypeScript channel options or Rust builder/endpoint settings.
-
-Rust: published in crates.io `solana-stream-sdk` **5.0.0**. TypeScript: the `GeyserClient` change is in this source tree only; npm `@validators-dao/solana-stream-sdk` 4.0.0 does not have it until its next release, and neither does `@validators-dao/solana-shreds-client` 2.0.0 (its published binary predates the change). This tuning does not bypass server-side limits, prevent packet loss, or compensate for a slow application consumer; keep reception efficient and work queues bounded. See [ERPC's flow-control diagnosis and measured 16 KiB vs 16 MiB comparison](https://erpc.global/en/faq/grpc/general/).
-
-## Rust Highlight: UDP Shreds (Fastest Signal)
-
-If you have **ERPC Dedicated Shreds**, you can forward raw Shreds over UDP to your own listener.
-This is Solana’s fastest observation layer—before Geyser gRPC and far ahead of RPC/WebSocket.
-The SDK includes a simple Rust sample; use the `generic_logger` binary to watch any program of your choice.
-
-### Why this is the fastest path
-
-- Shreds arrive first: validator-to-validator Shreds land before Geyser gRPC or RPC/WebSocket,
-  so latency-critical flows see events earliest.
-- UDP keeps overhead tiny: no connection setup, retransmit, or ordering; matches the on-wire
-  format between validators.
-- Optional latency monitoring uses a DashMap-backed slot tracker to reduce lock contention.
-- Trade-off: pre-finalization data can be missing/out-of-order/failed—handle that as part of the
-  speed bargain.
-
-Note: the shared Shreds gRPC endpoint runs over TCP, so it’s slower than UDP Shreds.
-
-### Try it with Solana Stream SDK
-
-- Sample code (`shreds-udp-rs`, Rust): set any program of your own as the watch target.  
-  https://github.com/ValidatorsDAO/solana-stream/tree/main/temp-release/shreds-udp-rs
-- Quick start requires `settings.jsonc` plus env (e.g., `SOLANA_RPC_ENDPOINT`); see the sample README.
-- Dedicated Shreds users: point your Shreds sender to the sample’s `ip:port` to see detections.
-- Not on UDP yet? Run it locally or on your own server to explore logs and customize handlers.
-
-### Example log
-
-![program hits over UDP Shreds](https://storage.validators.solutions/SolanaStreamSDKUDPClientExample.jpg)
-
-This example comes from the SDK sample; clone and run it to see hits with your own watch target.
-
-### Resources
-
-- All code and README docs are in the Solana Stream SDK repo:  
-  https://github.com/ValidatorsDAO/solana-stream
-
-## Package Structure
-
-### Rust Clients
-
-- **client/geyser-rs/**: Rust client using Geyser gRPC
-- **client/shreds-rs/**: Rust client for Shredstream over gRPC
-- **client/shreds-udp-rs/**: Minimal UDP shred listener with configurable program watch example
-
-### TypeScript Clients
-
-- **client/geyser-ts/**: TypeScript client using Geyser gRPC
-- **client/shreds-ts/**: TypeScript client for Shredstream over gRPC
-
-### SDK Packages
-
-- **crate/solana-stream-sdk/**: Rust SDK for Solana stream functionality
-- **package/solana-stream-sdk/**: TypeScript SDK for Solana stream functionality
-
-## Getting Started
-
-For ERPC endpoint access and current plans, use the [ERPC Web Dashboard](https://dashboard.erpc.global/en). Hourly billing lets you test on your own server without a monthly commitment. Use the endpoint shown for your service in the dashboard.
-
-### Prerequisites
-
-- Node.js 22 or 24 (LTS) for TypeScript packages
-- Rust (for Rust packages)
-- pnpm (for package management)
-
-### Installation
-
-For the entire workspace:
+Requires **Node.js 22+** and **pnpm**. The source workspace uses pnpm 11.
 
 ```bash
 git clone https://github.com/ValidatorsDAO/solana-stream.git
 cd solana-stream
 pnpm install
-```
 
-### Geyser Client Example – TypeScript
+cp client/geyser-ts/.env.example client/geyser-ts/.env
+# Edit the .env file with your own GEYSER_ENDPOINT and, if required, X_TOKEN.
 
-Create a `.env` file at `client/geyser-ts/.env` with your environment variables:
-
-```env
-# Optional: required only if your endpoint enforces auth
-X_TOKEN=YOUR_X_TOKEN
-GEYSER_ENDPOINT=http://grpc-ams1.erpc.global
-SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
-```
-
-⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.
-
-Next, build and run the client:
-
-```bash
 pnpm -F @validators-dao/solana-stream-sdk build
 pnpm -F geyser-ts dev
 ```
 
-### Quick Start Guide for Sample Shreds Client - Rust
+The example includes reconnect handling, stream resumption, bounded processing, and transaction/account handlers. [Configuration and application hooks](client/geyser-ts/README.md).
 
-**Create a `.env` file** (placed in the project root)
+For an existing TypeScript project, install the published library with `pnpm add @validators-dao/solana-stream-sdk`. See the [package API and examples](package/solana-stream-sdk/README.md).
 
-```env
-SHREDS_ENDPOINT=http://shreds-ams6-1.erpc.global
-SOLANA_RPC_ENDPOINT="https://edge.erpc.global?api-key=YOUR_API_KEY"
-```
+### 2. Rust: run the Shreds gRPC client
 
-⚠️ **Please note:** This endpoint is a sample and cannot be used as is. Please obtain and configure the appropriate endpoint for your environment.
-
-**Run the sample client**
+Requires **Rust 1.98.1+** and access to a Shreds gRPC endpoint.
 
 ```bash
-cargo run -p shreds-rs
+git clone https://github.com/ValidatorsDAO/solana-stream.git
+cd solana-stream/client/shreds-rs
+
+cp .env.example .env
+# Replace SHREDS_ENDPOINT and SOLANA_RPC_ENDPOINT with your own endpoints.
+
+cargo run
 ```
 
-The sample code can be found at:
+For a Rust application, add `solana-stream-sdk = "5.0.0"` to your `Cargo.toml`, then follow the [Shreds example](client/shreds-rs/README.md) or [Geyser example](client/geyser-rs/README.md).
 
-[https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs](https://github.com/ValidatorsDAO/solana-stream/blob/main/client/shreds-rs/src/main.rs)
+### 3. Rust: receive UDP Shreds
 
-#### Usage with solana-stream-sdk
-
-The following example targets SDK 5.0 (see the [5.0](docs/migration-v5.md) and [4.0](docs/migration-v4.md) migration guides and the [Alpenglow migration guide](docs/alpenglow.md); Transaction v1 support is covered by the [v1 migration guide](docs/transaction-v1.md)).
-
-```toml
-[dependencies]
-solana-stream-sdk = { version = "5.0.0", default-features = false }
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-dotenvy = "0.15"
-```
-
-```rust
-use solana_stream_sdk::{decode_entries, CommitmentLevel, ShredstreamClient};
-use std::env;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load environment variables
-    dotenvy::dotenv().ok();
-
-    // Connect to shreds endpoint
-    let endpoint = env::var("SHREDS_ENDPOINT")
-        .unwrap_or_else(|_| "http://shreds-ams6-1.erpc.global".to_string());
-    let mut client = ShredstreamClient::connect(&endpoint).await?;
-
-    // Create subscription for specific account
-    let request = ShredstreamClient::create_entries_request_for_account(
-        "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
-        Some(CommitmentLevel::Processed),
-    );
-
-    // Subscribe to entries stream
-    let mut stream = client.subscribe_entries(request).await?;
-
-    // Process incoming entries
-    while let Some(entry) = stream.message().await? {
-        let entries = decode_entries(&entry.entries)?;
-        println!("Slot: {}, Entries: {}", entry.slot, entries.len());
-
-        for entry in entries {
-            println!("  Entry has {} transactions", entry.transactions.len());
-        }
-    }
-
-    Ok(())
-}
-```
-
-For specific packages, navigate to the package directory and install dependencies.
-
-## Shreds UDP Program Watcher (Rust)
-
-`client/shreds-udp-rs` listens for Shredstream over **UDP** and highlights watched programs (configurable via `settings.jsonc`). Settings live in `client/shreds-udp-rs/settings.jsonc` and are embedded at build time; secrets like RPC can be overridden via environment variables.
-
-Quick start:
+If you have a UDP Shreds source, set the listener in [`settings.jsonc`](client/shreds-udp-rs/settings.jsonc) and forward packets to its IP and port:
 
 ```bash
-export SOLANA_RPC_ENDPOINT=https://api.mainnet-beta.solana.com   # pass secrets via env only
-cargo run -p shreds-udp-rs                                       # settings already in settings.jsonc
+# From the repository root
+cargo run -p shreds-udp-rs --bin generic_logger
 ```
 
-Log legend:
+This is a **listener**, not a data-source simulator; output requires incoming packets. The [UDP integration guide](docs/udp-shreds.md) covers configuration, assembly, custom handlers, and signature verification.
 
-- Prefix: `🎯` program hit, `🐣` authority hit (`🎯🐣` means both)
-- Action: `🐣` create, `🟢` buy, `🔻` sell, `🪙` other, `❓` unknown/missing amounts
-- Votes skipped by default (`skip_vote_txs=true`)
-- SOL values shown are instruction limits; actual fills require event/meta data (e.g., Geyser/RPC).
-- UDP shreds are processed directly; not dependent on RPC commitment. Failed transactions may still appear; missing fields show as `❓`.
+## Built for streaming applications
 
-Components from `crate/solana-stream-sdk` (5 layers):
+- **Resilient Geyser subscriptions:** Rust `subscribe_with_reconnect` and TypeScript `subscribeWithReconnect` expose disconnections and partial banks, with replay support. Consumers must handle replayed updates idempotently.
+- **Modern Solana data formats:** Supports Transaction v1 and Alpenglow block markers; see the [compatibility notes](#versions-and-compatibility).
+- **High-throughput Rust gRPC configuration:** Rust SDK 5.0 uses 16 MiB HTTP/2 receive windows for `ShredstreamClient::connect`; use `tune_geyser_grpc_builder` for the upstream Geyser builder.
+- **Composable UDP processing:** The Rust `udp` feature offers shred decoding, FEC assembly, deshredding, program watchers, and custom sinks without pulling `solana-ledger` into consumer builds.
 
-- Config loader (`ShredsUdpConfig`): reads JSONC/env and builds `ProgramWatchConfig`. Use `watch_config_no_defaults()` to define your own watch set (composite mint finder = SPL Token MintTo/Initialize).
-- Receiver (`UdpShredReceiver`): minimal UDP socket reader with timestamps.
-- Pipeline (5 layers): ① receive/prefilter (`decode_udp_datagram`) → ② FEC buffer (`insert_shred` + `ShredsUdpState`) → ③ deshred (`deshred_shreds_to_component`: an entry batch or an Alpenglow block marker) → ④ watcher/detail (`collect_watch_events` + detailers, fed with the entries only) → ⑤ sink (logs/custom hooks).
-- One-call convenience: `handle_pumpfun_watcher` wraps the same 5 layers (legacy default watcher; set your own watch IDs).
-- Customize sink/detailer: via `ProgramWatchConfig::with_detailers(...)` or replace the sink with your own hook.
-- Vote filtering: by default `skip_vote_txs=true`, so vote-only shreds/txs are dropped early.
-- Samples: `cargo run -p shreds-udp-rs --bin generic_logger` (recommended; set `GENERIC_WATCH_PROGRAM_IDS` / `GENERIC_WATCH_AUTHORITIES` to watch your own programs) or `cargo run -p shreds-udp-rs` (one-call wrapper).
+[Performance measurements and methodology](docs/performance.md) include the scope and limitations of the published local benchmarks.
 
-Troubleshooting:
+## Versions and compatibility
 
-- Transaction v1 requires the decoder of SDK 2.0.0 or later (3.0.0 includes it), which uses the Agave 4.2.2 wire schema for legacy, v0 and v1 entries. SDK 1.4.0 does not support v1. See the [migration guide](docs/transaction-v1.md) before updating.
-- Errors such as `entry decode failed: invalid value: integer ..., expected a valid transaction message version`, `continue signal on byte-three`, `unexpected end of file`, or `alias encoding` usually indicate a codec mismatch rather than firewall loss.
-- UDP packet sizes around 1203/1228 bytes are normal Merkle shred sizes and do not by themselves indicate truncation.
+| Package | Published version (as of 2026-11-18) | Notes |
+| --- | --- | --- |
+| [`solana-stream-sdk`](https://crates.io/crates/solana-stream-sdk) (Rust) | **5.0.0** | UDP decoder migration and Rust gRPC receive-window defaults; [v5 migration](docs/migration-v5.md) |
+| [`@validators-dao/solana-stream-sdk`](https://www.npmjs.com/package/@validators-dao/solana-stream-sdk) (TypeScript) | **4.0.0** | `4.1.0` is in the repository source but **not yet published to npm**; npm 4.0 does **not** include the new 16 MiB Geyser defaults |
 
-Design notes
+The two packages **do not share a release version**. Check the package-registry badges above for newer releases. Rust 5.0 requires Rust **1.98.1+**; the repository pins **1.99.1**. TypeScript requires Node.js **22+**.
 
-- Layered pipeline (5 layers): ① UDP receive → ② FEC buffer/pre-deshred → ③ deshred → ④ watcher (mint extraction) → ⑤ detailer/sink (labeling + log output). Each stage can be swapped or reused.
-- Pure UDP/FEC path: single-purpose deshredder tuned for Agave merkle sizing; leaves ledger/rpc out of the hot path.
-- Config is JSONC/env: secrets (RPC) in env, behavior (watch ids, logging) in JSONC.
-- Composable stages: receiver → deshred → watcher → detailer → sink; each stage can be swapped or reused.
-- Signal-first logging: emoji at a glance, vote-filtered by default, and mint-level detail with adapters.
-- Small, dependency-light SDK crate backing a CLI client; intended to embed into larger consumers as well.
+### Important behavior
 
-Quick choices:
+- **Shreds gRPC filters are experimental:** Use empty filter maps. Geyser gRPC filters are supported.
+- **UDP is not finality:** Packets may be lost or out of order, and observations may contain failed transactions. The sample UDP receive loop does **not verify leader signatures** by default. See [verification guidance](docs/migration-v5.md#leader-signatures).
+- **Reconnects may replay data:** Handle `Disconnected` events, discard partial-bank state, and make application processing idempotent.
+- **Flow control is not a server-limit bypass:** Larger HTTP/2 receive windows do not fix a slow consumer or override upstream constraints.
 
-- Want a one-call loop? Use `handle_pumpfun_watcher` in your own binary and set your own watch IDs/env as needed.
-- Need to act on detections (e.g., push to a queue, custom filtering, alternate watchers/detailers)? Use the modular pipeline (`decode_udp_datagram` → `insert_shred` → `deshred_shreds_to_component` → `collect_watch_events`) and hook your own sink right after detection (see `client/shreds-udp-rs` custom hook example). `deshred_shreds_to_component` tells an entry batch from a block marker, so a marker never reaches `collect_watch_events`; `deshred_shreds_to_entries` returns an empty vector for a marker and cannot report it.
+## Documentation
 
-Minimal usage example (Rust):
+| Topic | Guide |
+| --- | --- |
+| Geyser gRPC | [TypeScript client](client/geyser-ts/README.md) · [Rust client](client/geyser-rs/README.md) |
+| Shreds gRPC | [TypeScript client](client/shreds-ts/README.md) · [Rust client](client/shreds-rs/README.md) |
+| UDP Shreds | [Integration and operational guide](docs/udp-shreds.md) · [Rust receiver sample](client/shreds-udp-rs/README.md) |
+| Protocol upgrades | [Rust v5 migration](docs/migration-v5.md) · [v4 migration](docs/migration-v4.md) · [Alpenglow](docs/alpenglow.md) · [Transaction v1](docs/transaction-v1.md) |
+| Performance | [Benchmarks and gRPC flow control](docs/performance.md) |
+| SDK packages | [Rust crate](crate/solana-stream-sdk/README.md) · [TypeScript package](package/solana-stream-sdk/README.md) |
+| Release history | [Changelog](CHANGELOG.md) · [GitHub releases](https://github.com/ValidatorsDAO/solana-stream/releases) |
 
-```rust
-use solana_stream_sdk::shreds_udp::{ShredsUdpConfig, ShredsUdpState, DeshredPolicy, handle_pumpfun_watcher};
-use solana_stream_sdk::UdpShredReceiver;
-use std::sync::Arc;
+## Contributing and support
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let cfg = ShredsUdpConfig::from_env(); // reads SHREDS_UDP_CONFIG jsonc too
-    let mut receiver = UdpShredReceiver::bind(&cfg.bind_addr, None).await?;
-    let policy = DeshredPolicy { require_code_match: cfg.require_code_match };
-    let watch_cfg = Arc::new(cfg.watch_config());
-    let state = ShredsUdpState::new(&cfg);
-    loop {
-        handle_pumpfun_watcher(&mut receiver, &state, &cfg, policy, watch_cfg.clone()).await?;
-    }
-}
-```
+Issues, fixes, and improvements are welcome. See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and the [Code of Conduct](CODE_OF_CONDUCT.md). Report SDK bugs through [GitHub Issues](https://github.com/ValidatorsDAO/solana-stream/issues); for ERPC account or endpoint support, use the [ERPC dashboard](https://dashboard.erpc.global/en).
 
-Modular pipeline example (custom watch set):
-
-```rust
-use solana_stream_sdk::shreds_udp::{
-    collect_watch_events, decode_udp_datagram, deshred_shreds_to_component, insert_shred,
-    DeshredPolicy, ShredInsertOutcome, ShredSource, ShredsUdpConfig, ShredsUdpState,
-};
-use solana_stream_sdk::txn::{ProgramWatchConfig, SplTokenMintFinder};
-use solana_stream_sdk::{BlockComponentPayload, UdpShredReceiver};
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let cfg = ShredsUdpConfig::from_env();
-    let mut receiver = UdpShredReceiver::bind(&cfg.bind_addr, None).await?;
-    let policy = DeshredPolicy { require_code_match: cfg.require_code_match };
-    let state = ShredsUdpState::new(&cfg);
-    let watch_cfg = Arc::new(
-        ProgramWatchConfig::new(vec![], vec![]) // define your own watch set
-            .with_mint_finder(Arc::new(SplTokenMintFinder))
-            .with_detailers(Vec::new()),
-    );
-
-    loop {
-        let datagram = receiver.recv_raw().await?;
-        if let Some(decoded) = decode_udp_datagram(&datagram, &state, &cfg).await {
-            if let ShredInsertOutcome::Ready(ready) =
-                insert_shred(decoded, &datagram, &state, &cfg, &policy).await
-            {
-                match deshred_shreds_to_component(&ready.shreds) {
-                    Ok(BlockComponentPayload::Entries(entries)) => {
-                        let txs: Vec<_> =
-                            entries.iter().flat_map(|e| e.transactions.iter()).collect();
-                        let _hits =
-                            collect_watch_events(ready.key.slot, &txs, watch_cfg.as_ref(), 0);
-                    }
-                    Ok(BlockComponentPayload::BlockMarker { kind, .. }) => {
-                        // An Alpenglow block marker (UpdateParent, BlockFooter, ...), not transactions.
-                        println!("slot {} block marker {:?}", ready.key.slot, kind);
-                    }
-                    Err(_) => {
-                        state.remove_batch(&ready.key).await;
-                        state.mark_suppressed(ready.key).await;
-                        continue;
-                    }
-                }
-                state.remove_batch(&ready.key).await;
-                if matches!(ready.source, ShredSource::Data) {
-                    state.mark_completed(ready.key).await;
-                }
-            }
-        }
-    }
-}
-```
-
-## ⚠️ Experimental Filtering Feature Notice
-
-Filtering remains experimental on the **Shreds gRPC** path (`shreds-rs`, `shreds-ts`): requests should send empty filter maps because shreds-side filters are not usable yet. Geyser gRPC filters are fine. For workloads that need filtering, prefer the high-speed, customizable UDP shreds pipeline described above. Occasionally, data may not be fully available, and filters may not be applied correctly on the shreds gRPC path.
-
-If you encounter such cases, please report them by opening an issue at: https://github.com/ValidatorsDAO/solana-stream/issues
-
-Your feedback greatly assists our debugging efforts and overall improvement of this feature.
-
-Other reports and suggestions are also highly appreciated.
-
-For ERPC account or endpoint support, use the support section of the [ERPC Web Dashboard](https://dashboard.erpc.global/en).
-
-## Development
-
-This project uses a monorepo structure with both Rust and TypeScript components:
-
-- **Rust packages**: Managed with Cargo
-- **TypeScript packages**: Managed with pnpm workspaces
-- **Unified configuration**: Shared TypeScript and Prettier configurations
-
-### Building
-
-```bash
-# Build all TypeScript packages
-pnpm build
-
-# Build Rust packages
-cargo build
-```
-
-## Usage
-
-Each package contains its own documentation and usage examples. Please refer to the individual package READMEs for specific implementation details.
-
-## Contributing
-
-We welcome contributions from the community! This project is continuously updated and improved.
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## About ValidatorsDAO
-
-This project is operated and maintained by ValidatorsDAO, focused on providing robust tools and infrastructure for the Solana ecosystem.
-
-## Updates
-
-This repository is actively maintained and will receive continuous updates to improve functionality and add new features.
-
-## License
-
-The package is available as open source under the terms of the
-[Apache-2.0 License](https://www.apache.org/licenses/LICENSE-2.0).
-
-## Code of Conduct
-
-Everyone interacting in the Validators DAO project’s codebases, issue trackers, chat rooms
-and mailing lists is expected to follow the
-[code of conduct](https://github.com/ValidatorsDAO/solana-stream/blob/main/CODE_OF_CONDUCT.md).
+Maintained by [Validators DAO](https://github.com/ValidatorsDAO). Licensed under [Apache-2.0](LICENSE.txt). [Powered by Solana](https://solana.com/).
