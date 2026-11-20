@@ -1,5 +1,7 @@
 # Solana Stream SDK
 
+[![Solana Stream SDK: Rust or TypeScript. Built for speed. Green crystal module with a metal plate.](docs/assets/solana-stream-hero.png)][solana-stream-start]
+
 **Real-time Solana data for Rust and TypeScript.**
 
 Build indexers, monitors, and event-driven applications with **Geyser gRPC**, **Shreds gRPC**, or **UDP Shreds**. One open-source repository with SDKs, working clients, and protocol migration guides.
@@ -113,3 +115,8 @@ The two packages **do not share a release version**. Check the package-registry 
 Issues, fixes, and improvements are welcome. See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and the [Code of Conduct](CODE_OF_CONDUCT.md). Report SDK bugs through [GitHub Issues](https://github.com/ValidatorsDAO/solana-stream/issues); for ERPC account or endpoint support, use the [ERPC dashboard](https://dashboard.erpc.global/en).
 
 Maintained by [Validators DAO](https://github.com/ValidatorsDAO). Licensed under [Apache-2.0](LICENSE.txt). [Powered by Solana](https://solana.com/).
+
+The [ERPC key visual](docs/assets/solana-stream-hero.png) is covered by the
+[ELSOUL LABO brand notice](LICENSES/LicenseRef-ELSOUL-LABO-Brand.txt).
+
+[solana-stream-start]: #quick-start

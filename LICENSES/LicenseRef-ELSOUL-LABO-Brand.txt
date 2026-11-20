@@ -1,0 +1,14 @@
+Copyright ELSOUL LABO B.V. All rights reserved.
+
+The files under this licence are ELSOUL LABO B.V.'s brand material: the
+ERPC name and logo, and the artwork that goes with them. They are not
+licensed under the Apache License that covers the rest of this
+repository.
+
+You may display them, unmodified, as part of this repository and of
+copies of it that keep this notice. Any other use, including use in
+another project or product, needs the written permission of
+ELSOUL LABO B.V.
+
+The logos of blockchain projects shown in this material belong to those
+projects. No right to them is granted here.
